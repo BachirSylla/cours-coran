@@ -1,0 +1,190 @@
+import { useState } from 'react'
+import { Info, Loader2, TriangleAlert, UserMinus, Users } from 'lucide-react'
+
+import { StatutApprenantBadge } from '@/features/apprenants/components/StatutApprenantBadge'
+import { useApprenants } from '@/features/apprenants/hooks/useApprenants'
+import { SelecteurApprenant } from '@/features/inscriptions/components/SelecteurApprenant'
+import { useAjouterInscription } from '@/features/inscriptions/hooks/useAjouterInscription'
+import { useInscriptionsCours } from '@/features/inscriptions/hooks/useInscriptionsCours'
+import { useRetirerInscription } from '@/features/inscriptions/hooks/useRetirerInscription'
+import { messageRefus, peutAjouterInscription } from '@/features/inscriptions/reglesInscription'
+import type { InscriptionAvecApprenant } from '@/shared/supabase/inscriptionRepo'
+import { Alert, AlertDescription } from '@/shared/ui/alert'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/shared/ui/alert-dialog'
+import { Button } from '@/shared/ui/button'
+
+export interface SectionInscriptionsProps {
+  coursId: string
+  /** `individuel` ou `groupe` : pilote la règle de capacité (CLAUDE.md §5.7). */
+  format: string
+}
+
+export function SectionInscriptions({ coursId, format }: SectionInscriptionsProps) {
+  const { data: inscriptions, isPending, isError, error } = useInscriptionsCours(coursId)
+  const { data: tousLesApprenants } = useApprenants()
+
+  const ajouter = useAjouterInscription()
+  const retirer = useRetirerInscription()
+
+  const [aRetirer, setARetirer] = useState<InscriptionAvecApprenant | null>(null)
+
+  const liste = inscriptions ?? []
+  const idsInscrits = new Set(liste.map((inscription) => inscription.apprenant_id))
+  const disponibles = (tousLesApprenants ?? []).filter(
+    (apprenant) => !idsInscrits.has(apprenant.id)
+  )
+
+  const verdict = peutAjouterInscription(format, liste.length)
+
+  function inscrire(apprenantId: string) {
+    ajouter.mutate({ apprenantId, coursId })
+  }
+
+  function confirmerRetrait() {
+    if (!aRetirer) return
+    retirer.mutate(
+      {
+        inscriptionId: aRetirer.id,
+        apprenantId: aRetirer.apprenant_id,
+        coursId,
+      },
+      { onSuccess: () => setARetirer(null) }
+    )
+  }
+
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="flex items-center gap-2 text-sm font-medium">
+          <Users className="size-4 text-muted-foreground" aria-hidden="true" />
+          Apprenants
+          {liste.length > 0 && (
+            <span className="font-normal text-muted-foreground">({liste.length})</span>
+          )}
+        </h3>
+
+        <SelecteurApprenant
+          apprenants={disponibles}
+          onChoisir={inscrire}
+          desactive={!verdict.autorise}
+          enCours={ajouter.isPending}
+        />
+      </div>
+
+      {/* Le bouton désactivé ne doit pas rester muet : on dit pourquoi. */}
+      {!verdict.autorise && verdict.raison && (
+        <Alert>
+          <Info className="size-4" aria-hidden="true" />
+          <AlertDescription>{messageRefus(verdict.raison)}</AlertDescription>
+        </Alert>
+      )}
+
+      {(ajouter.isError || retirer.isError) && (
+        <Alert variant="destructive">
+          <TriangleAlert className="size-4" aria-hidden="true" />
+          <AlertDescription>
+            {ajouter.error?.message ?? retirer.error?.message}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {isPending && (
+        <p
+          role="status"
+          aria-live="polite"
+          className="flex items-center gap-2 text-sm text-muted-foreground"
+        >
+          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          Chargement des apprenants…
+        </p>
+      )}
+
+      {isError && (
+        <Alert variant="destructive">
+          <TriangleAlert className="size-4" aria-hidden="true" />
+          <AlertDescription>{error.message}</AlertDescription>
+        </Alert>
+      )}
+
+      {!isPending && !isError && liste.length === 0 && (
+        <p className="rounded-lg border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
+          Aucun apprenant inscrit à ce cours.
+        </p>
+      )}
+
+      {liste.length > 0 && (
+        <ul className="divide-y rounded-lg border">
+          {liste.map((inscription) => (
+            <li key={inscription.id} className="flex items-center gap-3 px-3 py-2">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">
+                  {inscription.apprenant?.prenom} {inscription.apprenant?.nom}
+                </p>
+                {inscription.apprenant?.contact && (
+                  <p className="truncate text-xs text-muted-foreground">
+                    {inscription.apprenant.contact}
+                  </p>
+                )}
+              </div>
+
+              {inscription.apprenant && (
+                <StatutApprenantBadge statut={inscription.apprenant.statut} />
+              )}
+
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setARetirer(inscription)}
+                aria-label={`Retirer ${inscription.apprenant?.prenom} ${inscription.apprenant?.nom} du cours`}
+              >
+                <UserMinus className="size-4 text-destructive" aria-hidden="true" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <AlertDialog
+        open={Boolean(aRetirer)}
+        onOpenChange={(ouvert) => {
+          if (!ouvert) setARetirer(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Retirer cet apprenant du cours ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {aRetirer
+                ? `${aRetirer.apprenant?.prenom} ${aRetirer.apprenant?.nom} ne suivra plus ce cours. Sa fiche apprenant est conservée.`
+                : ''}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={retirer.isPending}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(evenement) => {
+                evenement.preventDefault()
+                confirmerRetrait()
+              }}
+              disabled={retirer.isPending}
+            >
+              {retirer.isPending && (
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              )}
+              Retirer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </section>
+  )
+}

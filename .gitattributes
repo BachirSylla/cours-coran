@@ -1,0 +1,10 @@
+# Fins de ligne normalisées en LF dans le dépôt, quelle que soit la machine.
+# Sans cela, un aller-retour Windows/Linux (le builder Vercel) fait apparaître
+# des différences sur des fichiers non modifiés, et Prettier n'est jamais d'accord
+# avec lui-même d'une machine à l'autre.
+* text=auto eol=lf
+
+# Fichiers binaires : jamais de conversion.
+*.png binary
+*.ico binary
+*.woff2 binary

@@ -1,0 +1,10 @@
+dist
+dev-dist
+coverage
+node_modules
+package-lock.json
+public/*.png
+public/*.svg
+
+# Fichier généré par `npm run gen:types` — ne pas reformater
+src/shared/supabase/types.ts
