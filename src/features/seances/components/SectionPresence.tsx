@@ -17,7 +17,9 @@ export interface SectionPresenceProps {
 }
 
 /**
- * Présence des apprenants inscrits à un cours de groupe.
+ * Présence et évaluation des apprenants inscrits à un cours — **quel que soit
+ * son format**. Un cours individuel affiche une ligne, un groupe en affiche N :
+ * c'est le nombre d'inscrits qui décide, pas le format déclaré.
  *
  * Une présence est rattachée à une séance par clé étrangère : tant que la
  * séance n'existe pas, il n'y a rien à quoi l'accrocher. Les cases sont donc
@@ -52,7 +54,7 @@ export function SectionPresence({
     <section className="space-y-3">
       <h3 className="flex items-center gap-2 text-sm font-medium">
         <Users className="size-4 text-muted-foreground" aria-hidden="true" />
-        Présence
+        Présence et évaluation
         {inscrits.length > 0 && (
           <span className="font-normal text-muted-foreground">({inscrits.length})</span>
         )}
@@ -83,9 +85,12 @@ export function SectionPresence({
         </p>
       )}
 
+      {/* Une note sans apprenant n'a pas de sens : on dit quoi faire plutôt que
+          de laisser un constat sec. */}
       {!chargementInscrits && inscrits.length === 0 && (
         <p className="rounded-lg border border-dashed px-4 py-4 text-center text-sm text-muted-foreground">
-          Aucun apprenant inscrit à ce cours.
+          Aucun apprenant inscrit à ce cours. Inscrivez-en un depuis le détail du cours pour
+          noter sa présence et sa récitation.
         </p>
       )}
 

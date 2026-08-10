@@ -354,13 +354,15 @@ function ContenuSeance({ vue }: { vue: SeanceVueEnrichie }) {
         </div>
       </form>
 
-      {vue.format === 'groupe' && (
-        <SectionPresence
-          coursId={vue.cours_id}
-          seanceId={seanceId}
-          passageSuggere={aVerifier?.exercices ?? null}
-        />
-      )}
+      {/* Affichée quel que soit le format : un cours individuel est justement
+          celui où l'évaluation compte le plus. C'est SectionPresence qui décide
+          quoi montrer selon le nombre d'inscrits — une ligne, N lignes, ou une
+          invitation à inscrire un apprenant. */}
+      <SectionPresence
+        coursId={vue.cours_id}
+        seanceId={seanceId}
+        passageSuggere={aVerifier?.exercices ?? null}
+      />
 
       <DialogFooter>
         <DialogClose asChild>

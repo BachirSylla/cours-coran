@@ -185,7 +185,7 @@ describe('SectionPresence', () => {
 
     render(<SectionPresence coursId="cours-1" seanceId="seance-1" />)
 
-    expect(screen.getByText('Aucun apprenant inscrit à ce cours.')).toBeInTheDocument()
+    expect(screen.getByText(/Aucun apprenant inscrit à ce cours/)).toBeInTheDocument()
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
   })
 })
@@ -312,5 +312,75 @@ describe('SectionPresence — évaluation', () => {
 
     expect(await screen.findByText(/comprise entre 0 et 20/)).toBeInTheDocument()
     expect(noterAsync).not.toHaveBeenCalled()
+  })
+})
+
+describe('SectionPresence — cours individuel et cours vide', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    useParametresMock.mockReturnValue({
+      data: { note_bareme: 20, enregistres: true },
+    } as ReturnType<typeof useParametres>)
+    useNoterMock.mockReturnValue({
+      mutateAsync: noterAsync,
+      isPending: false,
+      isError: false,
+      isSuccess: false,
+      error: null,
+    } as unknown as ReturnType<typeof useNoterApprenant>)
+    usePresencesMock.mockReturnValue({ data: [] } as unknown as UseQueryResult<
+      PresenceAvecApprenant[],
+      Error
+    >)
+  })
+
+  it('affiche une seule ligne notable pour un cours individuel', () => {
+    useInscriptionsMock.mockReturnValue({
+      data: [inscription('i1', AICHA)],
+      isPending: false,
+    } as UseQueryResult<InscriptionAvecApprenant[], Error>)
+
+    render(<SectionPresence coursId="cours-1" seanceId="seance-1" />)
+
+    expect(screen.getAllByRole('checkbox')).toHaveLength(1)
+    expect(screen.getByLabelText('Note de Aïcha Diallo')).toBeInTheDocument()
+    expect(screen.getByLabelText('Passage évalué pour Aïcha Diallo')).toBeInTheDocument()
+    expect(screen.getByLabelText('Commentaire sur Aïcha Diallo')).toBeInTheDocument()
+  })
+
+  it('affiche autant de lignes que d’inscrits pour un groupe', () => {
+    useInscriptionsMock.mockReturnValue({
+      data: [inscription('i1', AICHA), inscription('i2', MOUSSA)],
+      isPending: false,
+    } as UseQueryResult<InscriptionAvecApprenant[], Error>)
+
+    render(<SectionPresence coursId="cours-1" seanceId="seance-1" />)
+
+    expect(screen.getAllByRole('checkbox')).toHaveLength(2)
+    expect(screen.getByLabelText('Note de Moussa Camara')).toBeInTheDocument()
+  })
+
+  it('invite à inscrire un apprenant quand le cours n’en a aucun', () => {
+    useInscriptionsMock.mockReturnValue({
+      data: [],
+      isPending: false,
+    } as unknown as UseQueryResult<InscriptionAvecApprenant[], Error>)
+
+    render(<SectionPresence coursId="cours-1" seanceId="seance-1" />)
+
+    // Une note sans apprenant n'a pas de sens : on dit quoi faire.
+    expect(screen.getByText(/Inscrivez-en un depuis le détail du cours/)).toBeInTheDocument()
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
+  })
+
+  it('annonce l’évaluation dans son titre, pas seulement la présence', () => {
+    useInscriptionsMock.mockReturnValue({
+      data: [inscription('i1', AICHA)],
+      isPending: false,
+    } as UseQueryResult<InscriptionAvecApprenant[], Error>)
+
+    render(<SectionPresence coursId="cours-1" seanceId="seance-1" />)
+
+    expect(screen.getByText(/Présence et évaluation/)).toBeInTheDocument()
   })
 })
