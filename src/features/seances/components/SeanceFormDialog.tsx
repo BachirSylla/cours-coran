@@ -355,7 +355,11 @@ function ContenuSeance({ vue }: { vue: SeanceVueEnrichie }) {
       </form>
 
       {vue.format === 'groupe' && (
-        <SectionPresence coursId={vue.cours_id} seanceId={seanceId} />
+        <SectionPresence
+          coursId={vue.cours_id}
+          seanceId={seanceId}
+          passageSuggere={aVerifier?.exercices ?? null}
+        />
       )}
 
       <DialogFooter>

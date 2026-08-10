@@ -30,6 +30,11 @@ const PaiementsPage = lazy(() =>
     default: module.PaiementsPage,
   }))
 )
+const ParametresPage = lazy(() =>
+  import('@/features/parametres/ParametresPage').then((module) => ({
+    default: module.ParametresPage,
+  }))
+)
 const SeancesSemainePage = lazy(() =>
   import('@/features/seances/SeancesSemainePage').then((module) => ({
     default: module.SeancesSemainePage,
@@ -54,6 +59,7 @@ const router = createBrowserRouter([
           { path: 'seances', element: <SeancesSemainePage /> },
           { path: 'apprenants', element: <ApprenantsPage /> },
           { path: 'paiements', element: <PaiementsPage /> },
+          { path: 'parametres', element: <ParametresPage /> },
           { path: '*', element: <NotFoundPage /> },
         ],
       },

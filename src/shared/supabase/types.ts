@@ -267,30 +267,66 @@ export type Database = {
           },
         ]
       }
+      parametres: {
+        Row: {
+          created_at: string
+          id: string
+          note_bareme: number
+          owner_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          note_bareme?: number
+          owner_id?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          note_bareme?: number
+          owner_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       presence: {
         Row: {
           apprenant_id: string
+          commentaire: string | null
           created_at: string
           id: string
+          note: number | null
+          note_bareme: number | null
           owner_id: string
+          passage_evalue: string | null
           present: boolean
           seance_id: string
           updated_at: string
         }
         Insert: {
           apprenant_id: string
+          commentaire?: string | null
           created_at?: string
           id?: string
+          note?: number | null
+          note_bareme?: number | null
           owner_id?: string
+          passage_evalue?: string | null
           present?: boolean
           seance_id: string
           updated_at?: string
         }
         Update: {
           apprenant_id?: string
+          commentaire?: string | null
           created_at?: string
           id?: string
+          note?: number | null
+          note_bareme?: number | null
           owner_id?: string
+          passage_evalue?: string | null
           present?: boolean
           seance_id?: string
           updated_at?: string

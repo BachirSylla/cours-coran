@@ -1,16 +1,19 @@
 import { Info, Loader2, TriangleAlert, Users } from 'lucide-react'
 
 import { useInscriptionsCours } from '@/features/inscriptions/hooks/useInscriptionsCours'
+import { useParametres } from '@/features/parametres/hooks/useParametres'
+import { LigneEvaluation } from '@/features/seances/components/LigneEvaluation'
 import { useDefinirPresence } from '@/features/seances/hooks/useDefinirPresence'
 import { usePresences } from '@/features/seances/hooks/usePresences'
+import { BAREME_PAR_DEFAUT } from '@/shared/supabase/parametresRepo'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
-import { Checkbox } from '@/shared/ui/checkbox'
-import { Label } from '@/shared/ui/label'
 
 export interface SectionPresenceProps {
   coursId: string
   /** `undefined` tant que la séance n'a pas été enregistrée. */
   seanceId: string | undefined
+  /** Exercices donnés la dernière fois : suggestion de passage à évaluer. */
+  passageSuggere?: string | null
 }
 
 /**
@@ -21,10 +24,17 @@ export interface SectionPresenceProps {
  * affichées mais inactives, avec l'explication — plutôt que masquées, pour que
  * l'enseignant sache que la fonction existe.
  */
-export function SectionPresence({ coursId, seanceId }: SectionPresenceProps) {
+export function SectionPresence({
+  coursId,
+  seanceId,
+  passageSuggere = null,
+}: SectionPresenceProps) {
   const { data: inscriptions, isPending: chargementInscrits } = useInscriptionsCours(coursId)
   const { data: presences } = usePresences(seanceId)
+  const { data: parametres } = useParametres()
   const definir = useDefinirPresence()
+
+  const bareme = parametres?.note_bareme ?? BAREME_PAR_DEFAUT
 
   const inscrits = inscriptions ?? []
   const parApprenant = new Map(
@@ -82,27 +92,26 @@ export function SectionPresence({ coursId, seanceId }: SectionPresenceProps) {
       {inscrits.length > 0 && (
         <ul className="divide-y rounded-lg border">
           {inscrits.map((inscription) => {
-            const identifiant = `presence-${inscription.apprenant_id}`
+            const evaluation = parApprenant.get(inscription.apprenant_id) ?? null
             // Absent de la table = présent par défaut, comme la colonne en base.
-            const present = parApprenant.get(inscription.apprenant_id)?.present ?? true
+            const present = evaluation?.present ?? true
+            const nomComplet = [inscription.apprenant?.prenom, inscription.apprenant?.nom]
+              .filter(Boolean)
+              .join(' ')
 
             return (
-              <li key={inscription.id} className="flex items-center gap-3 px-3 py-2">
-                <Checkbox
-                  id={identifiant}
-                  checked={present}
-                  disabled={!seanceEnregistree || definir.isPending}
-                  onCheckedChange={(coche) =>
-                    basculer(inscription.apprenant_id, coche === true)
-                  }
-                />
-                <Label htmlFor={identifiant} className="flex-1 cursor-pointer font-normal">
-                  {inscription.apprenant?.prenom} {inscription.apprenant?.nom}
-                </Label>
-                <span className="text-xs text-muted-foreground">
-                  {present ? 'Présent' : 'Absent'}
-                </span>
-              </li>
+              <LigneEvaluation
+                key={inscription.id}
+                seanceId={seanceId}
+                apprenantId={inscription.apprenant_id}
+                nomComplet={nomComplet}
+                present={present}
+                onBasculerPresence={(coche) => basculer(inscription.apprenant_id, coche)}
+                presenceEnCours={definir.isPending}
+                evaluation={evaluation}
+                bareme={bareme}
+                passageSuggere={passageSuggere}
+              />
             )
           })}
         </ul>

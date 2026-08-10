@@ -17,9 +17,12 @@ export type PresenceAvecApprenant = Presence & {
   apprenant: Apprenant | null
 }
 
-/** Présence accompagnée de la séance — pour l'historique d'un apprenant. */
+/**
+ * Présence accompagnée de sa séance **et du libellé du cours** — c'est ce qui
+ * permet de regrouper les évaluations d'un apprenant par cours sur sa fiche.
+ */
 export type PresenceAvecSeance = Presence & {
-  seance: Seance | null
+  seance: (Seance & { cours: { libelle: string } | null }) | null
 }
 
 export async function listBySeance(seanceId: string): Promise<PresenceAvecApprenant[]> {
@@ -61,11 +64,46 @@ export async function definir(
   return data
 }
 
+/** Champs d'évaluation d'une récitation. Tous facultatifs. */
+export interface EvaluationInput {
+  note?: number | null
+  note_bareme?: number | null
+  commentaire?: string | null
+  passage_evalue?: string | null
+}
+
+/**
+ * Enregistre l'évaluation d'un apprenant sur une séance.
+ *
+ * `present` n'est **pas** dans la charge utile : PostgREST ne met à jour que les
+ * colonnes envoyées, donc noter quelqu'un ne réécrit pas sa présence — un
+ * apprenant marqué absent le reste (vérifié contre la base réelle). À la
+ * création, la colonne prend son défaut, `true`.
+ */
+export async function noter(
+  seanceId: string,
+  apprenantId: string,
+  evaluation: EvaluationInput
+): Promise<Presence> {
+  const { data, error } = await getSupabaseClient()
+    .from('presence')
+    .upsert(
+      { seance_id: seanceId, apprenant_id: apprenantId, ...evaluation },
+      { onConflict: 'seance_id,apprenant_id' }
+    )
+    .select('*')
+    .single()
+
+  lancerSiErreur(error, "Enregistrement de l'évaluation")
+
+  return data
+}
+
 /** Historique de présence d'un apprenant, séance la plus récente en tête. */
 export async function listByApprenant(apprenantId: string): Promise<PresenceAvecSeance[]> {
   const { data, error } = await getSupabaseClient()
     .from('presence')
-    .select('*, seance(*)')
+    .select('*, seance(*, cours(libelle))')
     .eq('apprenant_id', apprenantId)
 
   lancerSiErreur(error, "Chargement des présences de l'apprenant")

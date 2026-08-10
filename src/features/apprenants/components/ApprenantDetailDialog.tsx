@@ -1,5 +1,6 @@
 import { BookOpen, Loader2, Pencil, TriangleAlert } from 'lucide-react'
 
+import { SectionEvolution } from '@/features/apprenants/components/SectionEvolution'
 import { SectionProgression } from '@/features/apprenants/components/SectionProgression'
 import { StatutApprenantBadge } from '@/features/apprenants/components/StatutApprenantBadge'
 import { abregeJour, LIBELLES_FORMAT, type FormatCours } from '@/features/cours/coursSchema'
@@ -142,6 +143,8 @@ export function ApprenantDetailDialog({
             </section>
 
             <SectionProgression apprenantId={apprenant.id} />
+
+            <SectionEvolution apprenantId={apprenant.id} />
 
             <DialogFooter>
               <Button variant="outline" onClick={() => onOuvertChange(false)}>

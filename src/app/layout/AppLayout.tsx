@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { NavLink, Outlet } from 'react-router'
+import { Link, NavLink, Outlet } from 'react-router'
 import {
   BookOpen,
   CalendarCheck,
@@ -7,6 +7,7 @@ import {
   Loader2,
   LogOut,
   Moon,
+  Settings,
   Sun,
   Users,
   Wallet,
@@ -54,6 +55,18 @@ export function AppLayout() {
                 {user.email}
               </span>
             )}
+
+            <Button
+              variant="ghost"
+              size="icon"
+              asChild
+              aria-label="Paramètres"
+              title="Paramètres"
+            >
+              <Link to="/parametres">
+                <Settings className="size-4" aria-hidden="true" />
+              </Link>
+            </Button>
 
             <Button
               variant="ghost"
