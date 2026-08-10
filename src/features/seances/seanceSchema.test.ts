@@ -138,3 +138,26 @@ describe('typeCoursCoranique', () => {
     expect(typeCoursCoranique('')).toBe(false)
   })
 })
+
+describe('seanceSchema — numéro de sourate', () => {
+  it('transforme une valeur vide en null', () => {
+    expect(seanceSchema.parse({ sourate_numero: '' }).sourate_numero).toBeNull()
+    expect(seanceSchema.parse({}).sourate_numero).toBeNull()
+  })
+
+  it('accepte les bornes 1 et 114', () => {
+    expect(seanceSchema.parse({ sourate_numero: '1' }).sourate_numero).toBe(1)
+    expect(seanceSchema.parse({ sourate_numero: 114 }).sourate_numero).toBe(114)
+  })
+
+  it('refuse un numéro hors plage', () => {
+    expect(messagePour({ sourate_numero: '0' }, 'sourate_numero')).toMatch(/entre 1 et 114/)
+    expect(messagePour({ sourate_numero: '115' }, 'sourate_numero')).toMatch(/entre 1 et 114/)
+    expect(messagePour({ sourate_numero: '-2' }, 'sourate_numero')).toMatch(/entre 1 et 114/)
+  })
+
+  it('refuse un non-entier', () => {
+    expect(messagePour({ sourate_numero: '2.5' }, 'sourate_numero')).toMatch(/entre 1 et 114/)
+    expect(messagePour({ sourate_numero: 'deux' }, 'sourate_numero')).toMatch(/entre 1 et 114/)
+  })
+})

@@ -31,6 +31,7 @@ function seance(date: string, statut = 'faite'): Seance {
     statut,
     contenu_aborde: 'Nourania page 12',
     sourate: null,
+    sourate_numero: null,
     versets_de: null,
     versets_a: null,
     type_travail: null,

@@ -24,6 +24,7 @@ function seance(date: string, options: Partial<Seance> = {}): Seance {
     statut: 'faite',
     contenu_aborde: null,
     sourate: null,
+    sourate_numero: null,
     versets_de: null,
     versets_a: null,
     type_travail: null,

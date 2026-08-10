@@ -325,6 +325,7 @@ export type Database = {
           observations: string | null
           owner_id: string
           sourate: string | null
+          sourate_numero: number | null
           statut: string
           type_travail: string | null
           updated_at: string
@@ -343,6 +344,7 @@ export type Database = {
           observations?: string | null
           owner_id?: string
           sourate?: string | null
+          sourate_numero?: number | null
           statut?: string
           type_travail?: string | null
           updated_at?: string
@@ -361,6 +363,7 @@ export type Database = {
           observations?: string | null
           owner_id?: string
           sourate?: string | null
+          sourate_numero?: number | null
           statut?: string
           type_travail?: string | null
           updated_at?: string

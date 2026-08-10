@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { ChevronDown, ClipboardCheck, Loader2, TriangleAlert } from 'lucide-react'
 
 import { SectionPresence } from '@/features/seances/components/SectionPresence'
+import { SelecteurSourate } from '@/features/seances/components/SelecteurSourate'
 import { useEnregistrerSeance } from '@/features/seances/hooks/useEnregistrerSeance'
 import { useSeancesCours } from '@/features/seances/hooks/useSeancesCours'
 import type { SeanceVueEnrichie } from '@/features/seances/regroupement'
@@ -20,6 +21,7 @@ import {
 } from '@/features/seances/seanceSchema'
 import { libelleJour } from '@/features/cours/coursSchema'
 import { cn } from '@/shared/lib/utils'
+import { trouverParNom, trouverParNumero, type Sourate } from '@/shared/data/sourates'
 import { exercicesAVerifier } from '@/shared/lib/progression'
 import { normaliserHeure } from '@/shared/lib/seances'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
@@ -54,15 +56,29 @@ function formaterDate(date: string): string {
   return annee && mois && jour ? `${jour}/${mois}/${annee}` : date
 }
 
+/**
+ * Retrouve la sourate d'une séance : par son numéro s'il existe, sinon par le
+ * texte — les séances saisies avant l'introduction du numéro n'ont que lui.
+ */
+function sourateDeLaSeance(seance: {
+  sourate_numero: number | null
+  sourate: string | null
+}): Sourate | undefined {
+  return trouverParNumero(seance.sourate_numero) ?? trouverParNom(seance.sourate)
+}
+
 function versFormulaire(vue: SeanceVueEnrichie): SeanceFormValues {
   const seance = vue.seance
   if (!seance) return valeursParDefaut()
+
+  const sourate = sourateDeLaSeance(seance)
 
   return {
     statut: (STATUTS_SEANCE.find((s) => s === seance.statut) ??
       'faite') as SeanceFormValues['statut'],
     contenu_aborde: seance.contenu_aborde ?? '',
-    sourate: seance.sourate ?? '',
+    sourate_numero: sourate ? String(sourate.numero) : '',
+    sourate: sourate?.nom ?? seance.sourate ?? '',
     versets_de: seance.versets_de === null ? '' : String(seance.versets_de),
     versets_a: seance.versets_a === null ? '' : String(seance.versets_a),
     type_travail: (TYPES_TRAVAIL.find((t) => t === seance.type_travail) ??
@@ -90,6 +106,11 @@ function ContenuSeance({ vue }: { vue: SeanceVueEnrichie }) {
   const [seanceCreeeId, setSeanceCreeeId] = useState<string | undefined>(undefined)
   const seanceId = vue.seance?.id ?? seanceCreeeId
 
+  // Texte saisi avant l'existence du numéro et non rapproché d'une sourate
+  // connue : on l'affiche plutôt que de le faire disparaître en silence.
+  const texteSourateOrphelin =
+    vue.seance && !sourateDeLaSeance(vue.seance) ? vue.seance.sourate : null
+
   const [detailsOuverts, setDetailsOuverts] = useState(
     () =>
       typeCoursCoranique(vue.type_libelle) ||
@@ -100,6 +121,7 @@ function ContenuSeance({ vue }: { vue: SeanceVueEnrichie }) {
     register,
     handleSubmit,
     control,
+    setValue,
     formState: { errors },
   } = useForm<SeanceFormValues, unknown, SeanceValues>({
     resolver: zodResolver(seanceSchema),
@@ -219,15 +241,31 @@ function ContenuSeance({ vue }: { vue: SeanceVueEnrichie }) {
             <div className="space-y-4 border-t p-3">
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="sourate">Sourate</Label>
-                  <Input
-                    id="sourate"
-                    placeholder="Al-Baqara"
-                    aria-invalid={Boolean(errors.sourate)}
-                    {...register('sourate')}
+                  <Label htmlFor="sourate_numero">Sourate</Label>
+                  <Controller
+                    control={control}
+                    name="sourate_numero"
+                    render={({ field }) => (
+                      <SelecteurSourate
+                        id="sourate_numero"
+                        valeur={
+                          field.value === '' || field.value === undefined
+                            ? null
+                            : Number(field.value)
+                        }
+                        texteOrphelin={texteSourateOrphelin}
+                        onChange={(sourate) => {
+                          // Les deux colonnes sont écrites ensemble : le numéro
+                          // pour l'ordre, le nom canonique pour l'affichage et
+                          // la progression, qui lisent encore `sourate`.
+                          field.onChange(sourate ? String(sourate.numero) : '')
+                          setValue('sourate', sourate?.nom ?? '', { shouldDirty: true })
+                        }}
+                      />
+                    )}
                   />
-                  {errors.sourate && (
-                    <p className="text-sm text-destructive">{errors.sourate.message}</p>
+                  {errors.sourate_numero && (
+                    <p className="text-sm text-destructive">{errors.sourate_numero.message}</p>
                   )}
                 </div>
 

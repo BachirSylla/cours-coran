@@ -21,6 +21,9 @@ coverage
 # Vercel (CLI locale)
 .vercel
 
+# Réglages Claude Code : propres à la machine (chemins absolus, permissions)
+.claude
+
 # Fichiers de travail de la CLI Supabase
 supabase/.temp
 supabase/.branches

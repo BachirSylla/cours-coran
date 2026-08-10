@@ -19,6 +19,7 @@ function seanceEnregistree(statut: string, date = '2026-07-27'): Seance {
     statut,
     contenu_aborde: null,
     sourate: null,
+    sourate_numero: null,
     versets_de: null,
     versets_a: null,
     type_travail: null,

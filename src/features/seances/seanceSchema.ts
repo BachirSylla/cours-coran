@@ -48,6 +48,22 @@ const versetFacultatif = z
     message: 'Le numéro de verset doit être un entier supérieur ou égal à 1.',
   })
 
+/**
+ * Numéro canonique de sourate, facultatif : chaîne vide → `null`, sinon entier
+ * 1..114 — les mêmes bornes que le `check` de la table `seance`.
+ */
+const sourateNumeroFacultatif = z
+  .union([z.string(), z.number()])
+  .optional()
+  .transform((valeur) => {
+    if (valeur === undefined || valeur === '') return null
+    return typeof valeur === 'number' ? valeur : Number(valeur.trim())
+  })
+  .refine(
+    (valeur) => valeur === null || (Number.isInteger(valeur) && valeur >= 1 && valeur <= 114),
+    { message: 'Le numéro de sourate doit être un entier compris entre 1 et 114.' }
+  )
+
 export const seanceSchema = z
   .object({
     statut: z.enum(STATUTS_SEANCE, { message: 'Statut invalide.' }).default('faite'),
@@ -55,6 +71,7 @@ export const seanceSchema = z
       2000,
       'Le contenu abordé ne peut pas dépasser 2000 caractères.'
     ),
+    sourate_numero: sourateNumeroFacultatif,
     sourate: texteFacultatif(80, 'Le nom de la sourate ne peut pas dépasser 80 caractères.'),
     versets_de: versetFacultatif,
     versets_a: versetFacultatif,
@@ -92,6 +109,7 @@ export function valeursParDefaut(): SeanceFormValues {
   return {
     statut: 'faite',
     contenu_aborde: '',
+    sourate_numero: '',
     sourate: '',
     versets_de: '',
     versets_a: '',
