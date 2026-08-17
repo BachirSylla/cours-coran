@@ -25,3 +25,23 @@ if (!('ResizeObserver' in globalThis)) {
 if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = function scrollIntoView() {}
 }
+
+/**
+ * jsdom n'implémente pas non plus `matchMedia`, dont dépend `useTheme` pour lire
+ * la préférence système. La page de cours partagée l'appelle : elle n'est pas
+ * rendue sous `AppLayout`, donc elle pose elle-même la classe `dark`.
+ * Le bouchon répond « thème clair », ce qui n'influe sur aucune assertion.
+ */
+if (!window.matchMedia) {
+  window.matchMedia = (media: string) =>
+    ({
+      media,
+      matches: false,
+      onchange: null,
+      addListener() {},
+      removeListener() {},
+      addEventListener() {},
+      removeEventListener() {},
+      dispatchEvent: () => false,
+    }) as MediaQueryList
+}

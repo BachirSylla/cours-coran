@@ -82,6 +82,10 @@ Les types de cours sont dans une **table de référence** (extensible), pas en d
 - `lien_meet` **(un seul lien pour tout le cours, réutilisé par toutes les séances)**
 - `prix_mensuel`, `devise`
 - `statut` (actif | pause | termine)
+- `jeton_partage` **(uuid nullable + index unique partiel — `null` = partage désactivé)** :
+  secret de l'URL publique `/c/<jeton>`. Toujours tiré **côté serveur**
+  (`activer_partage` / `regenerer_partage` / `revoquer_partage`), jamais par le navigateur,
+  et exclu de `CoursInput` : il ne passe pas par le formulaire.
 - **Ne porte aucun horaire** : les créneaux hebdomadaires vivent dans `creneau`.
 
 ### `creneau` (créneaux hebdomadaires récurrents d'un cours, 1..N)
@@ -145,6 +149,16 @@ référence **globale** : pas de `owner_id`, lecture seule pour les utilisateurs
    (la table `inscription` ne garantit que l'unicité `(apprenant_id, cours_id)`) : elle vit dans
    `features/inscriptions/reglesInscription.ts` et doit y rester centralisée. Corollaire : passer
    un cours de `groupe` à `individuel` est refusé tant qu'il compte plus d'un inscrit.
+8. **Page de cours partagée** (`/c/:jeton`, hors `RequireAuth`) : un apprenant n'a pas de compte et
+   n'en aura pas. Le rôle `anon` n'a **aucun droit sur aucune table** — ni policy RLS, ni `grant`.
+   Sa seule porte est `public.cours_public(jeton uuid)` (`security definer`, `search_path = ''`,
+   migration 0007), dont la **liste des colonnes de sortie est la liste blanche** : libellé, type,
+   lien Meet, période, statut, créneaux, dernier exercice. N'y rien ajouter sans se demander ce que
+   cela publie. Ne **jamais** exposer ces données par une vue : une vue n'oblige pas le client à
+   filtrer sur le jeton, et sortirait tous les cours. Le contrat est re-vérifié côté client par
+   `shared/supabase/coursPublicSchema.ts` (Zod), qui supprime toute clé hors liste. Le lien Meet est
+   masqué dès que le cours est en pause ou terminé — c'est la seule protection contre l'oubli de
+   révocation.
 
 ## 6. Fonctionnalités
 
@@ -156,6 +170,9 @@ référence **globale** : pas de `owner_id`, lecture seule pour les utilisateurs
   sourate+verset pour lecture/mémorisation) ; distinction nouveau vs révision (murâja'a) ;
   chaînage des exercices donnés → vérifiés.
 - Paiements mensuels + tableau de bord (consultation seule).
+- **Lien de cours partageable** (`/c/:jeton`) : page publique sans connexion donnant l'horaire, la
+  prochaine séance, le lien de visioconférence et le dernier exercice — activable, régénérable et
+  révocable depuis la fiche du cours, avec partage WhatsApp (§5.8).
 - Rappels de cours (plus tard).
 
 ## 7. Roadmap (construire par étapes, ne pas tout faire d'un coup)

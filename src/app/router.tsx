@@ -1,4 +1,5 @@
-import { lazy } from 'react'
+import { lazy, Suspense } from 'react'
+import { Loader2 } from 'lucide-react'
 import { createBrowserRouter } from 'react-router'
 import { RouterProvider } from 'react-router/dom'
 
@@ -42,11 +43,45 @@ const SeancesSemainePage = lazy(() =>
 )
 
 /**
+ * Page de cours partagée. Elle n'est pas rendue sous `AppLayout`, donc elle
+ * porte son propre `Suspense`.
+ */
+const PageCoursPublic = lazy(() =>
+  import('@/features/partage/PageCoursPublic').then((module) => ({
+    default: module.PageCoursPublic,
+  }))
+)
+
+function EcranAttente() {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="flex min-h-dvh items-center justify-center gap-2 bg-background text-sm text-muted-foreground"
+    >
+      <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+      Chargement…
+    </div>
+  )
+}
+
+/**
  * Routes de l'application.
- * `/login` est le seul écran public : tout le reste passe par `RequireAuth`.
+ *
+ * Deux écrans seulement échappent à `RequireAuth` : `/login`, et `/c/:jeton`,
+ * la page de cours partagée — destinée à des apprenants qui n'ont pas de compte
+ * et n'en auront pas. Tout le reste exige une session.
  */
 const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
+  {
+    path: '/c/:jeton',
+    element: (
+      <Suspense fallback={<EcranAttente />}>
+        <PageCoursPublic />
+      </Suspense>
+    ),
+  },
   {
     element: <RequireAuth />,
     children: [

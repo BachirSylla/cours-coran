@@ -89,6 +89,7 @@ export type Database = {
           devise: string
           format: string
           id: string
+          jeton_partage: string | null
           libelle: string
           lien_meet: string | null
           owner_id: string
@@ -104,6 +105,7 @@ export type Database = {
           devise?: string
           format: string
           id?: string
+          jeton_partage?: string | null
           libelle: string
           lien_meet?: string | null
           owner_id?: string
@@ -119,6 +121,7 @@ export type Database = {
           devise?: string
           format?: string
           id?: string
+          jeton_partage?: string | null
           libelle?: string
           lien_meet?: string | null
           owner_id?: string
@@ -439,6 +442,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      activer_partage: { Args: { p_cours_id: string }; Returns: string }
+      cours_public: {
+        Args: { jeton: string }
+        Returns: {
+          creneaux: Json
+          date_debut: string
+          date_fin: string
+          dernier_exercice: string
+          libelle: string
+          lien_meet: string
+          statut: string
+          type_libelle: string
+        }[]
+      }
       enregistrer_cours: {
         Args: { p_cours: Json; p_cours_id?: string; p_creneaux: Json }
         Returns: {
@@ -448,6 +465,7 @@ export type Database = {
           devise: string
           format: string
           id: string
+          jeton_partage: string | null
           libelle: string
           lien_meet: string | null
           owner_id: string
@@ -463,6 +481,8 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      regenerer_partage: { Args: { p_cours_id: string }; Returns: string }
+      revoquer_partage: { Args: { p_cours_id: string }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never

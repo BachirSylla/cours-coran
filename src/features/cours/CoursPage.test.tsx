@@ -60,6 +60,7 @@ function cours(
     date_debut: '2026-07-27',
     date_fin: null,
     lien_meet: null,
+    jeton_partage: null,
     prix_mensuel: null,
     devise: 'XOF',
     statut: 'actif',

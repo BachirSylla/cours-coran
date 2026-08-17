@@ -74,6 +74,16 @@ Les en-têtes du même fichier interdisent la mise en cache du service worker (s
 nouvelle version de l'application ne serait jamais détectée) et autorisent au contraire un cache
 long sur les assets, qui portent un hash dans leur nom.
 
+Deux en-têtes supplémentaires visent `/c/*`, la page de cours partagée. Son URL **contient le
+jeton de partage**, donc :
+
+- `X-Robots-Tag: noindex, nofollow` — un lien envoyé sur WhatsApp ne doit pas finir dans un index
+  de moteur de recherche ;
+- `Referrer-Policy: no-referrer` — le jeton ne doit pas partir dans l'en-tête `Referer` vers un
+  site tiers. Les liens sortants de la page portent aussi `rel="noreferrer"`.
+
+Le format de `vercel.json` n'admet pas de commentaires : c'est pourquoi ils sont ici.
+
 ### Supabase — à faire une fois
 
 1. **Migrations** : appliquer `supabase/migrations/*.sql` dans l'ordre sur le projet de production
@@ -109,6 +119,27 @@ npx supabase gen types typescript --db-url "$SUPABASE_DB_URL" > src/shared/supab
 ```
 
 `src/shared/supabase/types.ts` est **généré** — ne pas l'éditer à la main.
+
+### Ce que le rôle `anon` peut faire
+
+Rien, ou presque, et c'est vérifiable. La migration `0007_partage.sql` retire à `anon` les droits
+que Supabase accorde par défaut sur toutes les tables du schéma `public` : la RLS n'est donc plus
+la seule couche de protection, les privilèges le sont aussi. Sa seule porte est
+`public.cours_public(uuid)`, qui sert la page de cours partagée.
+
+Pour le vérifier à tout moment :
+
+```sql
+-- Attendu : tout à false.
+select c.relname, has_table_privilege('anon', c.oid, 'select') as anon_select
+from pg_class c join pg_namespace n on n.oid = c.relnamespace
+where n.nspname = 'public' and c.relkind = 'r' order by 1;
+
+-- Attendu : true uniquement sur cours_public(uuid).
+select p.oid::regprocedure, has_function_privilege('anon', p.oid, 'execute')
+from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public' order by 1;
+```
 
 ## Compte enseignant
 

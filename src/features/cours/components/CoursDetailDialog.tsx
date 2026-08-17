@@ -11,6 +11,7 @@ import {
 } from '@/features/cours/coursSchema'
 import { SectionInscriptions } from '@/features/inscriptions/components/SectionInscriptions'
 import { SectionPaiements } from '@/features/paiements/components/SectionPaiements'
+import { SectionPartage } from '@/features/partage/components/SectionPartage'
 import { SeanceFormDialog } from '@/features/seances/components/SeanceFormDialog'
 import { SeancesRecentesCours } from '@/features/seances/components/SeancesRecentesCours'
 import type { SeanceVueEnrichie } from '@/features/seances/regroupement'
@@ -111,6 +112,12 @@ export function CoursDetailDialog({
             </dl>
 
             <SectionInscriptions coursId={cours.id} format={cours.format} />
+
+            <SectionPartage
+              coursId={cours.id}
+              libelle={cours.libelle}
+              jetonPartage={cours.jeton_partage}
+            />
 
             <SeancesRecentesCours cours={cours} onOuvrir={setVueSaisie} />
 

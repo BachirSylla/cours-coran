@@ -7,6 +7,7 @@ import {
   fusionnerAvecSeances,
   genererOccurrences,
   normaliserHeure,
+  prochaineOccurrence,
   type CreneauSource,
   type SeanceRapprochable,
 } from '@/shared/lib/seances'
@@ -306,5 +307,100 @@ describe('fusionnerAvecSeances', () => {
 
     expect(vues).toHaveLength(1)
     expect(vues[0]?.orpheline).toBe(true)
+  })
+})
+
+describe('prochaineOccurrence', () => {
+  /** Lundi 17 août 2026, 9h00 — trois semaines après le LUNDI de référence. */
+  const LUNDI_9H = new Date(2026, 7, 17, 9, 0)
+  const DEBUT = '2026-07-01'
+
+  function hebdo(jour: JourSemaine, debut: string, fin: string) {
+    return { jour_semaine: jour, heure_debut: debut, heure_fin: fin }
+  }
+
+  it('trouve la séance du jour encore à venir', () => {
+    const occurrence = prochaineOccurrence(
+      [hebdo(1, '10:00:00', '11:00:00')],
+      DEBUT,
+      null,
+      LUNDI_9H
+    )
+
+    expect(occurrence?.date).toBe('2026-08-17')
+    expect(occurrence?.heure_debut).toBe('10:00:00')
+  })
+
+  it('conserve une séance en cours : c’est le moment où le lien sert', () => {
+    const occurrence = prochaineOccurrence(
+      [hebdo(1, '08:30:00', '09:30:00')],
+      DEBUT,
+      null,
+      LUNDI_9H
+    )
+
+    expect(occurrence?.date).toBe('2026-08-17')
+  })
+
+  it('passe à la semaine suivante quand la séance du jour est terminée', () => {
+    const occurrence = prochaineOccurrence(
+      [hebdo(1, '07:00:00', '08:00:00')],
+      DEBUT,
+      null,
+      LUNDI_9H
+    )
+
+    expect(occurrence?.date).toBe('2026-08-24')
+  })
+
+  it('écarte une séance finie à la minute près', () => {
+    // Fin à 09:00 pile, il est 09:00 : elle est passée.
+    const occurrence = prochaineOccurrence(
+      [hebdo(1, '08:00:00', '09:00:00')],
+      DEBUT,
+      null,
+      LUNDI_9H
+    )
+
+    expect(occurrence?.date).toBe('2026-08-24')
+  })
+
+  it('retient la plus proche parmi plusieurs créneaux', () => {
+    const occurrence = prochaineOccurrence(
+      [hebdo(3, '10:00:00', '11:00:00'), hebdo(2, '14:00:00', '15:00:00')],
+      DEBUT,
+      null,
+      LUNDI_9H
+    )
+
+    // Mardi 18 précède mercredi 19.
+    expect(occurrence?.date).toBe('2026-08-18')
+  })
+
+  it('ne dépasse pas la date de fin du cours', () => {
+    expect(
+      prochaineOccurrence([hebdo(1, '10:00:00', '11:00:00')], DEBUT, '2026-08-16', LUNDI_9H)
+    ).toBeNull()
+  })
+
+  it('ne commence pas avant la date de début du cours', () => {
+    const occurrence = prochaineOccurrence(
+      [hebdo(1, '10:00:00', '11:00:00')],
+      '2026-08-24',
+      null,
+      LUNDI_9H
+    )
+
+    expect(occurrence?.date).toBe('2026-08-24')
+  })
+
+  it('renvoie null pour un cours qui démarre au-delà de la fenêtre explorée', () => {
+    expect(
+      prochaineOccurrence([hebdo(1, '10:00:00', '11:00:00')], '2026-10-05', null, LUNDI_9H)
+    ).toBeNull()
+  })
+
+  it('renvoie null sans créneau', () => {
+    expect(prochaineOccurrence([], DEBUT, null, LUNDI_9H)).toBeNull()
   })
 })

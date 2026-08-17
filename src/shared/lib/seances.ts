@@ -1,6 +1,6 @@
 import { getISODay } from 'date-fns'
 
-import type { JourSemaine } from '@/shared/lib/conflits'
+import type { CreneauHoraire, JourSemaine } from '@/shared/lib/conflits'
 
 /**
  * Génération des séances **au fil de l'eau** (CLAUDE.md §5.3).
@@ -13,12 +13,13 @@ import type { JourSemaine } from '@/shared/lib/conflits'
  * Module **pur** : ni Supabase, ni React, ni DOM.
  */
 
-/** Créneau hebdomadaire source, rattaché à son cours. */
-export interface CreneauSource {
+/**
+ * Créneau hebdomadaire source, rattaché à son cours.
+ * `CreneauHoraire` (jour + heures) vient de `conflits.ts` : c'est le même
+ * contrat minimal, et le rattacher ici évite d'en entretenir deux copies.
+ */
+export interface CreneauSource extends CreneauHoraire {
   cours_id: string
-  jour_semaine: JourSemaine
-  heure_debut: string
-  heure_fin: string
 }
 
 /** Occurrence calculée — pas encore (ou jamais) enregistrée. */
@@ -152,6 +153,64 @@ export function genererOccurrences(
   }
 
   return occurrences.sort(comparerOccurrences)
+}
+
+/**
+ * Fenêtre explorée par `prochaineOccurrence`. Un créneau hebdomadaire retombe
+ * forcément dans les 7 jours ; 14 laisse de la marge pour un cours qui démarre
+ * la semaine suivante, sans jamais parcourir un calendrier entier.
+ */
+const FENETRE_PROCHAINE_JOURS = 14
+
+/** Heure locale `HH:MM` d'un instant — jamais UTC, comme `chaineDepuisDate`. */
+function heureDepuisDate(instant: Date): string {
+  const heures = String(instant.getHours()).padStart(2, '0')
+  const minutes = String(instant.getMinutes()).padStart(2, '0')
+
+  return `${heures}:${minutes}`
+}
+
+/**
+ * Prochaine occurrence d'un cours à partir de `maintenant`, ou `null` s'il n'y
+ * en a plus (cours terminé, ou qui ne démarre pas dans la fenêtre explorée).
+ *
+ * Une séance **en cours** reste « la prochaine » : c'est justement le moment où
+ * l'apprenant a besoin du lien. On écarte donc sur `heure_fin`, pas sur
+ * `heure_debut`.
+ *
+ * S'appuie sur `genererOccurrences` plutôt que de refaire le calcul de
+ * récurrence : la règle des bornes incluses et de la plage de vie du cours ne
+ * doit exister qu'à un seul endroit.
+ */
+export function prochaineOccurrence(
+  creneaux: readonly CreneauHoraire[],
+  dateDebut: string,
+  dateFin: string | null,
+  maintenant: Date
+): Occurrence | null {
+  const aujourdhui = chaineDepuisDate(maintenant)
+
+  const borneHaute = new Date(maintenant)
+  borneHaute.setDate(borneHaute.getDate() + FENETRE_PROCHAINE_JOURS)
+
+  const occurrences = genererOccurrences(
+    // `cours_id` n'a pas de sens ici : la page publique ne connaît qu'un cours.
+    creneaux.map((creneau) => ({ ...creneau, cours_id: '' })),
+    dateDebut,
+    dateFin,
+    { debut: aujourdhui, fin: chaineDepuisDate(borneHaute) }
+  )
+
+  const heureCourante = heureDepuisDate(maintenant)
+
+  // `genererOccurrences` trie par date puis heure : la première retenue est
+  // bien la plus proche.
+  return (
+    occurrences.find(
+      (occurrence) =>
+        occurrence.date > aujourdhui || normaliserHeure(occurrence.heure_fin) > heureCourante
+    ) ?? null
+  )
 }
 
 /**

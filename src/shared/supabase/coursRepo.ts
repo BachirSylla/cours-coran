@@ -14,10 +14,14 @@ type TableCours = Database['public']['Tables']['cours']
 export type Cours = TableCours['Row']
 export type Creneau = Database['public']['Tables']['creneau']['Row']
 
-/** Champs du cours pilotés par l'utilisateur (`owner_id` reste à la base). */
+/**
+ * Champs du cours pilotés par l'utilisateur (`owner_id` reste à la base).
+ * `jeton_partage` en est exclu : le secret du lien public n'est jamais choisi
+ * par le formulaire, il est tiré par le serveur (voir `activerPartage`).
+ */
 export type CoursInput = Omit<
   TableCours['Insert'],
-  'id' | 'owner_id' | 'created_at' | 'updated_at'
+  'id' | 'owner_id' | 'created_at' | 'updated_at' | 'jeton_partage'
 >
 
 /** Créneau tel que saisi dans le formulaire (sans identité ni propriétaire). */
@@ -111,6 +115,52 @@ export function update(
   creneaux: CreneauInput[]
 ): Promise<Cours> {
   return enregistrer(input, creneaux, id)
+}
+
+/**
+ * Partage public d'un cours (migration 0007).
+ *
+ * Les trois opérations passent par une RPC plutôt que par un `update` : le
+ * jeton est ainsi tiré par le CSPRNG **du serveur** — le navigateur ne choisit
+ * jamais le secret — et l'écriture reste atomique. Les fonctions sont en
+ * `security invoker` : c'est la policy `cours_update_own` qui autorise, ou non.
+ */
+
+/** Active le partage et renvoie le jeton. N'écrase pas un lien déjà actif. */
+export async function activerPartage(id: string): Promise<string> {
+  const { data, error } = await getSupabaseClient().rpc('activer_partage', {
+    p_cours_id: id,
+  })
+
+  lancerSiErreur(error, 'Activation du partage')
+
+  // Aucune ligne mise à jour : cours supprimé, ou masqué par RLS.
+  if (!data) {
+    throw new ErreurSupabase('Activation du partage : cours introuvable.')
+  }
+
+  return data
+}
+
+/** Fait tourner le jeton : le lien déjà distribué cesse de fonctionner. */
+export async function regenererToken(id: string): Promise<string> {
+  const { data, error } = await getSupabaseClient().rpc('regenerer_partage', {
+    p_cours_id: id,
+  })
+
+  lancerSiErreur(error, 'Régénération du lien de partage')
+
+  if (!data) {
+    throw new ErreurSupabase('Régénération du lien de partage : cours introuvable.')
+  }
+
+  return data
+}
+
+export async function desactiverPartage(id: string): Promise<void> {
+  const { error } = await getSupabaseClient().rpc('revoquer_partage', { p_cours_id: id })
+
+  lancerSiErreur(error, 'Désactivation du partage')
 }
 
 /** Les créneaux du cours disparaissent avec lui (`on delete cascade`). */
