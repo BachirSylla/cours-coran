@@ -1,6 +1,7 @@
-import { screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { UseQueryResult } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, type UseQueryResult } from '@tanstack/react-query'
 
 import { CoursPage } from '@/features/cours/CoursPage'
 import { useCours } from '@/features/cours/hooks/useCours'
@@ -12,6 +13,14 @@ import { useTypesCours } from '@/features/cours/hooks/useTypesCours'
 import type { CoursAvecDetails } from '@/shared/supabase/coursRepo'
 import { rendreAvecQuery } from '@/test/rendreAvecQuery'
 
+/**
+ * Le dialogue de détail est remplacé par un témoin : ce qui est vérifié plus bas
+ * est **quel cours la page lui transmet**, pas ce qu'il en affiche.
+ */
+vi.mock('@/features/cours/components/CoursDetailDialog', () => ({
+  CoursDetailDialog: ({ cours }: { cours: CoursAvecDetails | null }) =>
+    cours ? <div data-testid="detail" data-jeton={cours.jeton_partage ?? ''} /> : null,
+}))
 vi.mock('@/features/cours/hooks/useCours', () => ({ useCours: vi.fn() }))
 vi.mock('@/features/cours/hooks/useCreerCours', () => ({ useCreerCours: vi.fn() }))
 vi.mock('@/features/cours/hooks/useModifierCours', () => ({ useModifierCours: vi.fn() }))
@@ -149,6 +158,37 @@ describe('CoursPage', () => {
     expect(screen.getAllByText('Mar 09:00–10:00')).toHaveLength(2)
     expect(screen.getAllByRole('button', { name: 'Modifier Groupe Hifz' })).toHaveLength(2)
     expect(screen.getAllByRole('button', { name: 'Supprimer Lecture Aïcha' })).toHaveLength(2)
+  })
+
+  it('reflète dans le détail ouvert une modification venue du serveur', async () => {
+    // Régression : le détail figeait une copie du cours prise au clic. Activer
+    // le partage depuis ce dialogue n'y faisait donc jamais apparaître le lien,
+    // alors que le jeton existait bien en base.
+    const utilisateur = userEvent.setup()
+    simulerListe({ data: [cours('1', 'Groupe Hifz', [])] })
+
+    // `rerender` remplace tout l'arbre : le provider doit en faire partie,
+    // sinon la seconde passe perdrait le contexte de React Query.
+    // L'élément est reconstruit à chaque passe : React court-circuite le rendu
+    // d'un élément qui lui revient identique par référence.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+    const page = () => (
+      <QueryClientProvider client={client}>
+        <CoursPage />
+      </QueryClientProvider>
+    )
+
+    const { rerender } = render(page())
+    await utilisateur.click(
+      screen.getAllByRole('button', { name: 'Groupe Hifz' })[0] as HTMLElement
+    )
+
+    expect(screen.getByTestId('detail')).toHaveAttribute('data-jeton', '')
+
+    simulerListe({ data: [cours('1', 'Groupe Hifz', [], { jeton_partage: 'jeton-frais' })] })
+    rerender(page())
+
+    expect(screen.getByTestId('detail')).toHaveAttribute('data-jeton', 'jeton-frais')
   })
 
   it('remonte l’erreur d’une suppression échouée', () => {

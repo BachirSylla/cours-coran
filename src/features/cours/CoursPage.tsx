@@ -33,8 +33,16 @@ export function CoursPage() {
 
   const [formulaireOuvert, setFormulaireOuvert] = useState(false)
   const [coursEdite, setCoursEdite] = useState<CoursAvecDetails | null>(null)
-  const [coursDetaille, setCoursDetaille] = useState<CoursAvecDetails | null>(null)
   const [coursASupprimer, setCoursASupprimer] = useState<CoursAvecDetails | null>(null)
+
+  /**
+   * Le détail est repéré par son **identifiant**, pas par une copie du cours.
+   * Une copie figée au moment du clic ne verrait aucune mutation faite depuis
+   * le dialogue lui-même — activer le partage n'y ferait jamais apparaître le
+   * lien, alors qu'il existe bien en base.
+   */
+  const [idDetaille, setIdDetaille] = useState<string | null>(null)
+  const coursDetaille = (cours ?? []).find((unCours) => unCours.id === idDetaille) ?? null
 
   function ouvrirCreation() {
     setCoursEdite(null)
@@ -44,7 +52,7 @@ export function CoursPage() {
   }
 
   function ouvrirEdition(unCours: CoursAvecDetails) {
-    setCoursDetaille(null)
+    setIdDetaille(null)
     setCoursEdite(unCours)
     creer.reset()
     modifier.reset()
@@ -137,7 +145,7 @@ export function CoursPage() {
       {!isPending && !isError && cours.length > 0 && (
         <CoursListe
           cours={cours}
-          onOuvrir={setCoursDetaille}
+          onOuvrir={(unCours) => setIdDetaille(unCours.id)}
           onModifier={ouvrirEdition}
           onSupprimer={setCoursASupprimer}
         />
@@ -146,7 +154,7 @@ export function CoursPage() {
       <CoursDetailDialog
         cours={coursDetaille}
         onOuvertChange={(ouvert) => {
-          if (!ouvert) setCoursDetaille(null)
+          if (!ouvert) setIdDetaille(null)
         }}
         onModifier={ouvrirEdition}
       />

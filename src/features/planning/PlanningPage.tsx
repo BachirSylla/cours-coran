@@ -36,10 +36,17 @@ export function PlanningPage() {
   const modifier = useModifierCours()
 
   const [jourMobile, setJourMobile] = useState<JourSemaine>(jourCourant)
-  const [coursDetaille, setCoursDetaille] = useState<CoursAvecDetails | null>(null)
   const [coursEdite, setCoursEdite] = useState<CoursAvecDetails | null>(null)
 
   const listeCours = useMemo(() => cours ?? [], [cours])
+
+  /**
+   * Le détail est repéré par son **identifiant**, pas par une copie du cours :
+   * une copie figée au moment du clic ne verrait aucune mutation déclenchée
+   * depuis le dialogue (activation du partage, notamment).
+   */
+  const [idDetaille, setIdDetaille] = useState<string | null>(null)
+  const coursDetaille = listeCours.find((unCours) => unCours.id === idDetaille) ?? null
 
   const plage = useMemo(() => calculerPlageHoraire(extraireCreneaux(listeCours)), [listeCours])
   const blocs = useMemo(() => construireBlocs(listeCours, plage), [listeCours, plage])
@@ -50,11 +57,11 @@ export function PlanningPage() {
   // Un clic sur un bloc mène au détail : on voit le cours et ses apprenants
   // avant de décider de le modifier.
   function ouvrirCours(coursId: string) {
-    setCoursDetaille(listeCours.find((unCours) => unCours.id === coursId) ?? null)
+    setIdDetaille(coursId)
   }
 
   function ouvrirEdition(unCours: CoursAvecDetails) {
-    setCoursDetaille(null)
+    setIdDetaille(null)
     setCoursEdite(unCours)
   }
 
@@ -156,7 +163,7 @@ export function PlanningPage() {
       <CoursDetailDialog
         cours={coursDetaille}
         onOuvertChange={(ouvert) => {
-          if (!ouvert) setCoursDetaille(null)
+          if (!ouvert) setIdDetaille(null)
         }}
         onModifier={ouvrirEdition}
       />
