@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { Pencil } from 'lucide-react'
+import { FileDown, Pencil } from 'lucide-react'
+
+import { ExportRapportDialog } from '@/features/rapport/components/ExportRapportDialog'
 
 import { LienMeet } from '@/features/cours/components/LienMeet'
 import {
@@ -65,6 +67,7 @@ export function CoursDetailDialog({
   onModifier,
 }: CoursDetailDialogProps) {
   const [vueSaisie, setVueSaisie] = useState<SeanceVueEnrichie | null>(null)
+  const [exportOuvert, setExportOuvert] = useState(false)
 
   return (
     <Dialog open={Boolean(cours)} onOpenChange={onOuvertChange}>
@@ -127,6 +130,10 @@ export function CoursDetailDialog({
             <SectionPaiements cours={cours} />
 
             <DialogFooter>
+              <Button variant="outline" onClick={() => setExportOuvert(true)}>
+                <FileDown className="size-4" aria-hidden="true" />
+                Exporter le rapport
+              </Button>
               <Button variant="outline" onClick={() => onOuvertChange(false)}>
                 Fermer
               </Button>
@@ -145,6 +152,14 @@ export function CoursDetailDialog({
           if (!ouvert) setVueSaisie(null)
         }}
       />
+
+      {cours && (
+        <ExportRapportDialog
+          coursId={cours.id}
+          ouvert={exportOuvert}
+          onOuvertChange={setExportOuvert}
+        />
+      )}
     </Dialog>
   )
 }

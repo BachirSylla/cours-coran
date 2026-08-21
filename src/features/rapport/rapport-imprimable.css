@@ -1,0 +1,129 @@
+/*
+ * Mise en page du rapport de session — A4 paysage.
+ *
+ * Feuille **séparée**, importée par la seule page du rapport : `@page` n'a pas
+ * de sélecteur, donc placée dans styles/index.css elle mettrait toute
+ * l'application en paysage à la première impression venue.
+ *
+ * C'est l'une des rares exceptions au « éviter le CSS ad hoc » du CLAUDE.md §9 :
+ * Tailwind n'a d'utilitaire ni pour `@page`, ni pour `print-color-adjust`, ni
+ * pour les propriétés de fragmentation d'un tableau imprimé.
+ */
+
+@page {
+  size: A4 landscape;
+  margin: 10mm;
+}
+
+/*
+ * Îlot clair : le rapport n'a pas de thème, à l'écran comme au papier. On
+ * redéclare les tokens sur le conteneur — `.dark` étant posé plus haut, sur
+ * <html>, l'héritage des propriétés personnalisées fait le reste.
+ *
+ * Corollaire à respecter dans le JSX : **aucun utilitaire `dark:`** ici, la
+ * variante continuerait de correspondre.
+ *
+ * Non layerisé, comme les blocs `:root` et `.dark` de styles/index.css : à
+ * spécificité égale c'est l'ordre qui tranche, et le CSS de ce chunk est chargé
+ * après la feuille principale.
+ */
+.feuille {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.596 0.145 163.225);
+  --primary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.97 0 0);
+  /* Plus sombre qu'à l'écran (0.556) : un gris clair disparaît sur papier. */
+  --muted-foreground: oklch(0.42 0 0);
+  --accent: oklch(0.979 0.021 166.113);
+  --accent-foreground: oklch(0.432 0.095 166.913);
+  /* Idem : oklch(0.922) ne s'imprime pratiquement pas. */
+  --border: oklch(0.82 0 0);
+
+  color-scheme: light;
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+/* Les deux tableaux du rapport. Un vrai <table>, jamais une grille CSS : la
+   fragmentation des conteneurs `grid` reste approximative dans les deux
+   moteurs, et une grille de 9 × 16 se ferait couper n'importe où. */
+.feuille table {
+  width: 100%;
+  /* `fixed` est indispensable : en `auto`, l'algorithme de largeur ignore la
+     boîte de page et le tableau déborde. */
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.feuille th,
+.feuille td {
+  border: 0.2mm solid var(--border);
+  padding: 1mm 0.8mm;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.feuille .col-apprenant {
+  text-align: left;
+  /* Un nom long ne peut pas élargir la colonne en `table-layout: fixed` : il
+     doit donc passer à la ligne plutôt que déborder. */
+  overflow-wrap: anywhere;
+}
+
+@media print {
+  /* Sans ceci Chrome supprime purement et simplement les aplats de couleur, et
+     Firefox les conditionne à une case que personne ne coche. */
+  html,
+  body,
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* `useTheme` écrit `documentElement.style.colorScheme` — un style INLINE, que
+     seule une déclaration `!important` peut battre. Sans cette ligne, Chrome
+     imprime le canevas en sombre alors même que tous les tokens sont clairs. */
+  html {
+    color-scheme: light !important;
+    background: #fff !important;
+  }
+
+  /* Filet, si un fragment hors `.feuille` atterrissait dans le flux imprimé. */
+  .dark {
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.145 0 0);
+    --muted-foreground: oklch(0.42 0 0);
+    --border: oklch(0.82 0 0);
+  }
+
+  /* L'en-tête se répète sur chaque page ; une ligne d'apprenant ne se coupe
+     jamais en deux. Le tableau, lui, DOIT pouvoir se fragmenter : un
+     `break-inside: avoid` posé sur lui le tronquerait au lieu de le reporter. */
+  .feuille thead {
+    display: table-header-group;
+  }
+
+  .feuille tr {
+    break-inside: avoid;
+  }
+
+  .feuille table {
+    break-inside: auto;
+  }
+
+  .feuille h1,
+  .feuille h2 {
+    break-after: avoid;
+  }
+
+  .eviter-coupure {
+    break-inside: avoid;
+  }
+
+  .saut-avant {
+    break-before: page;
+  }
+}

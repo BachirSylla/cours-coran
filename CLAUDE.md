@@ -188,6 +188,11 @@ référence **globale** : pas de `owner_id`, lecture seule pour les utilisateurs
   sourate+verset pour lecture/mémorisation) ; distinction nouveau vs révision (murâja'a) ;
   chaînage des exercices donnés → vérifiés.
 - Paiements mensuels + tableau de bord (consultation seule).
+- **Rapport de fin de session** (`/cours/:coursId/rapport`, hors `AppLayout`) : feuille A4 paysage
+  imprimable — présence par séance, notes de récitation, examen et note finale. Assemblé par
+  `shared/lib/rapportSession.ts` (pur), imprimé via `window.print()` — aucune dépendance PDF. Son
+  CSS vit dans un **fichier séparé** chargé par la seule route : `@page` n'a pas de sélecteur, et
+  mettrait sinon toute l'application en paysage.
 - **Lien de cours partageable** (`/c/:jeton`) : page publique sans connexion donnant l'horaire, la
   prochaine séance, le lien de visioconférence et le dernier exercice — activable, régénérable et
   révocable depuis la fiche du cours, avec partage WhatsApp (§5.8).

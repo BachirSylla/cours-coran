@@ -50,6 +50,38 @@ export async function listByCours(coursId: string): Promise<Seance[]> {
   return data ?? []
 }
 
+/** Séance et le pointage de chacun — une colonne de la grille du rapport. */
+export type SeanceAvecPresences = Seance & {
+  presence: Database['public']['Tables']['presence']['Row'][]
+}
+
+/**
+ * Séances d'un cours, chacune avec ses présences — la matière du rapport de
+ * session.
+ *
+ * La requête part de `seance` et non de `presence`, et ce n'est pas indifférent.
+ * Depuis `presence`, filtrer par cours imposerait `seance!inner(...)` : sans le
+ * `!inner`, PostgREST n'applique le filtre qu'à la ressource **embarquée** et
+ * renvoie quand même les présences de tous les cours, avec `seance: null` — sans
+ * la moindre erreur, et l'assiduité sortirait fausse. Ici le filtre porte sur
+ * une colonne du parent, donc aucune subtilité.
+ *
+ * Bénéfice supplémentaire : les séances où personne n'a été pointé remontent
+ * avec un tableau vide. Leur colonne doit précisément apparaître dans la grille.
+ */
+export async function listAvecPresences(coursId: string): Promise<SeanceAvecPresences[]> {
+  const { data, error } = await getSupabaseClient()
+    .from('seance')
+    .select('*, presence(*)')
+    .eq('cours_id', coursId)
+    .order('date', { ascending: true })
+    .order('heure_debut', { ascending: true })
+
+  lancerSiErreur(error, 'Chargement des séances et des présences du cours')
+
+  return data ?? []
+}
+
 export async function getById(id: string): Promise<Seance | null> {
   const { data, error } = await getSupabaseClient()
     .from('seance')
