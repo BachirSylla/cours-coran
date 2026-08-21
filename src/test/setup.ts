@@ -27,6 +27,25 @@ if (!Element.prototype.scrollIntoView) {
 }
 
 /**
+ * Le déclencheur d'un `Select` Radix relâche la capture de pointeur au
+ * `pointerdown`, avant toute autre chose :
+ *
+ *     if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(…)
+ *
+ * jsdom n'implémente aucune des trois méthodes de capture, si bien qu'un
+ * `userEvent.click` sur un tel déclencheur lève une TypeError avant même
+ * d'ouvrir le menu. Répondre « je ne détiens pas la capture » suffit : Radix ne
+ * relâche que ce qu'il détient.
+ */
+if (!Element.prototype.hasPointerCapture) {
+  Element.prototype.hasPointerCapture = function hasPointerCapture() {
+    return false
+  }
+  Element.prototype.setPointerCapture = function setPointerCapture() {}
+  Element.prototype.releasePointerCapture = function releasePointerCapture() {}
+}
+
+/**
  * jsdom n'implémente pas non plus `matchMedia`, dont dépend `useTheme` pour lire
  * la préférence système. La page de cours partagée l'appelle : elle n'est pas
  * rendue sous `AppLayout`, donc elle pose elle-même la classe `dark`.

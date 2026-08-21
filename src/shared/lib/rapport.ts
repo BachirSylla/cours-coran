@@ -15,6 +15,13 @@ import {
  * Module **pur** : ni Supabase, ni React, ni DOM.
  */
 
+/**
+ * Total de la note finale. Les deux parts — académique et assiduité — se le
+ * partagent exactement, contrainte reprise en base
+ * (`parametres_bareme_total_coherent`).
+ */
+export const TOTAL_NOTE_FINALE = 20
+
 /** États de présence — miroir du `check` de `presence.etat` (migration 0008). */
 export const ETATS_PRESENCE = ['present', 'retard', 'absent', 'excuse', 'partiel'] as const
 

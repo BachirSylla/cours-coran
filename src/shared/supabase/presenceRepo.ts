@@ -43,38 +43,16 @@ export async function listBySeance(seanceId: string): Promise<PresenceAvecAppren
 }
 
 /**
- * Fixe la présence d'un apprenant à une séance.
- * Idempotent : basculer présent/absent réécrit la même ligne.
+ * Fixe l'état de présence d'un apprenant à une séance (migration 0008).
+ * Idempotent : repointer quelqu'un réécrit la même ligne.
  *
- * `etat` est écrit en même temps. Sans cela, cocher « présent » sur une ligne
- * déjà marquée `absent` laisserait les deux colonnes se contredire, et c'est
- * `etat` qui l'emporte dans le comptage — la case à cocher paraîtrait sans
- * effet. Les deux colonnes ne s'écrivent jamais l'une sans l'autre.
+ * Le booléen `present` est écrit **en même temps**, dérivé de l'état par
+ * `estPresent`. Sans cela les deux colonnes se contrediraient tôt ou tard, et
+ * c'est l'état qui l'emporte dans le comptage — la case à cocher paraîtrait
+ * sans effet. La classification vit dans `shared/lib/rapport.ts` et nulle part
+ * ailleurs, de sorte qu'écriture et comptage ne peuvent pas diverger.
  */
-export async function definir(
-  seanceId: string,
-  apprenantId: string,
-  present: boolean
-): Promise<Presence> {
-  return ecrirePresence(seanceId, apprenantId, present ? 'present' : 'absent')
-}
-
-/**
- * Fixe l'état nuancé de présence (migration 0008), et le booléen qui en découle.
- *
- * La classification vient de `estPresent` : elle vit dans `shared/lib/rapport.ts`
- * et nulle part ailleurs, de sorte qu'écriture et comptage ne peuvent pas
- * diverger.
- */
-export function definirEtat(
-  seanceId: string,
-  apprenantId: string,
-  etat: EtatPresence
-): Promise<Presence> {
-  return ecrirePresence(seanceId, apprenantId, etat)
-}
-
-async function ecrirePresence(
+export async function definirEtat(
   seanceId: string,
   apprenantId: string,
   etat: EtatPresence

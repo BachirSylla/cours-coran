@@ -5,6 +5,7 @@ import { useParametres } from '@/features/parametres/hooks/useParametres'
 import { LigneEvaluation } from '@/features/seances/components/LigneEvaluation'
 import { useDefinirPresence } from '@/features/seances/hooks/useDefinirPresence'
 import { usePresences } from '@/features/seances/hooks/usePresences'
+import { etatEffectif, type EtatPresence } from '@/shared/lib/rapport'
 import { BAREME_PAR_DEFAUT } from '@/shared/supabase/parametresRepo'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
 
@@ -45,9 +46,9 @@ export function SectionPresence({
 
   const seanceEnregistree = Boolean(seanceId)
 
-  function basculer(apprenantId: string, present: boolean) {
+  function changerEtat(apprenantId: string, etat: EtatPresence) {
     if (!seanceId) return
-    definir.mutate({ seanceId, apprenantId, present })
+    definir.mutate({ seanceId, apprenantId, etat })
   }
 
   return (
@@ -99,7 +100,11 @@ export function SectionPresence({
           {inscrits.map((inscription) => {
             const evaluation = parApprenant.get(inscription.apprenant_id) ?? null
             // Absent de la table = présent par défaut, comme la colonne en base.
-            const present = evaluation?.present ?? true
+            // `etatEffectif` fait retomber sur le booléen les lignes saisies
+            // avant que l'état nuancé n'existe (migration 0008).
+            const etat = evaluation
+              ? etatEffectif({ etat: evaluation.etat, present: evaluation.present })
+              : 'present'
             const nomComplet = [inscription.apprenant?.prenom, inscription.apprenant?.nom]
               .filter(Boolean)
               .join(' ')
@@ -110,8 +115,8 @@ export function SectionPresence({
                 seanceId={seanceId}
                 apprenantId={inscription.apprenant_id}
                 nomComplet={nomComplet}
-                present={present}
-                onBasculerPresence={(coche) => basculer(inscription.apprenant_id, coche)}
+                etat={etat}
+                onChangerEtat={(nouvel) => changerEtat(inscription.apprenant_id, nouvel)}
                 presenceEnCours={definir.isPending}
                 evaluation={evaluation}
                 bareme={bareme}

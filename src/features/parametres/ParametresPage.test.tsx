@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { UseQueryResult } from '@tanstack/react-query'
@@ -8,6 +8,7 @@ import { useParametres } from '@/features/parametres/hooks/useParametres'
 import { ParametresPage } from '@/features/parametres/ParametresPage'
 import { NOTATION_PAR_DEFAUT } from '@/shared/lib/rapport'
 import type { ParametresEffectifs } from '@/shared/supabase/parametresRepo'
+import { rendreAvecQuery } from '@/test/rendreAvecQuery'
 
 vi.mock('@/features/parametres/hooks/useParametres', () => ({ useParametres: vi.fn() }))
 vi.mock('@/features/parametres/hooks/useEnregistrerBareme', () => ({
@@ -47,7 +48,7 @@ describe('ParametresPage', () => {
   it('affiche un indicateur pendant le chargement', () => {
     simuler({ isPending: true })
 
-    render(<ParametresPage />)
+    rendreAvecQuery(<ParametresPage />)
 
     expect(screen.getByRole('status')).toBeInTheDocument()
   })
@@ -55,7 +56,7 @@ describe('ParametresPage', () => {
   it('affiche l’erreur en cas d’échec', () => {
     simuler({ isError: true, error: new Error('Session expirée.') })
 
-    render(<ParametresPage />)
+    rendreAvecQuery(<ParametresPage />)
 
     expect(screen.getByText('Session expirée.')).toBeInTheDocument()
   })
@@ -63,7 +64,7 @@ describe('ParametresPage', () => {
   it('signale que 20 est la valeur par défaut tant que rien n’a été choisi', () => {
     simuler({ data: parametres(20, false) })
 
-    render(<ParametresPage />)
+    rendreAvecQuery(<ParametresPage />)
 
     expect(screen.getByText(/valeur par défaut \(20\)/)).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: /sur 20/i })).toBeChecked()
@@ -72,7 +73,7 @@ describe('ParametresPage', () => {
   it('n’affiche plus la mention par défaut une fois le barème enregistré', () => {
     simuler({ data: parametres(10, true) })
 
-    render(<ParametresPage />)
+    rendreAvecQuery(<ParametresPage />)
 
     expect(screen.queryByText(/valeur par défaut/)).not.toBeInTheDocument()
     expect(screen.getByRole('radio', { name: /sur 10/i })).toBeChecked()
@@ -83,7 +84,7 @@ describe('ParametresPage', () => {
     simuler({ data: parametres(20, true) })
     const utilisateur = userEvent.setup()
 
-    render(<ParametresPage />)
+    rendreAvecQuery(<ParametresPage />)
     await utilisateur.click(screen.getByRole('radio', { name: /sur 10/i }))
 
     expect(mutate).toHaveBeenCalledWith(10)
@@ -92,7 +93,7 @@ describe('ParametresPage', () => {
   it('rassure sur le sort des notes déjà enregistrées', () => {
     simuler({ data: parametres(20, true) })
 
-    render(<ParametresPage />)
+    rendreAvecQuery(<ParametresPage />)
 
     expect(
       screen.getByText(/gardent le barème sous lequel elles ont été données/)

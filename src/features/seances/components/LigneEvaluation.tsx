@@ -2,7 +2,9 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2 } from 'lucide-react'
 
+import { SelecteurEtatPresence } from '@/features/seances/components/SelecteurEtatPresence'
 import { useNoterApprenant } from '@/features/seances/hooks/useNoterApprenant'
+import { estPresent, type EtatPresence } from '@/shared/lib/rapport'
 import {
   creerEvaluationSchema,
   valeursParDefaut,
@@ -19,8 +21,9 @@ export interface LigneEvaluationProps {
   seanceId: string | undefined
   apprenantId: string
   nomComplet: string
-  present: boolean
-  onBasculerPresence: (present: boolean) => void
+  /** État **effectif** : celui de la ligne, ou celui déduit du booléen. */
+  etat: EtatPresence
+  onChangerEtat: (etat: EtatPresence) => void
   presenceEnCours: boolean
   /** Évaluation déjà enregistrée, s'il y en a une. */
   evaluation: Presence | null
@@ -42,8 +45,8 @@ export function LigneEvaluation({
   seanceId,
   apprenantId,
   nomComplet,
-  present,
-  onBasculerPresence,
+  etat,
+  onChangerEtat,
   presenceEnCours,
   evaluation,
   bareme,
@@ -51,6 +54,7 @@ export function LigneEvaluation({
 }: LigneEvaluationProps) {
   const noter = useNoterApprenant()
   const identifiant = `presence-${apprenantId}`
+  const present = estPresent(etat)
 
   const {
     register,
@@ -83,12 +87,20 @@ export function LigneEvaluation({
           id={identifiant}
           checked={present}
           disabled={!seanceId || presenceEnCours}
-          onCheckedChange={(coche) => onBasculerPresence(coche === true)}
+          onCheckedChange={(coche) => onChangerEtat(coche === true ? 'present' : 'absent')}
         />
         <Label htmlFor={identifiant} className="flex-1 cursor-pointer font-normal">
           {nomComplet}
         </Label>
-        <span className="text-xs text-muted-foreground">{present ? 'Présent' : 'Absent'}</span>
+
+        {/* Le mot qui rapportait l'état devient le contrôle qui le précise :
+            même encombrement, et la case reste le geste rapide. */}
+        <SelecteurEtatPresence
+          valeur={etat}
+          nomComplet={nomComplet}
+          onChoisir={onChangerEtat}
+          desactive={!seanceId || presenceEnCours}
+        />
       </div>
 
       {/* Noter quelqu'un qui n'était pas là n'a pas de sens. */}

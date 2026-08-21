@@ -1,5 +1,6 @@
 import { Check, Info, Loader2, TriangleAlert } from 'lucide-react'
 
+import { SectionNotation } from '@/features/parametres/components/SectionNotation'
 import { useEnregistrerBareme } from '@/features/parametres/hooks/useEnregistrerBareme'
 import { useParametres } from '@/features/parametres/hooks/useParametres'
 import { BAREMES, type Bareme } from '@/shared/lib/evaluations'
@@ -107,6 +108,8 @@ export function ParametresPage() {
           </Alert>
         </section>
       )}
+
+      {!isPending && !isError && parametres && <SectionNotation parametres={parametres} />}
     </div>
   )
 }

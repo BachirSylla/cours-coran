@@ -8,6 +8,7 @@ import { useAjouterInscription } from '@/features/inscriptions/hooks/useAjouterI
 import { useInscriptionsCours } from '@/features/inscriptions/hooks/useInscriptionsCours'
 import { useRetirerInscription } from '@/features/inscriptions/hooks/useRetirerInscription'
 import { messageRefus, peutAjouterInscription } from '@/features/inscriptions/reglesInscription'
+import { formaterNote } from '@/shared/lib/evaluations'
 import type { InscriptionAvecApprenant } from '@/shared/supabase/inscriptionRepo'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
 import {
@@ -44,6 +45,13 @@ export function SectionInscriptions({ coursId, format }: SectionInscriptionsProp
   )
 
   const verdict = peutAjouterInscription(format, liste.length)
+
+  const noteExamen =
+    aRetirer?.note_examen !== null &&
+    aRetirer?.note_examen !== undefined &&
+    aRetirer.examen_bareme !== null
+      ? formaterNote(aRetirer.note_examen, aRetirer.examen_bareme)
+      : null
 
   function inscrire(apprenantId: string) {
     ajouter.mutate({ apprenantId, coursId })
@@ -167,6 +175,17 @@ export function SectionInscriptions({ coursId, format }: SectionInscriptionsProp
                 ? `${aRetirer.apprenant?.prenom} ${aRetirer.apprenant?.nom} ne suivra plus ce cours. Sa fiche apprenant est conservée.`
                 : ''}
             </AlertDialogDescription>
+
+            {/* La note d'examen vit sur l'inscription : elle part avec elle.
+                On ne le dit que s'il y en a une — sinon c'est du bruit. */}
+            {noteExamen && (
+              <Alert variant="destructive">
+                <TriangleAlert className="size-4" aria-hidden="true" />
+                <AlertDescription>
+                  Sa note d'examen ({noteExamen}) sera définitivement supprimée.
+                </AlertDescription>
+              </Alert>
+            )}
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={retirer.isPending}>Annuler</AlertDialogCancel>

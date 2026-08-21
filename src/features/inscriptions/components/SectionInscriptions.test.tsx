@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { UseQueryResult } from '@tanstack/react-query'
 
@@ -54,7 +55,11 @@ function apprenant(id: string, prenom: string, nom: string): Apprenant {
   }
 }
 
-function inscription(id: string, personne: Apprenant): InscriptionAvecApprenant {
+function inscription(
+  id: string,
+  personne: Apprenant,
+  extra: Partial<InscriptionAvecApprenant> = {}
+): InscriptionAvecApprenant {
   return {
     id,
     owner_id: 'proprietaire',
@@ -65,6 +70,7 @@ function inscription(id: string, personne: Apprenant): InscriptionAvecApprenant 
     created_at: '2026-07-27T10:00:00Z',
     updated_at: '2026-07-27T10:00:00Z',
     apprenant: personne,
+    ...extra,
   }
 }
 
@@ -162,5 +168,53 @@ describe('SectionInscriptions', () => {
     render(<SectionInscriptions coursId="cours-1" format="groupe" />)
 
     expect(screen.getByRole('status')).toBeInTheDocument()
+  })
+
+  /**
+   * La note d'examen vit sur l'inscription : la retirer la supprime. C'est une
+   * perte irréversible, elle doit être annoncée avant, pas découverte après.
+   */
+  describe('retrait d’un apprenant', () => {
+    async function ouvrirLaConfirmation() {
+      const utilisateur = userEvent.setup()
+      render(<SectionInscriptions coursId="cours-1" format="groupe" />)
+
+      await utilisateur.click(
+        screen.getByRole('button', { name: /Retirer Aïcha Diallo du cours/ })
+      )
+    }
+
+    it('avertit que la note d’examen sera perdue, en la citant', async () => {
+      simulerInscriptions({
+        data: [inscription('i1', AICHA, { note_examen: 15.5, examen_bareme: 20 })],
+      })
+
+      await ouvrirLaConfirmation()
+
+      expect(
+        screen.getByText(/Sa note d'examen \(15,5\/20\) sera définitivement supprimée/)
+      ).toBeInTheDocument()
+    })
+
+    it('se tait quand il n’y a aucune note à perdre', async () => {
+      simulerInscriptions({ data: [inscription('i1', AICHA)] })
+
+      await ouvrirLaConfirmation()
+
+      // La confirmation existe bien, mais sans avertissement superflu.
+      expect(screen.getByText(/ne suivra plus ce cours/)).toBeInTheDocument()
+      expect(screen.queryByText(/note d'examen/)).not.toBeInTheDocument()
+    })
+
+    it('se tait aussi devant une note sans barème', async () => {
+      // La base l'interdit ; l'écran ne doit pas pour autant afficher « /null ».
+      simulerInscriptions({
+        data: [inscription('i1', AICHA, { note_examen: 15.5, examen_bareme: null })],
+      })
+
+      await ouvrirLaConfirmation()
+
+      expect(screen.queryByText(/note d'examen/)).not.toBeInTheDocument()
+    })
   })
 })

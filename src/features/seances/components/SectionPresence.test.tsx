@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { UseQueryResult } from '@tanstack/react-query'
@@ -140,11 +140,16 @@ describe('SectionPresence', () => {
     }
   })
 
+  /** Le sélecteur d'état d'un apprenant, interrogé par son libellé. */
+  function selecteurEtat(nom: string) {
+    return screen.getByRole('combobox', { name: `État de présence de ${nom}` })
+  }
+
   it('considère un apprenant sans ligne de présence comme présent', () => {
     render(<SectionPresence coursId="cours-1" seanceId="seance-1" />)
 
-    expect(screen.getAllByText('Présent')).toHaveLength(2)
-    expect(screen.queryByText('Absent')).not.toBeInTheDocument()
+    expect(selecteurEtat('Aïcha Diallo')).toHaveValue('present')
+    expect(selecteurEtat('Moussa Camara')).toHaveValue('present')
   })
 
   it('reflète les présences enregistrées', () => {
@@ -152,8 +157,9 @@ describe('SectionPresence', () => {
 
     render(<SectionPresence coursId="cours-1" seanceId="seance-1" />)
 
-    expect(screen.getByText('Absent')).toBeInTheDocument()
-    expect(screen.getAllByText('Présent')).toHaveLength(1)
+    // Ligne d'avant la migration 0008 : l'état se déduit du booléen.
+    expect(selecteurEtat('Aïcha Diallo')).toHaveValue('absent')
+    expect(selecteurEtat('Moussa Camara')).toHaveValue('present')
   })
 
   it('bascule un apprenant vers absent au décochage', async () => {
@@ -166,7 +172,7 @@ describe('SectionPresence', () => {
     expect(mutate).toHaveBeenCalledWith({
       seanceId: 'seance-1',
       apprenantId: 'a1',
-      present: false,
+      etat: 'absent',
     })
   })
 
@@ -181,8 +187,53 @@ describe('SectionPresence', () => {
     expect(mutate).toHaveBeenCalledWith({
       seanceId: 'seance-1',
       apprenantId: 'a1',
-      present: true,
+      etat: 'present',
     })
+  })
+
+  it('enregistre l’état nuancé choisi dans le sélecteur', async () => {
+    const utilisateur = userEvent.setup()
+
+    render(<SectionPresence coursId="cours-1" seanceId="seance-1" />)
+    await utilisateur.selectOptions(selecteurEtat('Aïcha Diallo'), 'retard')
+
+    expect(mutate).toHaveBeenCalledWith({
+      seanceId: 'seance-1',
+      apprenantId: 'a1',
+      etat: 'retard',
+    })
+  })
+
+  it('propose les cinq états, y compris l’absence excusée', () => {
+    render(<SectionPresence coursId="cours-1" seanceId="seance-1" />)
+
+    const options = within(selecteurEtat('Aïcha Diallo')).getAllByRole('option')
+
+    expect(options.map((option) => option.textContent)).toEqual([
+      'Présent',
+      'En retard',
+      'Absent',
+      'Absent (excusé)',
+      'Présence partielle',
+    ])
+  })
+
+  it('affiche l’état enregistré, sans le déduire du booléen', () => {
+    usePresencesMock.mockReturnValue(
+      requete([{ ...presence('a1', true), etat: 'partiel' as string | null }])
+    )
+
+    render(<SectionPresence coursId="cours-1" seanceId="seance-1" />)
+
+    expect(selecteurEtat('Aïcha Diallo')).toHaveValue('partiel')
+    // Un apprenant partiellement présent reste compté présent.
+    expect(screen.getByRole('checkbox', { name: /Aïcha Diallo/ })).toBeChecked()
+  })
+
+  it('désactive aussi le sélecteur tant que la séance n’est pas enregistrée', () => {
+    render(<SectionPresence coursId="cours-1" seanceId={undefined} />)
+
+    expect(selecteurEtat('Aïcha Diallo')).toBeDisabled()
   })
 
   it('affiche un état vide quand le cours n’a aucun inscrit', () => {

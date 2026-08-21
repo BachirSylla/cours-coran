@@ -9,6 +9,7 @@ import {
   type FormatCours,
   type StatutCours,
 } from '@/features/cours/coursSchema'
+import { SectionExamen } from '@/features/inscriptions/components/SectionExamen'
 import { SectionInscriptions } from '@/features/inscriptions/components/SectionInscriptions'
 import { SectionPaiements } from '@/features/paiements/components/SectionPaiements'
 import { SectionPartage } from '@/features/partage/components/SectionPartage'
@@ -120,6 +121,8 @@ export function CoursDetailDialog({
             />
 
             <SeancesRecentesCours cours={cours} onOuvrir={setVueSaisie} />
+
+            <SectionExamen coursId={cours.id} />
 
             <SectionPaiements cours={cours} />
 
