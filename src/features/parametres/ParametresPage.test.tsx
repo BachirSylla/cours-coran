@@ -6,6 +6,7 @@ import type { UseQueryResult } from '@tanstack/react-query'
 import { useEnregistrerBareme } from '@/features/parametres/hooks/useEnregistrerBareme'
 import { useParametres } from '@/features/parametres/hooks/useParametres'
 import { ParametresPage } from '@/features/parametres/ParametresPage'
+import { NOTATION_PAR_DEFAUT } from '@/shared/lib/rapport'
 import type { ParametresEffectifs } from '@/shared/supabase/parametresRepo'
 
 vi.mock('@/features/parametres/hooks/useParametres', () => ({ useParametres: vi.fn() }))
@@ -17,9 +18,14 @@ const useParametresMock = vi.mocked(useParametres)
 const useEnregistrerMock = vi.mocked(useEnregistrerBareme)
 const mutate = vi.fn()
 
+/** Cet écran ne règle que le barème de récitation : le reste vient des défauts. */
+function parametres(note_bareme: number, enregistres: boolean): ParametresEffectifs {
+  return { note_bareme, enregistres, ...NOTATION_PAR_DEFAUT }
+}
+
 function simuler(etat: Partial<UseQueryResult<ParametresEffectifs, Error>>) {
   useParametresMock.mockReturnValue({
-    data: { note_bareme: 20, enregistres: false },
+    data: parametres(20, false),
     isPending: false,
     isError: false,
     error: null,
@@ -55,7 +61,7 @@ describe('ParametresPage', () => {
   })
 
   it('signale que 20 est la valeur par défaut tant que rien n’a été choisi', () => {
-    simuler({ data: { note_bareme: 20, enregistres: false } })
+    simuler({ data: parametres(20, false) })
 
     render(<ParametresPage />)
 
@@ -64,7 +70,7 @@ describe('ParametresPage', () => {
   })
 
   it('n’affiche plus la mention par défaut une fois le barème enregistré', () => {
-    simuler({ data: { note_bareme: 10, enregistres: true } })
+    simuler({ data: parametres(10, true) })
 
     render(<ParametresPage />)
 
@@ -74,7 +80,7 @@ describe('ParametresPage', () => {
   })
 
   it('enregistre le barème choisi', async () => {
-    simuler({ data: { note_bareme: 20, enregistres: true } })
+    simuler({ data: parametres(20, true) })
     const utilisateur = userEvent.setup()
 
     render(<ParametresPage />)
@@ -84,7 +90,7 @@ describe('ParametresPage', () => {
   })
 
   it('rassure sur le sort des notes déjà enregistrées', () => {
-    simuler({ data: { note_bareme: 20, enregistres: true } })
+    simuler({ data: parametres(20, true) })
 
     render(<ParametresPage />)
 

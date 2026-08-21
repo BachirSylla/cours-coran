@@ -55,6 +55,8 @@ function inscription(id: string, personne: Apprenant): InscriptionAvecApprenant 
     owner_id: 'proprietaire',
     apprenant_id: personne.id,
     cours_id: 'cours-1',
+    note_examen: null,
+    examen_bareme: null,
     created_at: '2026-07-27T10:00:00Z',
     updated_at: '2026-07-27T10:00:00Z',
     apprenant: personne,
@@ -68,6 +70,9 @@ function presence(apprenantId: string, present: boolean): PresenceAvecApprenant 
     seance_id: 'seance-1',
     apprenant_id: apprenantId,
     present,
+    // `null` : ces fixtures représentent des lignes d'avant la migration 0008,
+    // celles qui font justement retomber le comptage sur le booléen.
+    etat: null,
     note: null,
     note_bareme: null,
     commentaire: null,

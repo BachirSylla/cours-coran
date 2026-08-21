@@ -186,7 +186,9 @@ export type Database = {
           apprenant_id: string
           cours_id: string
           created_at: string
+          examen_bareme: number | null
           id: string
+          note_examen: number | null
           owner_id: string
           updated_at: string
         }
@@ -194,7 +196,9 @@ export type Database = {
           apprenant_id: string
           cours_id: string
           created_at?: string
+          examen_bareme?: number | null
           id?: string
+          note_examen?: number | null
           owner_id?: string
           updated_at?: string
         }
@@ -202,7 +206,9 @@ export type Database = {
           apprenant_id?: string
           cours_id?: string
           created_at?: string
+          examen_bareme?: number | null
           id?: string
+          note_examen?: number | null
           owner_id?: string
           updated_at?: string
         }
@@ -272,24 +278,39 @@ export type Database = {
       }
       parametres: {
         Row: {
+          bareme_academique: number
+          bareme_assiduite: number
           created_at: string
           id: string
           note_bareme: number
           owner_id: string
+          penaliser_absences_excusees: boolean
+          penalite_absence: number
+          penalite_retard: number
           updated_at: string
         }
         Insert: {
+          bareme_academique?: number
+          bareme_assiduite?: number
           created_at?: string
           id?: string
           note_bareme?: number
           owner_id?: string
+          penaliser_absences_excusees?: boolean
+          penalite_absence?: number
+          penalite_retard?: number
           updated_at?: string
         }
         Update: {
+          bareme_academique?: number
+          bareme_assiduite?: number
           created_at?: string
           id?: string
           note_bareme?: number
           owner_id?: string
+          penaliser_absences_excusees?: boolean
+          penalite_absence?: number
+          penalite_retard?: number
           updated_at?: string
         }
         Relationships: []
@@ -299,6 +320,7 @@ export type Database = {
           apprenant_id: string
           commentaire: string | null
           created_at: string
+          etat: string | null
           id: string
           note: number | null
           note_bareme: number | null
@@ -312,6 +334,7 @@ export type Database = {
           apprenant_id: string
           commentaire?: string | null
           created_at?: string
+          etat?: string | null
           id?: string
           note?: number | null
           note_bareme?: number | null
@@ -325,6 +348,7 @@ export type Database = {
           apprenant_id?: string
           commentaire?: string | null
           created_at?: string
+          etat?: string | null
           id?: string
           note?: number | null
           note_bareme?: number | null

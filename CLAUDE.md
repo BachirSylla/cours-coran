@@ -99,6 +99,9 @@ Les types de cours sont dans une **table de référence** (extensible), pas en d
 ### `inscription` (liaison apprenant ↔ cours, gère les groupes)
 
 - `apprenant_id` (FK), `cours_id` (FK)
+- `note_examen`, `examen_bareme` (nullables) : note d'examen de **fin de session** de cet
+  apprenant **pour ce cours**. Comme partout, la note ne va jamais sans son barème — la base
+  refuse l'une sans l'autre. Corollaire : désinscrire un apprenant **supprime sa note**.
 
 ### `seance` (occurrence réelle d'un cours)
 
@@ -107,7 +110,12 @@ Les types de cours sont dans une **table de référence** (extensible), pas en d
 - `sourate`, `versets_de`, `versets_a` (optionnels — pour Lecture / Mémorisation)
 - `type_travail` (nouvelle_memorisation | revision | lecture)
 - `exercices_a_faire`, `observations`
-- présence par apprenant si groupe (table `presence` : `seance_id`, `apprenant_id`, `present`)
+- présence par apprenant (table `presence` : `seance_id`, `apprenant_id`, `present`, plus
+  l'évaluation de récitation `note` / `note_bareme` / `commentaire` / `passage_evalue`)
+- `presence.etat` (nullable) nuance le booléen : `present | retard | absent | excuse | partiel`.
+  **`null` = non renseigné** → le calcul retombe sur `present`, ce qui garde toutes les séances
+  d'avant la migration 0008 correctement comptées. Les deux colonnes s'écrivent **toujours
+  ensemble** (`presenceRepo`), pour qu'elles ne puissent jamais se contredire.
 
 ### `paiement`
 
@@ -159,6 +167,16 @@ référence **globale** : pas de `owner_id`, lecture seule pour les utilisateurs
    `shared/supabase/coursPublicSchema.ts` (Zod), qui supprime toute clé hors liste. Le lien Meet est
    masqué dès que le cours est en pause ou terminé — c'est la seule protection contre l'oubli de
    révocation.
+9. **Note finale de session** (`shared/lib/rapport.ts`, module pur) : toujours **sur 20**,
+   indépendamment de `parametres.note_bareme` — qui ne concerne que les notes de récitation par
+   séance. Elle additionne une part **académique** (l'examen de fin de session, `inscription`)
+   et une part **assiduité**, dont les poids sont réglables et dont la **somme vaut toujours 20**
+   (contrainte en base). L'assiduité part du maximum et retire une pénalité par absence et par
+   retard, sans jamais descendre sous 0. Une **absence excusée ne pénalise pas** par défaut
+   (`penaliser_absences_excusees`) — sinon la marquer n'aurait aucun sens ; une présence partielle
+   n'est jamais pénalisée. Un apprenant sans note d'examen n'a pas 0 : la note finale vaut `null`.
+   Ne compter que les présences de séances **réellement tenues** — `seance.statut` vaut aussi
+   `annulee` et `reportee`.
 
 ## 6. Fonctionnalités
 

@@ -9,7 +9,7 @@ export function useEnregistrerBareme(): UseMutationResult<Parametres, Error, Bar
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (bareme: Bareme) => parametresRepo.upsert(bareme),
+    mutationFn: (bareme: Bareme) => parametresRepo.upsert({ note_bareme: bareme }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: parametresKeys.tous })
     },

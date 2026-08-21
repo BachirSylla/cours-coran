@@ -44,6 +44,8 @@ function inscription(id: string, libelleCours: string): InscriptionAvecCours {
     owner_id: 'proprietaire',
     apprenant_id: 'a1',
     cours_id: `cours-${id}`,
+    note_examen: null,
+    examen_bareme: null,
     created_at: '2026-07-27T10:00:00Z',
     updated_at: '2026-07-27T10:00:00Z',
     cours: {

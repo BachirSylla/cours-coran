@@ -22,12 +22,20 @@ export const LIBELLES_TENDANCE: Record<Tendance, string> = {
   insuffisant: 'Pas assez de notes',
 }
 
-/** Une note datée, avec le barème sous lequel elle a été donnée. */
-export interface Evaluation {
-  /** Format `AAAA-MM-JJ`. */
-  date: string
+/**
+ * Le minimum pour qu'une note veuille dire quelque chose : elle-même et son
+ * barème. C'est tout ce dont une moyenne a besoin — la date ne sert qu'à la
+ * tendance.
+ */
+export interface NoteAvecBareme {
   note: number
   note_bareme: number
+}
+
+/** Une note datée, avec le barème sous lequel elle a été donnée. */
+export interface Evaluation extends NoteAvecBareme {
+  /** Format `AAAA-MM-JJ`. */
+  date: string
 }
 
 /** Nombre minimal d'évaluations avant d'oser parler de tendance. */
@@ -62,7 +70,7 @@ export function noteEnPourcentage(note: number, bareme: number): number {
 }
 
 /** Moyenne en pourcentage, ou `null` si la liste est vide. */
-export function moyennePourcentage(evaluations: readonly Evaluation[]): number | null {
+export function moyennePourcentage(evaluations: readonly NoteAvecBareme[]): number | null {
   if (evaluations.length === 0) return null
 
   const somme = evaluations.reduce(

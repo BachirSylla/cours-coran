@@ -72,6 +72,38 @@ export async function ajouter(apprenantId: string, coursId: string): Promise<Ins
   return data
 }
 
+/** Note d'examen de fin de session. Les deux champs vont ensemble. */
+export interface ExamenInput {
+  note_examen: number | null
+  examen_bareme: number | null
+}
+
+/**
+ * Enregistre la note d'examen d'un apprenant pour un cours (migration 0008).
+ *
+ * Le barème accompagne la note, comme pour les récitations : changer de réglage
+ * plus tard ne doit pas réinterpréter une note déjà donnée. La base refuse
+ * d'ailleurs une note sans son barème (`inscription_note_examen_coherente`).
+ *
+ * Effacer une note se fait en passant les deux champs à `null`.
+ */
+export async function noterExamen(
+  inscriptionId: string,
+  examen: ExamenInput
+): Promise<Inscription> {
+  const { data, error } = await getSupabaseClient()
+    .from('inscription')
+    .update(examen)
+    .eq('id', inscriptionId)
+    .select('*')
+    .single()
+
+  lancerSiErreur(error, "Enregistrement de la note d'examen")
+
+  return data
+}
+
+/** Retire l'apprenant du cours — **et supprime sa note d'examen avec la ligne**. */
 export async function retirer(inscriptionId: string): Promise<void> {
   const { error } = await getSupabaseClient()
     .from('inscription')
