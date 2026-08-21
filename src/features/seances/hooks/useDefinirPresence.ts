@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/react-query'
 
-import { presenceKeys } from '@/features/seances/hooks/seanceKeys'
+import { presenceKeys, seanceKeys } from '@/features/seances/hooks/seanceKeys'
 import type { EtatPresence } from '@/shared/lib/rapport'
 import * as presenceRepo from '@/shared/supabase/presenceRepo'
 import type { Presence } from '@/shared/supabase/presenceRepo'
@@ -27,6 +27,9 @@ export function useDefinirPresence(): UseMutationResult<Presence, Error, Definit
     onSuccess: (_presence, { seanceId, apprenantId }) => {
       void queryClient.invalidateQueries({ queryKey: presenceKeys.parSeance(seanceId) })
       void queryClient.invalidateQueries({ queryKey: presenceKeys.parApprenant(apprenantId) })
+      // Le rapport de session lit les présences *embarquées* dans les séances :
+      // sans cette invalidation, il resterait sur l'état d'avant le pointage.
+      void queryClient.invalidateQueries({ queryKey: seanceKeys.tous })
     },
   })
 }

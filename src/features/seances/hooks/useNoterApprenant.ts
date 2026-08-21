@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/react-query'
 
-import { presenceKeys } from '@/features/seances/hooks/seanceKeys'
+import { presenceKeys, seanceKeys } from '@/features/seances/hooks/seanceKeys'
 import * as presenceRepo from '@/shared/supabase/presenceRepo'
 import type { EvaluationInput, Presence } from '@/shared/supabase/presenceRepo'
 
@@ -24,6 +24,8 @@ export function useNoterApprenant(): UseMutationResult<Presence, Error, Notation
       void queryClient.invalidateQueries({ queryKey: presenceKeys.parSeance(seanceId) })
       // La fiche de l'apprenant affiche ses évaluations : elle doit suivre.
       void queryClient.invalidateQueries({ queryKey: presenceKeys.parApprenant(apprenantId) })
+      // Le rapport de session lit les notes *embarquées* dans les séances.
+      void queryClient.invalidateQueries({ queryKey: seanceKeys.tous })
     },
   })
 }

@@ -43,7 +43,7 @@ export function useRapportCours(
         enabled: actif,
       },
       {
-        queryKey: seanceKeys.parCours(id),
+        queryKey: seanceKeys.avecPresences(id),
         queryFn: () => seanceRepo.listAvecPresences(id),
         enabled: actif,
       },
