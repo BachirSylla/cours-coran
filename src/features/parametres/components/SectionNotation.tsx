@@ -21,6 +21,7 @@ import { Button } from '@/shared/ui/button'
 import { Checkbox } from '@/shared/ui/checkbox'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
+import { SelectNatif } from '@/shared/ui/SelectNatif'
 
 /** L'exemple qui rend les pénalités concrètes. */
 const EXEMPLE = { absences: 2, retards: 1 }
@@ -78,9 +79,9 @@ export function SectionNotation({ parametres }: SectionNotationProps) {
       >
         <div className="space-y-1.5">
           <Label htmlFor="base-academique">Base de la note académique</Label>
-          <select
+          <SelectNatif
             id="base-academique"
-            className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none sm:w-auto"
+            className="w-full sm:w-auto"
             {...register('base_academique')}
           >
             {BASES_ACADEMIQUES.map((base) => (
@@ -88,7 +89,7 @@ export function SectionNotation({ parametres }: SectionNotationProps) {
                 {LIBELLES_BASE_ACADEMIQUE[base]}
               </option>
             ))}
-          </select>
+          </SelectNatif>
           {/* Donner la formule, pas seulement son nom : c'est elle qui décide
               de la note portée sur le rapport. */}
           <p className="text-xs text-muted-foreground">

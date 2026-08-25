@@ -19,6 +19,7 @@ import { Alert, AlertDescription } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
+import { SelectNatif } from '@/shared/ui/SelectNatif'
 
 export interface SectionExamenProps {
   coursId: string
@@ -163,18 +164,18 @@ function LigneExamen({
           <Label htmlFor={`bareme-${inscription.id}`} className="sr-only">
             Barème de l'examen de {nomComplet}
           </Label>
-          <select
+          <SelectNatif
             id={`bareme-${inscription.id}`}
             value={bareme}
             onChange={(evenement) => setBareme(Number(evenement.currentTarget.value) as Bareme)}
-            className="h-9 rounded-md border border-input bg-transparent px-2 text-sm focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+            className="px-2"
           >
             {BAREMES.map((valeur) => (
               <option key={valeur} value={valeur}>
                 /{valeur}
               </option>
             ))}
-          </select>
+          </SelectNatif>
         </div>
 
         <Button
