@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { TOTAL_NOTE_FINALE, type ConfigNotation } from '@/shared/lib/rapport'
+import { BASES_ACADEMIQUES, TOTAL_NOTE_FINALE, type ConfigNotation } from '@/shared/lib/rapport'
 
 /**
  * Validation des réglages de notation — schéma unique partagé par le formulaire
@@ -42,6 +42,7 @@ export const notationSchema = z
       { message: `La pénalité par retard doit être comprise entre 0 et ${MAX_PENALITE}.` }
     ),
     penaliser_absences_excusees: z.boolean(),
+    base_academique: z.enum(BASES_ACADEMIQUES, { message: 'Base de notation inconnue.' }),
   })
   // La part académique n'est jamais saisie : elle est ce qui reste.
   .transform((valeurs): ConfigNotation => ({
@@ -59,5 +60,6 @@ export function valeursParDefaut(config: ConfigNotation): NotationFormValues {
     penalite_absence: String(config.penalite_absence).replace('.', ','),
     penalite_retard: String(config.penalite_retard).replace('.', ','),
     penaliser_absences_excusees: config.penaliser_absences_excusees,
+    base_academique: config.base_academique,
   }
 }

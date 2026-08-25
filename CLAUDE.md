@@ -169,9 +169,12 @@ référence **globale** : pas de `owner_id`, lecture seule pour les utilisateurs
    révocation.
 9. **Note finale de session** (`shared/lib/rapport.ts`, module pur) : toujours **sur 20**,
    indépendamment de `parametres.note_bareme` — qui ne concerne que les notes de récitation par
-   séance. Elle additionne une part **académique** (l'examen de fin de session, `inscription`)
-   et une part **assiduité**, dont les poids sont réglables et dont la **somme vaut toujours 20**
-   (contrainte en base). L'assiduité part du maximum et retire une pénalité par absence et par
+   séance. Elle additionne une part **académique** et une part **assiduité**, dont les poids sont
+   réglables et dont la **somme vaut toujours 20** (contrainte en base).
+   La **base de la part académique** est elle aussi réglable (`parametres.base_academique`,
+   migration 0009) : `examen_seul`, ou `moyenne_devoirs_examen` (défaut) qui moyenne à parts égales
+   les notes de séance et l'examen. **Sans aucun devoir noté, la base retombe sur l'examen seul** —
+   on ne moyenne pas avec du vide. L'assiduité part du maximum et retire une pénalité par absence et par
    retard, sans jamais descendre sous 0. Une **absence excusée ne pénalise pas** par défaut
    (`penaliser_absences_excusees`) — sinon la marquer n'aurait aucun sens ; une présence partielle
    n'est jamais pénalisée. Un apprenant sans note d'examen n'a pas 0 : la note finale vaut `null`.

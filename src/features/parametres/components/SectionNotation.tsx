@@ -9,7 +9,12 @@ import {
   type NotationFormValues,
   type NotationValues,
 } from '@/features/parametres/notationSchema'
-import { noteAssiduite, TOTAL_NOTE_FINALE } from '@/shared/lib/rapport'
+import {
+  BASES_ACADEMIQUES,
+  LIBELLES_BASE_ACADEMIQUE,
+  noteAssiduite,
+  TOTAL_NOTE_FINALE,
+} from '@/shared/lib/rapport'
 import type { ParametresEffectifs } from '@/shared/supabase/parametresRepo'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
@@ -71,6 +76,28 @@ export function SectionNotation({ parametres }: SectionNotationProps) {
         onSubmit={(evenement) => void handleSubmit(onSubmit)(evenement)}
         className="space-y-4"
       >
+        <div className="space-y-1.5">
+          <Label htmlFor="base-academique">Base de la note académique</Label>
+          <select
+            id="base-academique"
+            className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none sm:w-auto"
+            {...register('base_academique')}
+          >
+            {BASES_ACADEMIQUES.map((base) => (
+              <option key={base} value={base}>
+                {LIBELLES_BASE_ACADEMIQUE[base]}
+              </option>
+            ))}
+          </select>
+          {/* Donner la formule, pas seulement son nom : c'est elle qui décide
+              de la note portée sur le rapport. */}
+          <p className="text-xs text-muted-foreground">
+            {saisie.base_academique === 'examen_seul'
+              ? "Seul l'examen de fin de session compte. Les notes de récitation restent affichées, sans entrer dans le calcul."
+              : "Les notes de récitation et l'examen comptent à parts égales. Un apprenant sans aucune note de récitation est évalué sur son examen seul."}
+          </p>
+        </div>
+
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="space-y-1.5">
             <Label htmlFor="bareme-assiduite">Part de l'assiduité</Label>

@@ -13,6 +13,7 @@ function saisie(extra: Partial<NotationFormValues> = {}): NotationFormValues {
     penalite_absence: '0,5',
     penalite_retard: '0,25',
     penaliser_absences_excusees: false,
+    base_academique: 'moyenne_devoirs_examen',
     ...extra,
   }
 }
@@ -79,6 +80,19 @@ describe('notationSchema', () => {
     )
   })
 
+  it('transporte la base de la note académique', () => {
+    expect(notationSchema.parse(saisie()).base_academique).toBe('moyenne_devoirs_examen')
+    expect(
+      notationSchema.parse(saisie({ base_academique: 'examen_seul' })).base_academique
+    ).toBe('examen_seul')
+  })
+
+  it('refuse une base inconnue', () => {
+    expect(messagePour(saisie({ base_academique: 'devoirs_seuls' as 'examen_seul' }))).toBe(
+      'Base de notation inconnue.'
+    )
+  })
+
   it('transporte le choix sur les absences excusées', () => {
     expect(
       notationSchema.parse(saisie({ penaliser_absences_excusees: true }))
@@ -94,6 +108,7 @@ describe('valeursParDefaut', () => {
       penalite_absence: '0,5',
       penalite_retard: '0,25',
       penaliser_absences_excusees: false,
+      base_academique: 'moyenne_devoirs_examen',
     })
   })
 

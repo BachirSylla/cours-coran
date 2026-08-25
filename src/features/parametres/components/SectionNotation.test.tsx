@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -101,12 +101,60 @@ describe('SectionNotation', () => {
     await utilisateur.click(boutonEnregistrer())
 
     expect(mutateAsync).toHaveBeenCalledExactlyOnceWith({
+      base_academique: 'moyenne_devoirs_examen',
       bareme_academique: 15,
       bareme_assiduite: 5,
       penalite_absence: 0.5,
       penalite_retard: 0.25,
       penaliser_absences_excusees: false,
     })
+  })
+
+  it('affiche la base académique en vigueur et propose les deux', () => {
+    rendre()
+
+    const selecteur = screen.getByLabelText('Base de la note académique')
+    expect(selecteur).toHaveValue('moyenne_devoirs_examen')
+    expect(
+      within(selecteur)
+        .getAllByRole('option')
+        .map((option) => option.textContent)
+    ).toEqual(['Examen seul', 'Moyenne des devoirs et de l’examen'])
+  })
+
+  it('explique la formule, pas seulement son nom', async () => {
+    const utilisateur = userEvent.setup()
+    rendre()
+
+    expect(screen.getByText(/comptent à parts égales/)).toBeInTheDocument()
+
+    await utilisateur.selectOptions(
+      screen.getByLabelText('Base de la note académique'),
+      'examen_seul'
+    )
+
+    expect(screen.getByText(/Seul l'examen de fin de session compte/)).toBeInTheDocument()
+  })
+
+  it('enregistre la base choisie', async () => {
+    const utilisateur = userEvent.setup()
+    rendre()
+
+    await utilisateur.selectOptions(
+      screen.getByLabelText('Base de la note académique'),
+      'examen_seul'
+    )
+    await utilisateur.click(boutonEnregistrer())
+
+    expect(mutateAsync).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ base_academique: 'examen_seul' })
+    )
+  })
+
+  it('reprend la base déjà enregistrée', () => {
+    rendre({ base_academique: 'examen_seul' })
+
+    expect(screen.getByLabelText('Base de la note académique')).toHaveValue('examen_seul')
   })
 
   it('bascule la prise en compte des absences excusées', async () => {

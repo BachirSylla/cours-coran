@@ -280,6 +280,7 @@ export type Database = {
         Row: {
           bareme_academique: number
           bareme_assiduite: number
+          base_academique: string
           created_at: string
           id: string
           note_bareme: number
@@ -292,6 +293,7 @@ export type Database = {
         Insert: {
           bareme_academique?: number
           bareme_assiduite?: number
+          base_academique?: string
           created_at?: string
           id?: string
           note_bareme?: number
@@ -304,6 +306,7 @@ export type Database = {
         Update: {
           bareme_academique?: number
           bareme_assiduite?: number
+          base_academique?: string
           created_at?: string
           id?: string
           note_bareme?: number

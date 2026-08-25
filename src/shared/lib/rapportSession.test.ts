@@ -239,6 +239,40 @@ describe('construireRapport — ligne d’un apprenant', () => {
     expect(ligne.finale).toBe(16.6)
   })
 
+  it('fait compter les devoirs dans la part académique', () => {
+    // Devoir 7,25/10 → 14,5/20 ; examen 16/20 → moyenne 15,25/20, ramenée
+    // sur 17. Une séance, présent : assiduité pleine.
+    const rapport = construireRapport(
+      entrees({
+        seances: [
+          seance('s1', '2026-03-01', [presence('a1', { note: 7.25, note_bareme: 10 })]),
+        ],
+        inscrits: [inscrit('a1', 'Aïcha', 'Diallo', { note_examen: 16, examen_bareme: 20 })],
+      })
+    )
+    const ligne = rapport.lignes[0]!
+
+    expect(ligne.moyenneRevisions).toBe(14.5)
+    expect(ligne.academique).toBe(12.96)
+    expect(ligne.finale).toBe(15.96)
+  })
+
+  it('ignore les devoirs quand la base est « examen seul »', () => {
+    const rapport = construireRapport(
+      entrees({
+        seances: [
+          seance('s1', '2026-03-01', [presence('a1', { note: 7.25, note_bareme: 10 })]),
+        ],
+        inscrits: [inscrit('a1', 'Aïcha', 'Diallo', { note_examen: 16, examen_bareme: 20 })],
+        config: { ...NOTATION_PAR_DEFAUT, base_academique: 'examen_seul' },
+      })
+    )
+
+    // La moyenne reste affichée, elle n'entre simplement plus dans le calcul.
+    expect(rapport.lignes[0]!.moyenneRevisions).toBe(14.5)
+    expect(rapport.lignes[0]!.academique).toBe(13.6)
+  })
+
   it('laisse la note finale nulle sans examen', () => {
     const rapport = construireRapport(
       entrees({ seances: [seance('s1', '2026-03-01')], inscrits: [AICHA] })

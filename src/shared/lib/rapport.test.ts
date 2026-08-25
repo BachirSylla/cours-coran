@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   absencesPenalisees,
   compterPresence,
+  estBaseAcademique,
   estPresent,
   etatEffectif,
   libelleContenuSeance,
@@ -45,6 +46,7 @@ describe('NOTATION_PAR_DEFAUT', () => {
    */
   it('reflète exactement les valeurs par défaut de la base', () => {
     expect(NOTATION_PAR_DEFAUT).toEqual({
+      base_academique: 'moyenne_devoirs_examen',
       bareme_academique: 17,
       bareme_assiduite: 3,
       penalite_absence: 0.5,
@@ -213,29 +215,89 @@ describe('noteAssiduite', () => {
   })
 })
 
-describe('noteAcademique', () => {
+describe('estBaseAcademique', () => {
+  it('reconnaît les deux bases du domaine', () => {
+    expect(estBaseAcademique('examen_seul')).toBe(true)
+    expect(estBaseAcademique('moyenne_devoirs_examen')).toBe(true)
+  })
+
+  it('refuse tout le reste', () => {
+    expect(estBaseAcademique('devoirs_seuls')).toBe(false)
+    expect(estBaseAcademique('')).toBe(false)
+  })
+})
+
+describe('noteAcademique — base « examen seul »', () => {
+  const seul = config({ base_academique: 'examen_seul' })
+
   it('ramène un 16/20 sur le barème académique', () => {
-    expect(noteAcademique(16, 20, 17)).toBe(13.6)
+    expect(noteAcademique(16, 20, seul)).toBe(13.6)
   })
 
   it('lit un 8/10 comme le 16/20 qu’il vaut', () => {
-    expect(noteAcademique(8, 10, 17)).toBe(noteAcademique(16, 20, 17))
+    expect(noteAcademique(8, 10, seul)).toBe(noteAcademique(16, 20, seul))
   })
 
   it('donne le maximum à un sans-faute', () => {
-    expect(noteAcademique(20, 20, 17)).toBe(17)
-    expect(noteAcademique(10, 10, 17)).toBe(17)
+    expect(noteAcademique(20, 20, seul)).toBe(17)
+    expect(noteAcademique(10, 10, seul)).toBe(17)
+  })
+
+  it('ignore les devoirs, même excellents', () => {
+    // C'est tout le sens de ce réglage.
+    expect(noteAcademique(10, 20, seul, 20)).toBe(noteAcademique(10, 20, seul))
   })
 
   it('renvoie null quand l’examen n’a pas eu lieu', () => {
     // Pas 0 : un apprenant pas encore examiné n'a pas échoué.
-    expect(noteAcademique(null, 20, 17)).toBeNull()
-    expect(noteAcademique(15, null, 17)).toBeNull()
+    expect(noteAcademique(null, 20, seul)).toBeNull()
+    expect(noteAcademique(15, null, seul)).toBeNull()
   })
 
   it('ne produit jamais NaN sur un barème absurde', () => {
-    expect(noteAcademique(15, 0, 17)).toBe(0)
-    expect(noteAcademique(15, 20, -1)).toBeNull()
+    expect(noteAcademique(15, 0, seul)).toBe(0)
+    expect(noteAcademique(15, 20, config({ bareme_academique: -1 }))).toBeNull()
+  })
+})
+
+describe('noteAcademique — base « moyenne des devoirs et de l’examen »', () => {
+  const moyenne = config({ base_academique: 'moyenne_devoirs_examen' })
+
+  it('moyenne les devoirs et l’examen à parts égales', () => {
+    // Devoirs 14/20, examen 16/20 → 15/20, ramené sur 17 → 12,75.
+    expect(noteAcademique(16, 20, moyenne, 14)).toBe(12.75)
+  })
+
+  it('donne le maximum quand les deux sont parfaits', () => {
+    expect(noteAcademique(20, 20, moyenne, 20)).toBe(17)
+  })
+
+  it('fait remonter un examen raté par de bons devoirs', () => {
+    // 20/20 de devoirs et 10/20 d'examen → 15/20, contre 8,5 en examen seul.
+    expect(noteAcademique(10, 20, moyenne, 20)).toBe(12.75)
+    expect(noteAcademique(10, 20, config({ base_academique: 'examen_seul' }))).toBe(8.5)
+  })
+
+  it('retombe sur l’examen seul sans aucun devoir noté', () => {
+    // On ne moyenne pas avec du vide : 16/20 vaut 13,6, pas 6,8.
+    expect(noteAcademique(16, 20, moyenne, null)).toBe(13.6)
+    expect(noteAcademique(16, 20, moyenne)).toBe(13.6)
+  })
+
+  it('ne sauve pas un apprenant sans examen, même avec tous ses devoirs', () => {
+    expect(noteAcademique(null, null, moyenne, 20)).toBeNull()
+  })
+
+  it('respecte un barème académique personnalisé sans changer la base', () => {
+    // Même 15/20 de base, ramené sur 15 cette fois.
+    expect(
+      noteAcademique(
+        16,
+        20,
+        config({ base_academique: 'moyenne_devoirs_examen', bareme_academique: 15 }),
+        14
+      )
+    ).toBe(11.25)
   })
 })
 
@@ -243,6 +305,17 @@ describe('noteFinale', () => {
   it('additionne les deux parts, sur 20', () => {
     // 16/20 → 13,6 sur 17 ; assiduité parfaite → 3.
     expect(noteFinale(16, 20, comptage({ presences: 10, total: 10 }), config())).toBe(16.6)
+  })
+
+  it('tient compte des devoirs quand la base le demande', () => {
+    // Devoirs 14/20 et examen 16/20 → 12,75 d'académique, plus 3 d'assiduité.
+    expect(noteFinale(16, 20, comptage({ presences: 10, total: 10 }), config(), 14)).toBe(15.75)
+  })
+
+  it('reste null sans examen, même avec des devoirs', () => {
+    expect(
+      noteFinale(null, null, comptage({ presences: 10, total: 10 }), config(), 18)
+    ).toBeNull()
   })
 
   it('atteint 20 sur un parcours sans faute, et ne le dépasse pas', () => {

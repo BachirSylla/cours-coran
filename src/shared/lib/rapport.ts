@@ -61,10 +61,28 @@ export interface ComptagePresence {
 }
 
 /**
+ * Sur quoi repose la part académique — miroir du `check` de
+ * `parametres.base_academique` (migration 0009).
+ */
+export const BASES_ACADEMIQUES = ['examen_seul', 'moyenne_devoirs_examen'] as const
+
+export type BaseAcademique = (typeof BASES_ACADEMIQUES)[number]
+
+export const LIBELLES_BASE_ACADEMIQUE: Record<BaseAcademique, string> = {
+  examen_seul: 'Examen seul',
+  moyenne_devoirs_examen: 'Moyenne des devoirs et de l’examen',
+}
+
+export function estBaseAcademique(valeur: string): valeur is BaseAcademique {
+  return (BASES_ACADEMIQUES as readonly string[]).includes(valeur)
+}
+
+/**
  * Configuration de la notation — mêmes noms qu'en base, pour qu'aucune couche de
  * conversion ne s'intercale entre le repository et ce module.
  */
 export interface ConfigNotation {
+  base_academique: BaseAcademique
   bareme_academique: number
   bareme_assiduite: number
   penalite_absence: number
@@ -81,6 +99,7 @@ export interface ConfigNotation {
  * contre une dérive silencieuse avec le SQL.
  */
 export const NOTATION_PAR_DEFAUT: ConfigNotation = {
+  base_academique: 'moyenne_devoirs_examen',
   bareme_academique: 17,
   bareme_assiduite: 3,
   penalite_absence: 0.5,
@@ -177,19 +196,41 @@ export function noteAssiduite(comptage: ComptagePresence, config: ConfigNotation
 }
 
 /**
- * Note d'examen ramenée sur `maxAcademique`, ou `null` si l'examen n'a pas eu
- * lieu. `null` et non 0 : un apprenant pas encore examiné n'a pas échoué, et
- * imprimer « 0/17 » sur son rapport serait faux.
+ * Part académique de la note finale, ou `null` si l'examen n'a pas eu lieu.
+ * `null` et non 0 : un apprenant pas encore examiné n'a pas échoué, même s'il a
+ * rendu tous ses devoirs — imprimer « 0/17 » sur son rapport serait faux.
+ *
+ * Les deux bases se ramènent à une seule formule,
+ * `academiqueSur20 × (bareme_academique / 20)` ; seul le premier terme diffère :
+ *
+ * - `examen_seul` — l'examen, et lui seul ;
+ * - `moyenne_devoirs_examen` — les devoirs et l'examen à parts égales.
+ *
+ * **Sans aucun devoir noté, la base retombe sur l'examen seul** : on ne moyenne
+ * pas avec du vide. C'est aussi ce qui rend `moyenneDevoirsSur20` facultatif.
+ *
+ * @param moyenneDevoirsSur20 la moyenne des notes de séance, déjà ramenée sur
+ *   20 par {@link moyenneRevisions}.
  */
 export function noteAcademique(
   examen: number | null,
   examenBareme: number | null,
-  maxAcademique: number
+  config: ConfigNotation,
+  moyenneDevoirsSur20: number | null = null
 ): number | null {
   if (examen === null || examenBareme === null) return null
-  if (!Number.isFinite(maxAcademique) || maxAcademique < 0) return null
 
-  return arrondir((noteEnPourcentage(examen, examenBareme) / 100) * maxAcademique)
+  const maximum = config.bareme_academique
+  if (!Number.isFinite(maximum) || maximum < 0) return null
+
+  const examenSur20 = (noteEnPourcentage(examen, examenBareme) / 100) * TOTAL_NOTE_FINALE
+
+  const academiqueSur20 =
+    config.base_academique === 'moyenne_devoirs_examen' && moyenneDevoirsSur20 !== null
+      ? (moyenneDevoirsSur20 + examenSur20) / 2
+      : examenSur20
+
+  return arrondir((academiqueSur20 / TOTAL_NOTE_FINALE) * maximum)
 }
 
 /** Note finale sur 20 : académique + assiduité. `null` tant qu'il n'y a pas d'examen. */
@@ -197,9 +238,10 @@ export function noteFinale(
   examen: number | null,
   examenBareme: number | null,
   comptage: ComptagePresence,
-  config: ConfigNotation
+  config: ConfigNotation,
+  moyenneDevoirsSur20: number | null = null
 ): number | null {
-  const academique = noteAcademique(examen, examenBareme, config.bareme_academique)
+  const academique = noteAcademique(examen, examenBareme, config, moyenneDevoirsSur20)
 
   if (academique === null) return null
 

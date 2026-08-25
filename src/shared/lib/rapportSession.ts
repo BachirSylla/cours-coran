@@ -254,6 +254,11 @@ function construireLigne(
       ? { note: inscrit.note_examen, note_bareme: inscrit.examen_bareme }
       : null
 
+  // La moyenne qui nourrit la part académique est exactement celle qu'imprime la
+  // colonne « Moy. rév. » : les chiffres du rapport s'additionnent donc à la
+  // main, ce qui ne serait pas le cas avec un arrondi seulement final.
+  const moyenneDevoirs = moyenneRevisions(listeNotes)
+
   return {
     apprenant_id: inscrit.apprenant_id,
     prenom: inscrit.prenom ?? '',
@@ -265,14 +270,21 @@ function construireLigne(
       comptage.total === 0 ? 0 : arrondir((comptage.presences / comptage.total) * 100),
     assiduite: noteAssiduite(comptage, config),
     nbNotes: listeNotes.length,
-    moyenneRevisions: moyenneRevisions(listeNotes),
+    moyenneRevisions: moyenneDevoirs,
     examen,
     academique: noteAcademique(
       examen?.note ?? null,
       examen?.note_bareme ?? null,
-      config.bareme_academique
+      config,
+      moyenneDevoirs
     ),
-    finale: noteFinale(examen?.note ?? null, examen?.note_bareme ?? null, comptage, config),
+    finale: noteFinale(
+      examen?.note ?? null,
+      examen?.note_bareme ?? null,
+      comptage,
+      config,
+      moyenneDevoirs
+    ),
   }
 }
 

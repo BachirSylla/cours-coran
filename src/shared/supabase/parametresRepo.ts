@@ -1,7 +1,11 @@
 import { getSupabaseClient } from '@/shared/supabase/client'
 import { lancerSiErreur } from '@/shared/supabase/erreurs'
 import type { Bareme } from '@/shared/lib/evaluations'
-import { NOTATION_PAR_DEFAUT, type ConfigNotation } from '@/shared/lib/rapport'
+import {
+  estBaseAcademique,
+  NOTATION_PAR_DEFAUT,
+  type ConfigNotation,
+} from '@/shared/lib/rapport'
 import type { Database } from '@/shared/supabase/types'
 
 /**
@@ -43,6 +47,12 @@ export async function get(): Promise<ParametresEffectifs> {
 
   return {
     note_bareme: data.note_bareme,
+    // La base est une chaîne côté types générés : on la referme sur le domaine,
+    // et une valeur inattendue retombe sur le défaut plutôt que de casser le
+    // calcul de la note.
+    base_academique: estBaseAcademique(data.base_academique)
+      ? data.base_academique
+      : NOTATION_PAR_DEFAUT.base_academique,
     bareme_academique: data.bareme_academique,
     bareme_assiduite: data.bareme_assiduite,
     penalite_absence: data.penalite_absence,

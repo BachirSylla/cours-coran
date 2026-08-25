@@ -150,9 +150,11 @@ describe('RapportSessionPage', () => {
     expect(screen.getByText('Moyenne finale de la classe')).toBeInTheDocument()
     expect(screen.getByText('Présence moyenne')).toBeInTheDocument()
     expect(screen.getByText('Meilleure note')).toBeInTheDocument()
-    // Un seul examen saisi : 16/20 → 13,6 d'académique, plus 2,5 d'assiduité
-    // (une absence sèche sur deux séances) = 16,1.
-    expect(screen.getAllByText('16,1').length).toBeGreaterThan(0)
+    // Un seul examen saisi. Base par défaut « moyenne des devoirs et de
+    // l'examen » : devoir 7,25/10 → 14,5/20, examen 16/20 → moyenne 15,25/20,
+    // ramenée sur 17 → 12,96 ; plus 2,5 d'assiduité (une absence sèche sur deux
+    // séances) = 15,46.
+    expect(screen.getAllByText('15,46').length).toBeGreaterThan(0)
   })
 
   it('affiche une ligne par apprenant, trié par nom', () => {
