@@ -15,7 +15,7 @@ const useEnregistrerMock = vi.mocked(useEnregistrerNotation)
 const mutateAsync = vi.fn()
 
 function parametres(extra: Partial<ParametresEffectifs> = {}): ParametresEffectifs {
-  return { note_bareme: 20, enregistres: true, ...NOTATION_PAR_DEFAUT, ...extra }
+  return { note_bareme: 20, logo: null, enregistres: true, ...NOTATION_PAR_DEFAUT, ...extra }
 }
 
 function rendre(extra: Partial<ParametresEffectifs> = {}) {
@@ -101,6 +101,7 @@ describe('SectionNotation', () => {
     await utilisateur.click(boutonEnregistrer())
 
     expect(mutateAsync).toHaveBeenCalledExactlyOnceWith({
+      assiduite_active: true,
       base_academique: 'moyenne_devoirs_examen',
       bareme_academique: 15,
       bareme_assiduite: 5,

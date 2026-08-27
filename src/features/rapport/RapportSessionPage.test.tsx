@@ -62,6 +62,7 @@ function simuler(
     seances?: SeanceRapport[]
     inscrits?: InscritRapport[]
     config?: typeof NOTATION_PAR_DEFAUT
+    logo?: string | null
     etat?: Partial<ReturnType<typeof useRapportCours>>
   } = {}
 ) {
@@ -75,6 +76,7 @@ function simuler(
   useRapportMock.mockReturnValue({
     cours: { libelle: 'Groupe Hifz' } as CoursAvecDetails,
     rapport,
+    logo: options.logo ?? null,
     isPending: false,
     isError: false,
     error: null,
@@ -289,6 +291,58 @@ describe('RapportSessionPage', () => {
     rendre()
 
     expect(document.title).toBe('Rapport — Groupe Hifz')
+  })
+
+  it('masque les colonnes Assiduité et Note quand l’assiduité est inactive', () => {
+    simuler({ config: { ...NOTATION_PAR_DEFAUT, assiduite_active: false } })
+
+    rendre()
+
+    expect(screen.queryByRole('columnheader', { name: /Assiduité/ })).not.toBeInTheDocument()
+    // La colonne « Note » répéterait la note finale à l'identique.
+    expect(
+      screen.queryByRole('columnheader', { name: /^Note\s*\/\s*17/ })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('columnheader', { name: /Note finale\s*\/\s*20/ })
+    ).toBeInTheDocument()
+  })
+
+  it('garde les deux colonnes quand l’assiduité est active', () => {
+    simuler()
+
+    rendre()
+
+    expect(screen.getByRole('columnheader', { name: /Assiduité/ })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: /^Note\s*\/\s*17/ })).toBeInTheDocument()
+  })
+
+  it('affiche le logo du centre en en-tête quand il est défini', () => {
+    simuler({ logo: 'data:image/png;base64,AAAA' })
+
+    rendre()
+
+    expect(screen.getByAltText('Logo du centre')).toHaveAttribute(
+      'src',
+      'data:image/png;base64,AAAA'
+    )
+  })
+
+  it('n’affiche aucun emblème quand aucun logo n’est défini', () => {
+    // Pas d'image de substitution : l'en-tête reste exactement celui d'avant.
+    simuler()
+
+    rendre()
+
+    expect(screen.queryByAltText('Logo du centre')).not.toBeInTheDocument()
+  })
+
+  it('rend une icône sur chacune des trois cartes', () => {
+    simuler()
+
+    rendre()
+
+    expect(screen.getAllByTestId('carte-icone')).toHaveLength(3)
   })
 
   it('affiche les totaux de présence par apprenant', () => {

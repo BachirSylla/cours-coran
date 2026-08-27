@@ -51,6 +51,7 @@ function brancherHook() {
       config: NOTATION_PAR_DEFAUT,
       periode,
     }),
+    logo: null,
     isPending: false,
     isError: false,
     error: null,

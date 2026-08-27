@@ -13,6 +13,11 @@ export interface GrilleNotesProps {
   baremeAcademique: number
   /** `null` quand les examens ont des barèmes différents, ou qu'il n'y en a aucun. */
   baremeExamenCommun: number | null
+  /**
+   * `false` : la part académique EST la note finale. Afficher les deux
+   * colonnes ferait douter le lecteur d'un document imprimé.
+   */
+  assiduiteActive: boolean
 }
 
 /**
@@ -25,6 +30,7 @@ export function GrilleNotes({
   lignes,
   baremeAcademique,
   baremeExamenCommun,
+  assiduiteActive,
 }: GrilleNotesProps) {
   return (
     <table className="text-[7.5pt] leading-tight">
@@ -37,7 +43,7 @@ export function GrilleNotes({
         <col className="w-[10mm]" />
         <col className="w-[18mm]" />
         <col className="w-[18mm]" />
-        <col className="w-[16mm]" />
+        {assiduiteActive && <col className="w-[16mm]" />}
         <col className="w-[20mm]" />
       </colgroup>
 
@@ -69,10 +75,12 @@ export function GrilleNotes({
               </>
             )}
           </th>
-          <th scope="col" className="border-emerald-900">
-            Note
-            <br />/{nombreFr(baremeAcademique, 0)}
-          </th>
+          {assiduiteActive && (
+            <th scope="col" className="border-emerald-900">
+              Note
+              <br />/{nombreFr(baremeAcademique, 0)}
+            </th>
+          )}
           <th scope="col" className="border-emerald-900">
             Note finale
             <br />/{TOTAL_NOTE_FINALE}
@@ -113,7 +121,9 @@ export function GrilleNotes({
                       // quoi un 9/10 se lirait comme un 9/20.
                       `${nombreFr(ligne.examen.note)}/${ligne.examen.note_bareme}`}
               </td>
-              <td className="text-muted-foreground">{nombreFr(ligne.academique)}</td>
+              {assiduiteActive && (
+                <td className="text-muted-foreground">{nombreFr(ligne.academique)}</td>
+              )}
               <td
                 className={cn(
                   'text-[8.5pt] font-bold',

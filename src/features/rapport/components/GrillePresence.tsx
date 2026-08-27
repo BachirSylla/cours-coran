@@ -9,6 +9,8 @@ export interface GrillePresenceProps {
   /** Numéro de la première ligne — les blocs successifs continuent la série. */
   premierNumero: number
   baremeAssiduite: number
+  /** `false` : l'assiduité ne compte pas, sa colonne n'a rien à dire. */
+  assiduiteActive: boolean
 }
 
 /**
@@ -20,6 +22,7 @@ export function GrillePresence({
   lignes,
   premierNumero,
   baremeAssiduite,
+  assiduiteActive,
 }: GrillePresenceProps) {
   return (
     <table className="text-[7.5pt] leading-tight">
@@ -33,7 +36,7 @@ export function GrillePresence({
         <col className="w-[13mm]" />
         <col className="w-[13mm]" />
         <col className="w-[16mm]" />
-        <col className="w-[18mm]" />
+        {assiduiteActive && <col className="w-[18mm]" />}
       </colgroup>
 
       <thead>
@@ -59,9 +62,11 @@ export function GrillePresence({
           <th scope="col" className="border-emerald-900">
             %
           </th>
-          <th scope="col" className="border-emerald-900">
-            Assiduité /{nombreFr(baremeAssiduite, 0)}
-          </th>
+          {assiduiteActive && (
+            <th scope="col" className="border-emerald-900">
+              Assiduité /{nombreFr(baremeAssiduite, 0)}
+            </th>
+          )}
         </tr>
       </thead>
 
@@ -95,7 +100,7 @@ export function GrillePresence({
               {ligne.comptage.retards}
             </td>
             <td className="font-semibold">{nombreFr(ligne.pourcentagePresence)} %</td>
-            <td className="font-semibold">{nombreFr(ligne.assiduite)}</td>
+            {assiduiteActive && <td className="font-semibold">{nombreFr(ligne.assiduite)}</td>}
           </tr>
         ))}
       </tbody>

@@ -82,6 +82,11 @@ export function estBaseAcademique(valeur: string): valeur is BaseAcademique {
  * conversion ne s'intercale entre le repository et ce module.
  */
 export interface ConfigNotation {
+  /**
+   * `false` : l'assiduité ne compte pas. La part académique prend alors tout, et
+   * la note finale reste sur 20 — deux rapports restent comparables.
+   */
+  assiduite_active: boolean
   base_academique: BaseAcademique
   bareme_academique: number
   bareme_assiduite: number
@@ -99,6 +104,7 @@ export interface ConfigNotation {
  * contre une dérive silencieuse avec le SQL.
  */
 export const NOTATION_PAR_DEFAUT: ConfigNotation = {
+  assiduite_active: true,
   base_academique: 'moyenne_devoirs_examen',
   bareme_academique: 17,
   bareme_assiduite: 3,
@@ -209,6 +215,10 @@ export function noteAssiduite(comptage: ComptagePresence, config: ConfigNotation
  * **Sans aucun devoir noté, la base retombe sur l'examen seul** : on ne moyenne
  * pas avec du vide. C'est aussi ce qui rend `moyenneDevoirsSur20` facultatif.
  *
+ * Quand l'assiduité est **inactive**, la part académique n'est pas ramenée sur
+ * `bareme_academique` : elle prend tout, et vaut donc directement la note finale
+ * sur 20.
+ *
  * @param moyenneDevoirsSur20 la moyenne des notes de séance, déjà ramenée sur
  *   20 par {@link moyenneRevisions}.
  */
@@ -220,7 +230,8 @@ export function noteAcademique(
 ): number | null {
   if (examen === null || examenBareme === null) return null
 
-  const maximum = config.bareme_academique
+  // Assiduité inactive : l'académique n'est pas rognée, elle EST la note finale.
+  const maximum = config.assiduite_active ? config.bareme_academique : TOTAL_NOTE_FINALE
   if (!Number.isFinite(maximum) || maximum < 0) return null
 
   const examenSur20 = (noteEnPourcentage(examen, examenBareme) / 100) * TOTAL_NOTE_FINALE
@@ -244,6 +255,7 @@ export function noteFinale(
   const academique = noteAcademique(examen, examenBareme, config, moyenneDevoirsSur20)
 
   if (academique === null) return null
+  if (!config.assiduite_active) return academique
 
   return arrondir(academique + noteAssiduite(comptage, config))
 }

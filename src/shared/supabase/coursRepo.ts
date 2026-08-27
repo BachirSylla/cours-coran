@@ -1,3 +1,4 @@
+import type { SurchargesCours } from '@/shared/lib/paramsCours'
 import { getSupabaseClient } from '@/shared/supabase/client'
 import { ErreurSupabase, lancerSiErreur } from '@/shared/supabase/erreurs'
 import type { Database, Json } from '@/shared/supabase/types'
@@ -21,7 +22,21 @@ export type Creneau = Database['public']['Tables']['creneau']['Row']
  */
 export type CoursInput = Omit<
   TableCours['Insert'],
-  'id' | 'owner_id' | 'created_at' | 'updated_at' | 'jeton_partage'
+  | 'id'
+  | 'owner_id'
+  | 'created_at'
+  | 'updated_at'
+  | 'jeton_partage'
+  // Les surcharges de notation et le logo (migration 0011) ne passent pas non
+  // plus par le formulaire : ils ont leur propre section et leur propre
+  // écriture, et `enregistrer_cours` n'écrit pas ces colonnes.
+  | 'logo'
+  | 'assiduite_active'
+  | 'base_academique'
+  | 'bareme_assiduite'
+  | 'penalite_absence'
+  | 'penalite_retard'
+  | 'penaliser_absences_excusees'
 >
 
 /** Créneau tel que saisi dans le formulaire (sans identité ni propriétaire). */
@@ -115,6 +130,27 @@ export function update(
   creneaux: CreneauInput[]
 ): Promise<Cours> {
   return enregistrer(input, creneaux, id)
+}
+
+/**
+ * Réglages propres à un cours (migration 0011) : notation et logo.
+ *
+ * `null` sur un champ signifie « hériter du centre ». Un simple `update` suffit
+ * — la policy `cours_update_own` fait le contrôle d'accès, et ces colonnes sont
+ * hors du périmètre de `enregistrer_cours`, qui reste consacrée au cours et à
+ * ses créneaux.
+ */
+export async function definirReglages(id: string, surcharges: SurchargesCours): Promise<Cours> {
+  const { data, error } = await getSupabaseClient()
+    .from('cours')
+    .update(surcharges)
+    .eq('id', id)
+    .select('*')
+    .single()
+
+  lancerSiErreur(error, 'Enregistrement des réglages du cours')
+
+  return data
 }
 
 /**

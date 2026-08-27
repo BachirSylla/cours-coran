@@ -273,6 +273,23 @@ describe('construireRapport — ligne d’un apprenant', () => {
     expect(rapport.lignes[0]!.academique).toBe(13.6)
   })
 
+  it('donne une note finale égale à l’académique quand l’assiduité est inactive', () => {
+    const rapport = construireRapport(
+      entrees({
+        seances: [
+          seance('s1', '2026-03-01', [presence('a1', { etat: 'absent', present: false })]),
+        ],
+        inscrits: [inscrit('a1', 'Aïcha', 'Diallo', { note_examen: 16, examen_bareme: 20 })],
+        config: { ...NOTATION_PAR_DEFAUT, assiduite_active: false },
+      })
+    )
+    const ligne = rapport.lignes[0]!
+
+    // L'académique prend tout : 16/20 reste 16, et l'absence ne retire rien.
+    expect(ligne.academique).toBe(16)
+    expect(ligne.finale).toBe(16)
+  })
+
   it('laisse la note finale nulle sans examen', () => {
     const rapport = construireRapport(
       entrees({ seances: [seance('s1', '2026-03-01')], inscrits: [AICHA] })

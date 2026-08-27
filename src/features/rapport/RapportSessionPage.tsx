@@ -1,6 +1,13 @@
 import { useEffect, useMemo } from 'react'
 import { useParams, useSearchParams } from 'react-router'
-import { Loader2, Printer, TriangleAlert } from 'lucide-react'
+import {
+  CalendarCheck,
+  ChartColumn,
+  Loader2,
+  Printer,
+  TriangleAlert,
+  Trophy,
+} from 'lucide-react'
 
 import { GrilleNotes } from '@/features/rapport/components/GrilleNotes'
 import { GrillePresence, LegendeEtats } from '@/features/rapport/components/GrillePresence'
@@ -38,7 +45,7 @@ export function RapportSessionPage() {
   const params = useMemo(() => lireRapportParams(chaine), [chaine])
   const periode = useMemo(() => ({ debut: params.du, fin: params.au }), [params.du, params.au])
 
-  const { cours, rapport, isPending, isError, error } = useRapportCours(coursId, periode)
+  const { cours, rapport, logo, isPending, isError, error } = useRapportCours(coursId, periode)
   const { imprimer, enCours } = useImpression()
 
   const titre = cours ? `Rapport — ${cours.libelle}` : 'Rapport de session'
@@ -87,7 +94,12 @@ export function RapportSessionPage() {
         )}
 
         {!isPending && !isError && rapport && (
-          <Feuille rapport={rapport} params={params} libelleCours={cours?.libelle ?? ''} />
+          <Feuille
+            rapport={rapport}
+            params={params}
+            libelleCours={cours?.libelle ?? ''}
+            logo={logo}
+          />
         )}
       </div>
     </div>
@@ -98,17 +110,19 @@ function Feuille({
   rapport,
   params,
   libelleCours,
+  logo,
 }: {
   rapport: RapportSession
   params: RapportParams
   libelleCours: string
+  logo: string | null
 }) {
   const { synthese, config } = rapport
   const blocs = decouperEnBlocs(rapport.colonnesPresence, SEANCES_PAR_BLOC)
 
   return (
     <article className="space-y-[4mm]">
-      <EnTete rapport={rapport} params={params} libelleCours={libelleCours} />
+      <EnTete rapport={rapport} params={params} libelleCours={libelleCours} logo={logo} />
 
       <Synthese rapport={rapport} />
 
@@ -133,6 +147,7 @@ function Feuille({
                 lignes={rapport.lignes}
                 premierNumero={1}
                 baremeAssiduite={config.bareme_assiduite}
+                assiduiteActive={config.assiduite_active}
               />
             </div>
           ))
@@ -154,6 +169,7 @@ function Feuille({
             lignes={rapport.lignes}
             baremeAcademique={config.bareme_academique}
             baremeExamenCommun={rapport.baremeExamenCommun}
+            assiduiteActive={config.assiduite_active}
           />
         )}
       </section>
@@ -170,10 +186,12 @@ function EnTete({
   rapport,
   params,
   libelleCours,
+  logo,
 }: {
   rapport: RapportSession
   params: RapportParams
   libelleCours: string
+  logo: string | null
 }) {
   const { synthese, periode } = rapport
   const badge = [
@@ -186,14 +204,26 @@ function EnTete({
   return (
     <header className="eviter-coupure space-y-[2mm]">
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-[19pt] leading-none font-bold text-emerald-900">
-            Rapport de fin de session
-          </h1>
-          <p className="mt-[1mm] text-[9pt] text-muted-foreground">
-            Suivi de présence et des notes des apprenants
-            {libelleCours && <> — {libelleCours}</>}
-          </p>
+        <div className="flex items-center gap-[4mm]">
+          {/* Hauteur imposée, largeur libre, `object-contain` : un logo carré,
+              large ou tout en hauteur s'y adapte sans jamais être déformé ni
+              déborder sur le titre. Sans logo, aucun emblème de substitution. */}
+          {logo && (
+            <img
+              src={logo}
+              alt="Logo du centre"
+              className="h-[12mm] w-auto max-w-[36mm] shrink-0 object-contain"
+            />
+          )}
+          <div>
+            <h1 className="text-[19pt] leading-none font-bold text-emerald-900">
+              Rapport de fin de session
+            </h1>
+            <p className="mt-[1mm] text-[9pt] text-muted-foreground">
+              Suivi de présence et des notes des apprenants
+              {libelleCours && <> — {libelleCours}</>}
+            </p>
+          </div>
         </div>
 
         {badge && (
@@ -231,23 +261,44 @@ function Synthese({ rapport }: { rapport: RapportSession }) {
 
   return (
     <div className="eviter-coupure flex flex-wrap gap-[3mm]">
-      <Carte libelle="Moyenne finale de la classe">
+      <Carte libelle="Moyenne finale de la classe" icone={ChartColumn}>
         {nombreFr(synthese.moyenneFinale)}
         <span className="text-[9pt] font-normal">/{TOTAL_NOTE_FINALE}</span>
       </Carte>
-      <Carte libelle="Présence moyenne">{nombreFr(synthese.presenceMoyenne)} %</Carte>
-      <Carte libelle="Meilleure note">{nombreFr(synthese.meilleureNote)}</Carte>
+      <Carte libelle="Présence moyenne" icone={CalendarCheck}>
+        {nombreFr(synthese.presenceMoyenne)} %
+      </Carte>
+      <Carte libelle="Meilleure note" icone={Trophy}>
+        {nombreFr(synthese.meilleureNote)}
+      </Carte>
     </div>
   )
 }
 
-function Carte({ libelle, children }: { libelle: string; children: React.ReactNode }) {
+function Carte({
+  libelle,
+  icone: Icone,
+  children,
+}: {
+  libelle: string
+  icone: typeof ChartColumn
+  children: React.ReactNode
+}) {
   return (
-    <div className="min-w-[52mm] rounded-md border bg-muted/40 px-[4mm] py-[2.5mm]">
-      <p className="text-[6.5pt] tracking-wider text-muted-foreground uppercase">{libelle}</p>
-      <p className="mt-[0.5mm] text-[16pt] leading-none font-bold text-emerald-900">
-        {children}
-      </p>
+    <div className="flex min-w-[52mm] items-center gap-[3mm] rounded-md border bg-muted/40 px-[4mm] py-[2.5mm]">
+      {/* Décorative : la carte porte déjà son libellé. */}
+      <span
+        data-testid="carte-icone"
+        className="flex size-[9mm] shrink-0 items-center justify-center rounded-md bg-emerald-100 text-emerald-700"
+      >
+        <Icone className="size-[5mm]" aria-hidden="true" />
+      </span>
+      <div>
+        <p className="text-[6.5pt] tracking-wider text-muted-foreground uppercase">{libelle}</p>
+        <p className="mt-[0.5mm] text-[16pt] leading-none font-bold text-emerald-900">
+          {children}
+        </p>
+      </div>
     </div>
   )
 }

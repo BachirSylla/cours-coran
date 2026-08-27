@@ -32,6 +32,8 @@ export type ParametresPatch = Partial<
 export interface ParametresEffectifs extends ConfigNotation {
   /** Barème des notes de récitation, séance par séance. */
   note_bareme: number
+  /** Logo du centre, data URL, ou `null` s'il n'y en a pas (migration 0010). */
+  logo: string | null
   /** `false` quand les valeurs viennent des défauts, sans ligne en base. */
   enregistres: boolean
 }
@@ -42,11 +44,18 @@ export async function get(): Promise<ParametresEffectifs> {
   lancerSiErreur(error, 'Chargement des paramètres')
 
   if (!data) {
-    return { note_bareme: BAREME_PAR_DEFAUT, ...NOTATION_PAR_DEFAUT, enregistres: false }
+    return {
+      note_bareme: BAREME_PAR_DEFAUT,
+      logo: null,
+      ...NOTATION_PAR_DEFAUT,
+      enregistres: false,
+    }
   }
 
   return {
     note_bareme: data.note_bareme,
+    logo: data.logo,
+    assiduite_active: data.assiduite_active,
     // La base est une chaîne côté types générés : on la referme sur le domaine,
     // et une valeur inattendue retombe sur le défaut plutôt que de casser le
     // calcul de la note.

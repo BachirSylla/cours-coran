@@ -43,6 +43,7 @@ export const notationSchema = z
     ),
     penaliser_absences_excusees: z.boolean(),
     base_academique: z.enum(BASES_ACADEMIQUES, { message: 'Base de notation inconnue.' }),
+    assiduite_active: z.boolean(),
   })
   // La part académique n'est jamais saisie : elle est ce qui reste.
   .transform((valeurs): ConfigNotation => ({
@@ -61,5 +62,6 @@ export function valeursParDefaut(config: ConfigNotation): NotationFormValues {
     penalite_retard: String(config.penalite_retard).replace('.', ','),
     penaliser_absences_excusees: config.penaliser_absences_excusees,
     base_academique: config.base_academique,
+    assiduite_active: config.assiduite_active,
   }
 }

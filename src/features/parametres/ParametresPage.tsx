@@ -1,5 +1,6 @@
 import { Check, Info, Loader2, TriangleAlert } from 'lucide-react'
 
+import { SectionLogo } from '@/features/parametres/components/SectionLogo'
 import { SectionNotation } from '@/features/parametres/components/SectionNotation'
 import { useEnregistrerBareme } from '@/features/parametres/hooks/useEnregistrerBareme'
 import { useParametres } from '@/features/parametres/hooks/useParametres'
@@ -110,6 +111,8 @@ export function ParametresPage() {
       )}
 
       {!isPending && !isError && parametres && <SectionNotation parametres={parametres} />}
+
+      {!isPending && !isError && parametres && <SectionLogo parametres={parametres} />}
     </div>
   )
 }

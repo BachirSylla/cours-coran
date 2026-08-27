@@ -46,6 +46,7 @@ describe('NOTATION_PAR_DEFAUT', () => {
    */
   it('reflète exactement les valeurs par défaut de la base', () => {
     expect(NOTATION_PAR_DEFAUT).toEqual({
+      assiduite_active: true,
       base_academique: 'moyenne_devoirs_examen',
       bareme_academique: 17,
       bareme_assiduite: 3,
@@ -298,6 +299,42 @@ describe('noteAcademique — base « moyenne des devoirs et de l’examen »', (
         14
       )
     ).toBe(11.25)
+  })
+})
+
+describe('assiduité désactivée', () => {
+  const sansAssiduite = config({ assiduite_active: false })
+
+  it('ne rogne plus la part académique : elle prend tout', () => {
+    // 16/20 vaut 16/20, et non 13,6 — le facteur 17/20 ne s'applique plus.
+    expect(noteAcademique(16, 20, sansAssiduite)).toBe(16)
+    expect(noteAcademique(20, 20, sansAssiduite)).toBe(20)
+  })
+
+  it('donne une note finale égale à l’académique', () => {
+    expect(noteFinale(16, 20, comptage({ presences: 10, total: 10 }), sansAssiduite)).toBe(16)
+  })
+
+  it('n’ajoute jamais l’assiduité, même parfaite', () => {
+    const parfaite = comptage({ presences: 10, total: 10 })
+    const catastrophique = comptage({ absences: 10, total: 10 })
+
+    expect(noteFinale(16, 20, parfaite, sansAssiduite)).toBe(
+      noteFinale(16, 20, catastrophique, sansAssiduite)
+    )
+  })
+
+  it('reste sur 20 — jamais un bulletin sur 17', () => {
+    expect(noteFinale(20, 20, comptage({ absences: 5, total: 10 }), sansAssiduite)).toBe(20)
+  })
+
+  it('reste null sans examen', () => {
+    expect(noteFinale(null, null, comptage({ total: 10 }), sansAssiduite)).toBeNull()
+  })
+
+  it('continue de moyenner les devoirs quand la base le demande', () => {
+    // Devoirs 14/20 et examen 16/20 → 15/20, non rogné.
+    expect(noteAcademique(16, 20, sansAssiduite, 14)).toBe(15)
   })
 })
 

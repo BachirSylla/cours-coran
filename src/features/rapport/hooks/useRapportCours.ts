@@ -5,6 +5,7 @@ import { coursKeys } from '@/features/cours/hooks/coursKeys'
 import { inscriptionKeys } from '@/features/inscriptions/hooks/inscriptionKeys'
 import { parametresKeys } from '@/features/parametres/hooks/parametresKeys'
 import { seanceKeys } from '@/features/seances/hooks/seanceKeys'
+import { parametresEffectifs } from '@/shared/lib/paramsCours'
 import type { PeriodeRapport, RapportSession } from '@/shared/lib/rapportSession'
 import { construireRapport } from '@/shared/lib/rapportSession'
 import * as coursRepo from '@/shared/supabase/coursRepo'
@@ -16,6 +17,8 @@ import * as seanceRepo from '@/shared/supabase/seanceRepo'
 export interface ResultatRapport {
   cours: CoursAvecDetails | null
   rapport: RapportSession | null
+  /** Logo **effectif** : celui du cours, sinon celui du centre. */
+  logo: string | null
   isPending: boolean
   isError: boolean
   error: Error | null
@@ -58,7 +61,18 @@ export function useRapportCours(
 
   const donnees = seances.data
   const listeInscrits = inscrits.data
-  const config = parametres.data
+  const global = parametres.data
+  const surcharges = cours.data ?? null
+
+  /**
+   * Les réglages du cours l'emportent sur ceux du centre, champ par champ.
+   * Un cours sans aucune surcharge retombe donc exactement sur le global — ce
+   * qui rend la nouveauté indolore pour tous les cours existants.
+   */
+  const config = useMemo(
+    () => (global ? parametresEffectifs(global, surcharges) : null),
+    [global, surcharges]
+  )
 
   const rapport = useMemo(() => {
     if (!donnees || !listeInscrits || !config) return null
@@ -82,6 +96,9 @@ export function useRapportCours(
   return {
     cours: cours.data ?? null,
     rapport,
+    // Le logo ne passe pas par `construireRapport` : ce module reste du calcul
+    // pur, une image n'y a pas sa place.
+    logo: config?.logo ?? null,
     isPending: actif && requetes.some((requete) => requete.isPending),
     isError: requetes.some((requete) => requete.isError),
     error: requetes.find((requete) => requete.error)?.error ?? null,

@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.17"
   }
   graphql_public: {
     Tables: {
@@ -83,6 +83,9 @@ export type Database = {
       }
       cours: {
         Row: {
+          assiduite_active: boolean | null
+          bareme_assiduite: number | null
+          base_academique: string | null
           created_at: string
           date_debut: string
           date_fin: string | null
@@ -92,13 +95,20 @@ export type Database = {
           jeton_partage: string | null
           libelle: string
           lien_meet: string | null
+          logo: string | null
           owner_id: string
+          penaliser_absences_excusees: boolean | null
+          penalite_absence: number | null
+          penalite_retard: number | null
           prix_mensuel: number | null
           statut: string
           type_cours_id: string
           updated_at: string
         }
         Insert: {
+          assiduite_active?: boolean | null
+          bareme_assiduite?: number | null
+          base_academique?: string | null
           created_at?: string
           date_debut: string
           date_fin?: string | null
@@ -108,13 +118,20 @@ export type Database = {
           jeton_partage?: string | null
           libelle: string
           lien_meet?: string | null
+          logo?: string | null
           owner_id?: string
+          penaliser_absences_excusees?: boolean | null
+          penalite_absence?: number | null
+          penalite_retard?: number | null
           prix_mensuel?: number | null
           statut?: string
           type_cours_id: string
           updated_at?: string
         }
         Update: {
+          assiduite_active?: boolean | null
+          bareme_assiduite?: number | null
+          base_academique?: string | null
           created_at?: string
           date_debut?: string
           date_fin?: string | null
@@ -124,7 +141,11 @@ export type Database = {
           jeton_partage?: string | null
           libelle?: string
           lien_meet?: string | null
+          logo?: string | null
           owner_id?: string
+          penaliser_absences_excusees?: boolean | null
+          penalite_absence?: number | null
+          penalite_retard?: number | null
           prix_mensuel?: number | null
           statut?: string
           type_cours_id?: string
@@ -278,11 +299,13 @@ export type Database = {
       }
       parametres: {
         Row: {
+          assiduite_active: boolean
           bareme_academique: number
           bareme_assiduite: number
           base_academique: string
           created_at: string
           id: string
+          logo: string | null
           note_bareme: number
           owner_id: string
           penaliser_absences_excusees: boolean
@@ -291,11 +314,13 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          assiduite_active?: boolean
           bareme_academique?: number
           bareme_assiduite?: number
           base_academique?: string
           created_at?: string
           id?: string
+          logo?: string | null
           note_bareme?: number
           owner_id?: string
           penaliser_absences_excusees?: boolean
@@ -304,11 +329,13 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          assiduite_active?: boolean
           bareme_academique?: number
           bareme_assiduite?: number
           base_academique?: string
           created_at?: string
           id?: string
+          logo?: string | null
           note_bareme?: number
           owner_id?: string
           penaliser_absences_excusees?: boolean
@@ -486,6 +513,9 @@ export type Database = {
       enregistrer_cours: {
         Args: { p_cours: Json; p_cours_id?: string; p_creneaux: Json }
         Returns: {
+          assiduite_active: boolean | null
+          bareme_assiduite: number | null
+          base_academique: string | null
           created_at: string
           date_debut: string
           date_fin: string | null
@@ -495,7 +525,11 @@ export type Database = {
           jeton_partage: string | null
           libelle: string
           lien_meet: string | null
+          logo: string | null
           owner_id: string
+          penaliser_absences_excusees: boolean | null
+          penalite_absence: number | null
+          penalite_retard: number | null
           prix_mensuel: number | null
           statut: string
           type_cours_id: string

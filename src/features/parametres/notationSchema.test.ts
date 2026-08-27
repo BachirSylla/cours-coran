@@ -14,6 +14,7 @@ function saisie(extra: Partial<NotationFormValues> = {}): NotationFormValues {
     penalite_retard: '0,25',
     penaliser_absences_excusees: false,
     base_academique: 'moyenne_devoirs_examen',
+    assiduite_active: true,
     ...extra,
   }
 }
@@ -109,6 +110,7 @@ describe('valeursParDefaut', () => {
       penalite_retard: '0,25',
       penaliser_absences_excusees: false,
       base_academique: 'moyenne_devoirs_examen',
+      assiduite_active: true,
     })
   })
 

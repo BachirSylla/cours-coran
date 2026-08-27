@@ -79,6 +79,7 @@ describe('SectionExamen', () => {
     useParametresMock.mockReturnValue(
       requete<ParametresEffectifs>({
         note_bareme: 20,
+        logo: null,
         enregistres: true,
         ...NOTATION_PAR_DEFAUT,
       })
@@ -115,6 +116,7 @@ describe('SectionExamen', () => {
     useParametresMock.mockReturnValue(
       requete<ParametresEffectifs>({
         note_bareme: 10,
+        logo: null,
         enregistres: true,
         ...NOTATION_PAR_DEFAUT,
       })
