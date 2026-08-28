@@ -19,15 +19,15 @@ export type Creneau = Database['public']['Tables']['creneau']['Row']
  * Champs du cours pilotés par l'utilisateur (`centre_id` reste à la base).
  * `jeton_partage` en est exclu : le secret du lien public n'est jamais choisi
  * par le formulaire, il est tiré par le serveur (voir `activerPartage`).
+ *
+ * `enseignant_id` en fait partie depuis la migration 0014 : le responsable
+ * choisit qui assure le cours. `null` y signifie « inchangé », jamais
+ * « désaffecter ».
  */
 export type CoursInput = Omit<
   TableCours['Insert'],
   | 'id'
-  | 'owner_id'
   | 'centre_id'
-  // L'affectation à un enseignant (migration 0012) n'est pas un champ de
-  // formulaire : `enregistrer_cours` la pose sur le créateur.
-  | 'enseignant_id'
   | 'created_at'
   | 'updated_at'
   | 'jeton_partage'

@@ -140,12 +140,20 @@ Les types de cours sont dans une **table de référence** (extensible), pas en d
   `unique (user_id)` : un utilisateur, un centre. C'est ce qui rend `centre_courant()` scalaire.
 - `cours.enseignant_id` : à qui le cours est affecté. FK **composite** vers
   `membre (user_id, centre_id)` — on ne peut pas affecter un cours à quelqu'un d'un autre centre.
+  Le responsable le choisit dans le formulaire de cours (migration 0014) ; `enregistrer_cours`
+  traite `null` comme « inchangé », **jamais** comme « désaffecter », pour qu'un client qui
+  ignore le champ n'efface pas les affectations des cours qu'il enregistre. Aucune policy ne
+  garde cette colonne en propre : `est_responsable()` dit qui écrit dans `cours`, et la FK
+  composite dit vers qui — un `with check` qui relirait `membre` n'ajouterait rien qu'une
+  sous-requête par écriture.
 
 Toutes les tables : **RLS activé**, isolant les données au **centre**. Les tables possédées
 portent `centre_id uuid not null default centre_courant()`, plus `created_at` / `updated_at`
 (trigger automatique). `type_cours` est une référence **globale** : pas de `centre_id`, lecture
-seule pour les utilisateurs authentifiés. `owner_id` survit en filet jusqu'à la migration 0014 :
-nullable, sans défaut, sans aucune policy — simple trace d'audit, ne rien construire dessus.
+seule pour les utilisateurs authentifiés. `owner_id`, l'ancien porteur du tenant, a été
+**supprimé** (migration 0015) : le centre est désormais le seul propriétaire. Effet de bord
+recherché — supprimer un compte ne détruit plus les données, ce que faisait l'ancien
+`owner_id ... on delete cascade`.
 
 **Les clés étrangères transportent le tenant** : `creneau`, `seance`, `paiement` et `inscription`
 pointent `cours (id, centre_id)`, `inscription` et `presence` pointent `apprenant (id, centre_id)`,
@@ -228,7 +236,14 @@ L'étanchéité est **structurelle**, pas seulement déclarative.
 
     Le rôle vit **côté serveur**, dans `membre` : jamais dans le JWT (révocation différée jusqu'au
     rafraîchissement du jeton), jamais dans un réglage client. Le masquage d'interface
-    (`useMembre()`) est de la lisibilité, pas de la sécurité : l'autorité reste les policies.
+    (`useMembre()`) est de la lisibilité, pas de la sécurité : l'autorité reste les policies. Il
+    évite le **lien mort** — un onglet qui mène à une page vide se lit comme une panne, pas comme
+    une permission — et rien de plus.
+
+    Un membre modifie **sa propre ligne** `membre` (policy `membre_update_soi`, `using` **et**
+    `with check` sur `user_id = auth.uid()`), et **la seule colonne `note_bareme`** : `role` et
+    `centre_id` ne sont accordés à personne en écriture. C'est le privilège de COLONNE, et non la
+    policy, qui empêche l'escalade — la policy seule laisserait quiconque se poser responsable.
 
     Helpers de policy, tous `security definer`, `stable`, `search_path = ''`, `owner postgres`, et
     **aucun ne lève jamais** (une exception dans un `using` avorte toute la requête) :
@@ -292,6 +307,10 @@ psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls_etancheite.sql
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/conflit_enseignant.sql
 ```
 
+⚠️ Les migrations qui remplacent `enregistrer_cours` se succèdent (0002, 0012, 0013, 0014) :
+rejouer une ancienne après une plus récente **restaure son comportement**. L'idempotence se
+vérifie en rejouant une migration juste après elle-même, jamais dans le désordre.
+
 Variante sans `supabase login`, avec la chaîne de connexion de `.env.local` :
 
 ```bash
@@ -329,4 +348,5 @@ npx supabase gen types typescript --db-url "$SUPABASE_DB_URL" > src/shared/supab
 - Ne pas se fier à `revoke <priv> (colonne)` : un privilège de colonne ne retire rien tant qu'un
   privilège de TABLE le couvre. Il faut retirer celui de la table, puis le réaccorder colonne par
   colonne — c'est ce qui protège `inscription.jeton` et `membre.role`.
-- Ne rien construire sur `owner_id` : il n'est plus qu'une trace d'audit, supprimée en 0014.
+- Ne pas réintroduire de propriétaire par compte : `owner_id` a disparu en 0015, et le tenant est
+  le centre. Une isolation par `auth.uid()` rouvrirait tout ce que 0012 a refermé.

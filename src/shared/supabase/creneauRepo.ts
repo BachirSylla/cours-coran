@@ -15,7 +15,7 @@ export type Creneau = TableCreneau['Row']
 
 export type CreneauInput = Omit<
   TableCreneau['Insert'],
-  'id' | 'owner_id' | 'centre_id' | 'created_at' | 'updated_at'
+  'id' | 'centre_id' | 'created_at' | 'updated_at'
 >
 
 /**

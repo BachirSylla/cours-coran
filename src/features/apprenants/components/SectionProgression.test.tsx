@@ -16,7 +16,6 @@ const useProgressionMock = vi.mocked(useProgressionApprenant)
 function seance(date: string, options: Partial<Seance> = {}): Seance {
   return {
     id: `s-${date}`,
-    owner_id: 'proprietaire',
     centre_id: 'centre-1',
     cours_id: 'cours-1',
     date,

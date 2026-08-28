@@ -10,6 +10,7 @@ import { useCours } from '@/features/cours/hooks/useCours'
 import { useCreerCours } from '@/features/cours/hooks/useCreerCours'
 import { useModifierCours } from '@/features/cours/hooks/useModifierCours'
 import { useMembre } from '@/features/membres/hooks/useMembre'
+import { useMembres } from '@/features/membres/hooks/useMembres'
 import { useSupprimerCours } from '@/features/cours/hooks/useSupprimerCours'
 import { useTousLesCreneaux } from '@/features/cours/hooks/useTousLesCreneaux'
 import { useTypesCours } from '@/features/cours/hooks/useTypesCours'
@@ -35,6 +36,7 @@ export function CoursPage() {
   // Un cours créé est affecté à son créateur — c'est ce que fait
   // `enregistrer_cours`. L'aperçu de conflit doit viser le même agenda.
   const { estResponsable, userId } = useMembre()
+  const { data: membres } = useMembres()
   const supprimer = useSupprimerCours()
 
   const [formulaireOuvert, setFormulaireOuvert] = useState(false)
@@ -179,6 +181,7 @@ export function CoursPage() {
         typesCours={typesCours ?? []}
         creneauxExistants={creneauxExistants ?? []}
         enseignantId={coursEdite?.enseignant_id ?? userId}
+        membres={membres ?? []}
         onEnregistrer={enregistrer}
         enCours={creer.isPending || modifier.isPending}
         erreur={erreurFormulaire ?? null}

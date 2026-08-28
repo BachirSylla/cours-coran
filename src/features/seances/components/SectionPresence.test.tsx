@@ -33,7 +33,6 @@ const noterAsync = vi.fn()
 function apprenant(id: string, prenom: string, nom: string): Apprenant {
   return {
     id,
-    owner_id: 'proprietaire',
     centre_id: 'centre-1',
     nom,
     prenom,
@@ -53,7 +52,6 @@ const MOUSSA = apprenant('a2', 'Moussa', 'Camara')
 function inscription(id: string, personne: Apprenant): InscriptionAvecApprenant {
   return {
     id,
-    owner_id: 'proprietaire',
     centre_id: 'centre-1',
     apprenant_id: personne.id,
     cours_id: 'cours-1',
@@ -69,7 +67,6 @@ function inscription(id: string, personne: Apprenant): InscriptionAvecApprenant 
 function presence(apprenantId: string, present: boolean): PresenceAvecApprenant {
   return {
     id: `p-${apprenantId}`,
-    owner_id: 'proprietaire',
     centre_id: 'centre-1',
     seance_id: 'seance-1',
     cours_id: 'cours-1',

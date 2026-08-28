@@ -239,3 +239,113 @@ La preuve automatisée vit dans `supabase/tests/conflit_enseignant.sql` :
 ```bash
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/conflit_enseignant.sql
 ```
+
+---
+
+## Affectation d'un cours à un enseignant (migration 0014)
+
+Le sélecteur **Enseignant** n'apparaît dans le formulaire de cours que si le
+centre compte **plus d'un membre** : l'enseignant seul n'a pas à choisir entre
+lui-même et lui-même.
+
+### 18. Non-régression : centre à une personne
+
+1. Ouvrir **Nouveau cours**.
+
+**Attendu** : aucun sélecteur « Enseignant ». Le cours créé vous est affecté,
+comme avant.
+
+### 19. Affecter, et voir l'agenda changer
+
+Prérequis : le second compte du scénario 13.
+
+1. Ouvrir **Nouveau cours** : le sélecteur **Enseignant** apparaît, positionné
+   sur vous.
+2. Poser un créneau **déjà occupé par l'un de vos cours** → l'alerte de conflit
+   s'affiche sous la ligne, et le bouton d'enregistrement se désactive.
+3. Sans rien toucher d'autre, basculer le sélecteur sur l'autre enseignant.
+
+**Attendu** : l'alerte **disparaît immédiatement**. C'est bien l'agenda de la
+personne visée qui est contrôlé, pas le vôtre. Enregistrer fonctionne.
+
+### 20. Réaffecter un cours existant
+
+1. Modifier un cours et changer son enseignant, puis enregistrer.
+2. Rouvrir le cours : le sélecteur montre le nouvel enseignant.
+3. Se connecter avec ce compte : le cours apparaît dans **sa** liste, et
+   disparaît de celle de l'ancien enseignant.
+
+**Attendu** : ⚠️ réaffecter **ne revalide pas rétroactivement** le reste du
+planning. Le contrôle porte sur les créneaux du cours qu'on enregistre, à cet
+instant : si le nouvel enseignant avait déjà un cours sur ce créneau, le refus
+tombe tout de suite ; en revanche, les autres cours déjà posés ne sont pas
+réexaminés. Le prochain enregistrement de chacun d'eux le fera.
+
+### 21. On n'affecte pas hors du centre
+
+Le sélecteur ne liste que les membres du centre, et la base refuserait de toute
+façon : la clé étrangère composite `(enseignant_id, centre_id)` l'interdit
+structurellement. Éprouvé par `supabase/tests/rls_etancheite.sql`.
+
+---
+
+## Cohérence de l'interface par rôle
+
+### 22. Ce que voit un enseignant
+
+Avec le compte du scénario 13 :
+
+**Attendu**, écran par écran :
+
+| Écran             | Ce qu'il voit                                    | Ce qu'il ne voit pas                                  |
+| ----------------- | ------------------------------------------------ | ----------------------------------------------------- |
+| Navigation        | Planning, Cours, Séances, Apprenants, Paramètres | **Paiements**                                         |
+| Cours             | ses seuls cours affectés                         | Nouveau cours, Modifier, Supprimer                    |
+| Détail d'un cours | apprenants, séances, rapport                     | prix, partage, examen, réglages, règlements, Modifier |
+| Apprenants        | l'identité de ceux inscrits à ses cours          | Nouvel apprenant, Modifier, Supprimer                 |
+| Séances           | saisie complète : présence, notes, contenu       | —                                                     |
+| Paramètres        | **son** barème de récitation, modifiable         | notation du centre, logo du centre                    |
+
+**Aucun lien mort** : `/paiements` tapé à la main répond « Réservé au
+responsable » plutôt qu'un tableau vide.
+
+### 23. Le barème est personnel
+
+1. En enseignant, passer le barème sur 10 dans **Paramètres**, puis saisir une
+   note de récitation.
+2. Se reconnecter en responsable et ouvrir **Paramètres**.
+
+**Attendu** : le responsable garde **son** barème — celui de l'enseignant ne
+s'est imposé à personne. Et l'enseignant ne peut modifier ni son rôle, ni son
+centre, ni le barème d'un collègue : la base le refuse, pas seulement l'écran.
+
+---
+
+## Suppression de `owner_id` (migration 0015)
+
+L'ancien porteur du tenant, conservé en filet depuis la migration 0012, a été
+supprimé. C'est le seul acte irréversible de la série.
+
+### 24. Non-régression après suppression
+
+1. Reprendre le scénario 10 de bout en bout avec le compte responsable.
+2. Créer un cours, un apprenant, une inscription, une séance, une présence, un
+   règlement, puis exporter un rapport.
+
+**Attendu** : rien ne change. `owner_id` n'était plus lu par personne depuis
+0012 — ni policy, ni code client, ni index actif.
+
+### 25. Un compte supprimé n'emporte plus les données
+
+Ce point n'est **pas** à tester en production. Il est mentionné parce que c'est
+le gain de la migration : `owner_id` référençait `auth.users` en
+`on delete cascade`, si bien que supprimer le compte effaçait cours, apprenants
+et séances. Les données appartiennent maintenant au centre, qui survit à ses
+membres.
+
+À rejouer après la migration :
+
+```bash
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls_etancheite.sql
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/conflit_enseignant.sql
+```

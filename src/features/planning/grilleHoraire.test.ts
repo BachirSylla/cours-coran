@@ -40,7 +40,6 @@ function cours(
 ): CoursAvecDetails {
   return {
     id,
-    owner_id: 'proprietaire',
     centre_id: 'centre-1',
     libelle,
     type_cours_id: 'type-1',
@@ -66,7 +65,6 @@ function cours(
     inscription: [{ count: 0 }],
     creneau: creneaux.map((c) => ({
       ...c,
-      owner_id: 'proprietaire',
       centre_id: 'centre-1',
       cours_id: id,
       created_at: '2026-07-27T10:00:00Z',

@@ -6,6 +6,7 @@ import { CalendarDays, Loader2, TriangleAlert } from 'lucide-react'
 import { CoursDetailDialog } from '@/features/cours/components/CoursDetailDialog'
 import { CoursFormDialog } from '@/features/cours/components/CoursFormDialog'
 import { useMembre } from '@/features/membres/hooks/useMembre'
+import { useMembres } from '@/features/membres/hooks/useMembres'
 import type { CoursValues } from '@/features/cours/coursSchema'
 import { useCours } from '@/features/cours/hooks/useCours'
 import { useModifierCours } from '@/features/cours/hooks/useModifierCours'
@@ -38,6 +39,7 @@ export function PlanningPage() {
   // L'aperçu de conflit vise l'agenda de l'enseignant affecté au cours ; pour
   // un cours neuf, ce sera son créateur (`enregistrer_cours`).
   const { userId } = useMembre()
+  const { data: membres } = useMembres()
 
   const [jourMobile, setJourMobile] = useState<JourSemaine>(jourCourant)
   const [coursEdite, setCoursEdite] = useState<CoursAvecDetails | null>(null)
@@ -181,6 +183,7 @@ export function PlanningPage() {
         typesCours={typesCours ?? []}
         creneauxExistants={creneauxExistants ?? []}
         enseignantId={coursEdite?.enseignant_id ?? userId}
+        membres={membres ?? []}
         onEnregistrer={enregistrer}
         enCours={modifier.isPending}
         erreur={modifier.error?.message ?? null}

@@ -11,6 +11,7 @@ import { useSupprimerCours } from '@/features/cours/hooks/useSupprimerCours'
 import { useTousLesCreneaux } from '@/features/cours/hooks/useTousLesCreneaux'
 import { useTypesCours } from '@/features/cours/hooks/useTypesCours'
 import { useMembre } from '@/features/membres/hooks/useMembre'
+import { useMembres } from '@/features/membres/hooks/useMembres'
 import type { CoursAvecDetails } from '@/shared/supabase/coursRepo'
 import { rendreAvecQuery } from '@/test/rendreAvecQuery'
 
@@ -29,8 +30,10 @@ vi.mock('@/features/cours/hooks/useSupprimerCours', () => ({ useSupprimerCours: 
 vi.mock('@/features/cours/hooks/useTousLesCreneaux', () => ({ useTousLesCreneaux: vi.fn() }))
 vi.mock('@/features/cours/hooks/useTypesCours', () => ({ useTypesCours: vi.fn() }))
 vi.mock('@/features/membres/hooks/useMembre', () => ({ useMembre: vi.fn() }))
+vi.mock('@/features/membres/hooks/useMembres', () => ({ useMembres: vi.fn() }))
 
 const useMembreMock = vi.mocked(useMembre)
+const useMembresMock = vi.mocked(useMembres)
 
 /**
  * Rôle du compte dans son centre. Par défaut responsable — c'est la situation
@@ -82,7 +85,6 @@ function cours(
 ): CoursAvecDetails {
   return {
     id,
-    owner_id: 'proprietaire',
     centre_id: 'centre-1',
     libelle,
     type_cours_id: 'type-1',
@@ -108,7 +110,6 @@ function cours(
     inscription: [{ count: 0 }],
     creneau: creneaux.map((creneau, index) => ({
       id: `${id}-cr${index}`,
-      owner_id: 'proprietaire',
       centre_id: 'centre-1',
       cours_id: id,
       created_at: '2026-07-27T10:00:00Z',
@@ -133,6 +134,7 @@ describe('CoursPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useMembreMock.mockReturnValue(membre())
+    useMembresMock.mockReturnValue({ data: [] } as unknown as ReturnType<typeof useMembres>)
     useCreerMock.mockReturnValue(mutationInerte<ReturnType<typeof useCreerCours>>())
     useModifierMock.mockReturnValue(mutationInerte<ReturnType<typeof useModifierCours>>())
     useSupprimerMock.mockReturnValue(mutationInerte<ReturnType<typeof useSupprimerCours>>())

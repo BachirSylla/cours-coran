@@ -21,6 +21,8 @@ export interface ApprenantDetailDialogProps {
   apprenant: Apprenant | null
   onOuvertChange: (ouvert: boolean) => void
   onModifier: (apprenant: Apprenant) => void
+  /** Tenir la fiche relève de la gestion : réservé au responsable (0012). */
+  actionsGestion?: boolean
 }
 
 function formaterDate(date: string): string {
@@ -37,6 +39,7 @@ export function ApprenantDetailDialog({
   apprenant,
   onOuvertChange,
   onModifier,
+  actionsGestion = true,
 }: ApprenantDetailDialogProps) {
   const {
     data: inscriptions,
@@ -150,10 +153,12 @@ export function ApprenantDetailDialog({
               <Button variant="outline" onClick={() => onOuvertChange(false)}>
                 Fermer
               </Button>
-              <Button onClick={() => onModifier(apprenant)}>
-                <Pencil className="size-4" aria-hidden="true" />
-                Modifier la fiche
-              </Button>
+              {actionsGestion && (
+                <Button onClick={() => onModifier(apprenant)}>
+                  <Pencil className="size-4" aria-hidden="true" />
+                  Modifier la fiche
+                </Button>
+              )}
             </DialogFooter>
           </>
         )}

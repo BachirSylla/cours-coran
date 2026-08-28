@@ -17,6 +17,12 @@ export interface ApprenantsListeProps {
   onOuvrir: (apprenant: Apprenant) => void
   onModifier: (apprenant: Apprenant) => void
   onSupprimer: (apprenant: Apprenant) => void
+  /**
+   * Créer, modifier et supprimer une fiche relèvent de la gestion : réservé au
+   * responsable du centre. L'enseignant voit l'identité de ses apprenants, il
+   * ne tient pas leur fiche (migration 0012).
+   */
+  actionsGestion?: boolean
 }
 
 function formaterDate(date: string): string {
@@ -36,6 +42,7 @@ export function ApprenantsListe({
   onOuvrir,
   onModifier,
   onSupprimer,
+  actionsGestion = true,
 }: ApprenantsListeProps) {
   return (
     <>
@@ -76,22 +83,26 @@ export function ApprenantsListe({
                   <StatutApprenantBadge statut={apprenant.statut} />
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => onModifier(apprenant)}
-                    aria-label={`Modifier ${apprenant.prenom} ${apprenant.nom}`}
-                  >
-                    <Pencil className="size-4" aria-hidden="true" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => onSupprimer(apprenant)}
-                    aria-label={`Supprimer ${apprenant.prenom} ${apprenant.nom}`}
-                  >
-                    <Trash2 className="size-4 text-destructive" aria-hidden="true" />
-                  </Button>
+                  {actionsGestion && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => onModifier(apprenant)}
+                        aria-label={`Modifier ${apprenant.prenom} ${apprenant.nom}`}
+                      >
+                        <Pencil className="size-4" aria-hidden="true" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => onSupprimer(apprenant)}
+                        aria-label={`Supprimer ${apprenant.prenom} ${apprenant.nom}`}
+                      >
+                        <Trash2 className="size-4 text-destructive" aria-hidden="true" />
+                      </Button>
+                    </>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
@@ -129,26 +140,28 @@ export function ApprenantsListe({
               </div>
             </dl>
 
-            <div className="mt-3 flex justify-end gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onModifier(apprenant)}
-                aria-label={`Modifier ${apprenant.prenom} ${apprenant.nom}`}
-              >
-                <Pencil className="size-4" aria-hidden="true" />
-                Modifier
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onSupprimer(apprenant)}
-                aria-label={`Supprimer ${apprenant.prenom} ${apprenant.nom}`}
-              >
-                <Trash2 className="size-4 text-destructive" aria-hidden="true" />
-                Supprimer
-              </Button>
-            </div>
+            {actionsGestion && (
+              <div className="mt-3 flex justify-end gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onModifier(apprenant)}
+                  aria-label={`Modifier ${apprenant.prenom} ${apprenant.nom}`}
+                >
+                  <Pencil className="size-4" aria-hidden="true" />
+                  Modifier
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onSupprimer(apprenant)}
+                  aria-label={`Supprimer ${apprenant.prenom} ${apprenant.nom}`}
+                >
+                  <Trash2 className="size-4 text-destructive" aria-hidden="true" />
+                  Supprimer
+                </Button>
+              </div>
+            )}
           </li>
         ))}
       </ul>

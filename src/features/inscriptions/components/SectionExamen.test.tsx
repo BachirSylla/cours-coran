@@ -27,7 +27,6 @@ const mutateAsync = vi.fn()
 function apprenant(id: string, prenom: string, nom: string): Apprenant {
   return {
     id,
-    owner_id: 'proprietaire',
     centre_id: 'centre-1',
     nom,
     prenom,
@@ -51,7 +50,6 @@ function inscription(
 ): InscriptionAvecApprenant {
   return {
     id,
-    owner_id: 'proprietaire',
     centre_id: 'centre-1',
     apprenant_id: personne.id,
     cours_id: 'cours-1',

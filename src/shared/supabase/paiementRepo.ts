@@ -16,7 +16,7 @@ export type Paiement = TablePaiement['Row']
 
 export type PaiementInput = Omit<
   TablePaiement['Insert'],
-  'id' | 'owner_id' | 'centre_id' | 'created_at' | 'updated_at'
+  'id' | 'centre_id' | 'created_at' | 'updated_at'
 >
 
 const COLONNES = '*'

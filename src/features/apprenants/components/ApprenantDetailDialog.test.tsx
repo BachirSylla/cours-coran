@@ -26,7 +26,6 @@ const useInscriptionsMock = vi.mocked(useInscriptionsApprenant)
 
 const APPRENANT: Apprenant = {
   id: 'a1',
-  owner_id: 'proprietaire',
   centre_id: 'centre-1',
   nom: 'Diallo',
   prenom: 'Aïcha',
@@ -42,7 +41,6 @@ const APPRENANT: Apprenant = {
 function inscription(id: string, libelleCours: string): InscriptionAvecCours {
   return {
     id,
-    owner_id: 'proprietaire',
     centre_id: 'centre-1',
     apprenant_id: 'a1',
     cours_id: `cours-${id}`,
@@ -53,7 +51,6 @@ function inscription(id: string, libelleCours: string): InscriptionAvecCours {
     updated_at: '2026-07-27T10:00:00Z',
     cours: {
       id: `cours-${id}`,
-      owner_id: 'proprietaire',
       centre_id: 'centre-1',
       libelle: libelleCours,
       type_cours_id: 'type-1',
@@ -79,7 +76,6 @@ function inscription(id: string, libelleCours: string): InscriptionAvecCours {
       creneau: [
         {
           id: `cr-${id}`,
-          owner_id: 'proprietaire',
           centre_id: 'centre-1',
           cours_id: `cours-${id}`,
           jour_semaine: 1,

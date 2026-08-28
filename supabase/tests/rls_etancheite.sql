@@ -575,11 +575,68 @@ begin
            public.__id('c_beta'), public.__id('app_partage')),
     'R1 déménage un apprenant vers le centre Beta');
 
+  -- --- Affectation d'un cours à un enseignant (migration 0014) -------------
+  --
+  -- Ce que la FK composite `(enseignant_id, centre_id)` garantit : on affecte
+  -- dans son centre, et nulle part ailleurs. Aucune policy n'en parle — c'est
+  -- structurel, donc valable même pour un client qui contournerait PostgREST.
+  perform public.__accepte(
+    format('update public.cours set enseignant_id = %L where id = %L',
+           public.__id('u_b'), public.__id('cours_a')),
+    'R1 réaffecte un cours de A vers B, tous deux de son centre');
+
+  perform public.__accepte(
+    format('update public.cours set enseignant_id = %L where id = %L',
+           public.__id('u_a'), public.__id('cours_a')),
+    'R1 rend le cours à A');
+
+  perform public.__accepte(
+    format('update public.cours set enseignant_id = %L where id = %L',
+           public.__id('u_r1'), public.__id('cours_a')),
+    'R1 se garde un cours — responsable et enseignant à la fois');
+
+  -- La voie réelle : l'affectation passe par `enregistrer_cours`.
+  perform public.__accepte(
+    format($sql$select public.enregistrer_cours(
+             jsonb_build_object('libelle', 'Affecté à A',
+                                'type_cours_id', (select id from public.type_cours limit 1),
+                                'format', 'individuel', 'date_debut', '2026-03-01',
+                                'enseignant_id', %L),
+             jsonb_build_array(jsonb_build_object('jour_semaine', 7,
+                                                  'heure_debut', '08:00',
+                                                  'heure_fin', '09:00'))) $sql$,
+           public.__id('u_a')),
+    'R1 crée un cours directement affecté à A');
+
+  if not exists (
+    select 1 from public.cours
+    where libelle = 'Affecté à A' and enseignant_id = public.__id('u_a')
+  ) then
+    raise exception 'RÉGRESSION : `enregistrer_cours` a ignoré l''affectation demandée.';
+  end if;
+
   -- --- Il n'affecte pas un cours à quelqu'un d'un autre centre --------------
   perform public.__refus(
     format('update public.cours set enseignant_id = %L where id = %L',
            public.__id('u_r2'), public.__id('cours_a')),
     'R1 affecte son cours à un membre du centre Beta');
+
+  perform public.__refus(
+    format($sql$select public.enregistrer_cours(
+             jsonb_build_object('libelle', 'Affecté hors centre',
+                                'type_cours_id', (select id from public.type_cours limit 1),
+                                'format', 'individuel', 'date_debut', '2026-03-01',
+                                'enseignant_id', %L),
+             jsonb_build_array(jsonb_build_object('jour_semaine', 7,
+                                                  'heure_debut', '21:00',
+                                                  'heure_fin', '22:00'))) $sql$,
+           public.__id('u_r2')),
+    'R1 crée un cours affecté à un membre du centre Beta');
+
+  perform public.__refus(
+    format('update public.cours set enseignant_id = %L where id = %L',
+           gen_random_uuid(), public.__id('cours_a')),
+    'R1 affecte son cours à un compte qui n''est membre de rien');
 
   -- --- Le scénario de PRÉ-EMPTION (§1 du plan) ------------------------------
   -- Sans clé étrangère composite, ces deux lignes seraient acceptées : R1

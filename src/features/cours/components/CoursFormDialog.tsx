@@ -24,6 +24,7 @@ import {
   messageFormatIncompatible,
   peutPasserEnIndividuel,
 } from '@/features/inscriptions/reglesInscription'
+import type { Membre } from '@/shared/supabase/membreRepo'
 import type { TypeCours } from '@/shared/supabase/typeCoursRepo'
 import type { CoursAvecDetails } from '@/shared/supabase/coursRepo'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
@@ -55,11 +56,18 @@ export interface CoursFormDialogProps {
   /** Tous les créneaux déjà enregistrés, pour la détection de conflit. */
   creneauxExistants: CreneauExistant[]
   /**
-   * Enseignant qui assurera ce cours : l'affecté en modification, le créateur
-   * en création — c'est ce que pose `enregistrer_cours`. Le conflit se contrôle
-   * contre SON agenda, pas contre celui du centre (CLAUDE.md §5.1).
+   * Enseignant qui assurera ce cours **par défaut** : l'affecté en
+   * modification, le créateur en création — c'est ce que pose
+   * `enregistrer_cours`. Le sélecteur peut le changer ; le conflit se contrôle
+   * alors contre l'agenda choisi (CLAUDE.md §5.1).
    */
   enseignantId: string | null
+  /**
+   * Membres du centre, cibles possibles de l'affectation (migration 0014). Le
+   * sélecteur reste caché tant qu'il n'y a personne d'autre à qui confier le
+   * cours : l'enseignant seul n'a pas à choisir entre lui-même et lui-même.
+   */
+  membres?: Membre[]
   onEnregistrer: (valeurs: CoursValues) => Promise<void>
   enCours: boolean
   erreur?: string | null
@@ -72,6 +80,7 @@ function versFormulaire(cours: CoursAvecDetails): CoursFormValues {
     libelle: cours.libelle,
     type_cours_id: cours.type_cours_id,
     format: (cours.format === 'groupe' ? 'groupe' : 'individuel') as CoursFormValues['format'],
+    enseignant_id: cours.enseignant_id ?? '',
     date_debut: cours.date_debut,
     date_fin: cours.date_fin ?? '',
     lien_meet: cours.lien_meet ?? '',
@@ -94,6 +103,7 @@ export function CoursFormDialog({
   typesCours,
   creneauxExistants,
   enseignantId,
+  membres = [],
   onEnregistrer,
   enCours,
   erreur,
@@ -116,24 +126,28 @@ export function CoursFormDialog({
 
   useEffect(() => {
     if (ouvert) {
-      reset(cours ? versFormulaire(cours) : valeursParDefaut())
+      reset(
+        cours
+          ? versFormulaire(cours)
+          : { ...valeursParDefaut(), enseignant_id: enseignantId ?? '' }
+      )
     }
-  }, [ouvert, cours, reset])
+  }, [ouvert, cours, enseignantId, reset])
 
   // Recalcul à chaque frappe : le conflit se voit avant même de soumettre.
   // `useWatch` s'abonne proprement au champ, contrairement à `watch()` qui
   // renvoie une valeur dont React ne suit pas les changements.
   const creneauxSaisis = useWatch({ control, name: 'creneaux' })
 
+  // Changer d'enseignant re-scope l'aperçu de conflit sur-le-champ : c'est le
+  // seul moyen de voir, avant d'enregistrer, que la personne visée est libre.
+  const enseignantSaisi = useWatch({ control, name: 'enseignant_id' })
+  const agenda = enseignantSaisi || enseignantId
+
   const conflits = useMemo(
     () =>
-      detecterConflitsFormulaire(
-        creneauxSaisis ?? [],
-        creneauxExistants,
-        cours?.id,
-        enseignantId
-      ),
-    [creneauxSaisis, creneauxExistants, cours?.id, enseignantId]
+      detecterConflitsFormulaire(creneauxSaisis ?? [], creneauxExistants, cours?.id, agenda),
+    [creneauxSaisis, creneauxExistants, cours?.id, agenda]
   )
 
   const lignesEnConflit = useMemo(() => calculerIndexEnConflit(conflits), [conflits])
@@ -235,6 +249,36 @@ export function CoursFormDialog({
                 <p className="text-sm text-destructive">{errors.type_cours_id.message}</p>
               )}
             </div>
+
+            {membres.length > 1 && (
+              <div className="space-y-2">
+                <Label htmlFor="enseignant_id">Enseignant</Label>
+                <Controller
+                  control={control}
+                  name="enseignant_id"
+                  render={({ field }) => (
+                    <Select value={field.value ?? ''} onValueChange={field.onChange}>
+                      <SelectTrigger id="enseignant_id" className="w-full">
+                        <SelectValue placeholder="Choisir un enseignant…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {membres.map((membre) => (
+                          <SelectItem key={membre.user_id} value={membre.user_id}>
+                            {membre.nom_affiche}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Les chevauchements sont contrôlés sur son agenda.
+                </p>
+                {errors.enseignant_id && (
+                  <p className="text-sm text-destructive">{errors.enseignant_id.message}</p>
+                )}
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="format">Format</Label>

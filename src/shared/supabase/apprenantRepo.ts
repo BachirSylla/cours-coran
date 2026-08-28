@@ -16,7 +16,7 @@ export type Apprenant = TableApprenant['Row']
 /** Champs modifiables par l'utilisateur (le reste est géré par la base). */
 export type ApprenantInput = Omit<
   TableApprenant['Insert'],
-  'id' | 'owner_id' | 'centre_id' | 'created_at' | 'updated_at'
+  'id' | 'centre_id' | 'created_at' | 'updated_at'
 >
 
 export type ApprenantPatch = Partial<ApprenantInput>

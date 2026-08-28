@@ -98,7 +98,6 @@ describe('SeanceFormDialog — section d’évaluation', () => {
       data: [
         {
           id: 's1',
-          owner_id: 'p',
           cours_id: 'cours-1',
           date: '2026-07-20',
           heure_debut: '10:00:00',

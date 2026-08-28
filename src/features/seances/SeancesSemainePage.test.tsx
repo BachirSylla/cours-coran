@@ -23,7 +23,6 @@ const useSeancesSemaineMock = vi.mocked(useSeancesSemaine)
 function seance(date: string, statut = 'faite'): Seance {
   return {
     id: `s-${date}`,
-    owner_id: 'proprietaire',
     centre_id: 'centre-1',
     cours_id: 'cours-1',
     date,

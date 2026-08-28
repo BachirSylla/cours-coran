@@ -7,6 +7,7 @@ import { useApprenants } from '@/features/apprenants/hooks/useApprenants'
 import { useCreerApprenant } from '@/features/apprenants/hooks/useCreerApprenant'
 import { useModifierApprenant } from '@/features/apprenants/hooks/useModifierApprenant'
 import { useSupprimerApprenant } from '@/features/apprenants/hooks/useSupprimerApprenant'
+import { useMembre } from '@/features/membres/hooks/useMembre'
 import type { Apprenant } from '@/shared/supabase/apprenantRepo'
 import { rendreAvecQuery } from '@/test/rendreAvecQuery'
 
@@ -19,6 +20,25 @@ vi.mock('@/features/apprenants/hooks/useModifierApprenant', () => ({
 vi.mock('@/features/apprenants/hooks/useSupprimerApprenant', () => ({
   useSupprimerApprenant: vi.fn(),
 }))
+vi.mock('@/features/membres/hooks/useMembre', () => ({ useMembre: vi.fn() }))
+
+const useMembreMock = vi.mocked(useMembre)
+
+/**
+ * Rôle du compte dans son centre. Par défaut responsable — c'est la situation
+ * de l'enseignant solo, qui est aussi responsable de son propre centre : ces
+ * tests décrivent alors exactement le comportement d'avant la migration 0012.
+ */
+function membre(role: 'responsable' | 'enseignant' = 'responsable') {
+  return {
+    membre: null,
+    userId: 'moi',
+    centreId: 'centre-1',
+    role,
+    estResponsable: role === 'responsable',
+    chargement: false,
+  }
+}
 
 const useApprenantsMock = vi.mocked(useApprenants)
 const useCreerMock = vi.mocked(useCreerApprenant)
@@ -28,7 +48,6 @@ const useSupprimerMock = vi.mocked(useSupprimerApprenant)
 function apprenant(id: string, prenom: string, nom: string, extra?: Partial<Apprenant>) {
   return {
     id,
-    owner_id: 'proprietaire',
     centre_id: 'centre-1',
     nom,
     prenom,
@@ -69,6 +88,7 @@ function simulerListe(etat: Partial<UseQueryResult<Apprenant[], Error>>) {
 describe('ApprenantsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    useMembreMock.mockReturnValue(membre())
     useCreerMock.mockReturnValue(mutationInerte<ReturnType<typeof useCreerApprenant>>())
     useModifierMock.mockReturnValue(mutationInerte<ReturnType<typeof useModifierApprenant>>())
     useSupprimerMock.mockReturnValue(mutationInerte<ReturnType<typeof useSupprimerApprenant>>())
@@ -137,5 +157,46 @@ describe('ApprenantsPage', () => {
 
     expect(screen.getByText('Suppression impossible')).toBeInTheDocument()
     expect(screen.getByText('Suppression refusée.')).toBeInTheDocument()
+  })
+
+  describe('selon le rôle', () => {
+    it('laisse le responsable créer et tenir les fiches', () => {
+      simulerListe({ data: [apprenant('a1', 'Aïcha', 'Diallo')] })
+
+      rendreAvecQuery(<ApprenantsPage />)
+
+      expect(screen.getByRole('button', { name: /Nouvel apprenant/ })).toBeInTheDocument()
+      expect(screen.getAllByRole('button', { name: /Modifier Aïcha Diallo/ })).not.toHaveLength(
+        0
+      )
+    })
+
+    it('donne à l’enseignant la liste, et rien qu’elle', () => {
+      // Il voit l'identité des apprenants inscrits à SES cours (la RLS s'en
+      // charge), mais tenir la fiche relève de la gestion (migration 0012).
+      useMembreMock.mockReturnValue(membre('enseignant'))
+      simulerListe({ data: [apprenant('a1', 'Aïcha', 'Diallo')] })
+
+      rendreAvecQuery(<ApprenantsPage />)
+
+      expect(screen.getAllByText(/Diallo/)).not.toHaveLength(0)
+      expect(screen.queryByRole('button', { name: /Nouvel apprenant/ })).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /Modifier Aïcha Diallo/ })
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /Supprimer Aïcha Diallo/ })
+      ).not.toBeInTheDocument()
+    })
+
+    it('n’invite pas un enseignant à créer une fiche quand la liste est vide', () => {
+      useMembreMock.mockReturnValue(membre('enseignant'))
+      simulerListe({ data: [] })
+
+      rendreAvecQuery(<ApprenantsPage />)
+
+      expect(screen.getByText(/Aucun apprenant n’est inscrit à vos cours/)).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Nouvel apprenant/ })).not.toBeInTheDocument()
+    })
   })
 })

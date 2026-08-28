@@ -111,6 +111,19 @@ export const coursSchema = z
       .min(1, { message: 'Le type de cours est obligatoire.' })
       .pipe(z.uuid({ message: 'Type de cours invalide.' })),
     format: z.enum(FORMATS_COURS, { message: 'Format invalide.' }),
+    /**
+     * Enseignant affecté (migration 0014). Vide = non fourni : la base garde
+     * alors l'affectation en place, et pose le créateur à la création. Ce
+     * n'est **pas** une désaffectation.
+     */
+    enseignant_id: z
+      .string()
+      .trim()
+      .optional()
+      .transform((valeur) => (valeur === undefined || valeur === '' ? null : valeur))
+      .refine((valeur) => valeur === null || z.uuid().safeParse(valeur).success, {
+        message: 'Enseignant invalide.',
+      }),
     date_debut: z
       .string()
       .trim()
@@ -177,6 +190,7 @@ export function valeursParDefaut(): CoursFormValues {
     libelle: '',
     type_cours_id: '',
     format: 'individuel',
+    enseignant_id: '',
     date_debut: aujourdhui(),
     date_fin: '',
     lien_meet: '',

@@ -49,7 +49,6 @@ export type Database = {
           niveau: string | null
           nom: string
           notes: string | null
-          owner_id: string | null
           prenom: string
           statut: string
           updated_at: string
@@ -63,7 +62,6 @@ export type Database = {
           niveau?: string | null
           nom: string
           notes?: string | null
-          owner_id?: string | null
           prenom: string
           statut?: string
           updated_at?: string
@@ -77,7 +75,6 @@ export type Database = {
           niveau?: string | null
           nom?: string
           notes?: string | null
-          owner_id?: string | null
           prenom?: string
           statut?: string
           updated_at?: string
@@ -130,7 +127,6 @@ export type Database = {
           libelle: string
           lien_meet: string | null
           logo: string | null
-          owner_id: string | null
           penaliser_absences_excusees: boolean | null
           penalite_absence: number | null
           penalite_retard: number | null
@@ -155,7 +151,6 @@ export type Database = {
           libelle: string
           lien_meet?: string | null
           logo?: string | null
-          owner_id?: string | null
           penaliser_absences_excusees?: boolean | null
           penalite_absence?: number | null
           penalite_retard?: number | null
@@ -180,7 +175,6 @@ export type Database = {
           libelle?: string
           lien_meet?: string | null
           logo?: string | null
-          owner_id?: string | null
           penaliser_absences_excusees?: boolean | null
           penalite_absence?: number | null
           penalite_retard?: number | null
@@ -222,7 +216,6 @@ export type Database = {
           heure_fin: string
           id: string
           jour_semaine: number
-          owner_id: string | null
           updated_at: string
         }
         Insert: {
@@ -233,7 +226,6 @@ export type Database = {
           heure_fin: string
           id?: string
           jour_semaine: number
-          owner_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -244,7 +236,6 @@ export type Database = {
           heure_fin?: string
           id?: string
           jour_semaine?: number
-          owner_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -267,7 +258,6 @@ export type Database = {
           id: string
           jeton: string | null
           note_examen: number | null
-          owner_id: string | null
           updated_at: string
         }
         Insert: {
@@ -279,7 +269,6 @@ export type Database = {
           id?: string
           jeton?: string | null
           note_examen?: number | null
-          owner_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -291,7 +280,6 @@ export type Database = {
           id?: string
           jeton?: string | null
           note_examen?: number | null
-          owner_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -363,7 +351,6 @@ export type Database = {
           mois_concerne: string
           montant_du: number
           montant_recu: number
-          owner_id: string | null
           updated_at: string
         }
         Insert: {
@@ -376,7 +363,6 @@ export type Database = {
           mois_concerne: string
           montant_du: number
           montant_recu?: number
-          owner_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -389,7 +375,6 @@ export type Database = {
           mois_concerne?: string
           montant_du?: number
           montant_recu?: number
-          owner_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -413,7 +398,6 @@ export type Database = {
           id: string
           logo: string | null
           note_bareme: number
-          owner_id: string | null
           penaliser_absences_excusees: boolean
           penalite_absence: number
           penalite_retard: number
@@ -429,7 +413,6 @@ export type Database = {
           id?: string
           logo?: string | null
           note_bareme?: number
-          owner_id?: string | null
           penaliser_absences_excusees?: boolean
           penalite_absence?: number
           penalite_retard?: number
@@ -445,7 +428,6 @@ export type Database = {
           id?: string
           logo?: string | null
           note_bareme?: number
-          owner_id?: string | null
           penaliser_absences_excusees?: boolean
           penalite_absence?: number
           penalite_retard?: number
@@ -472,7 +454,6 @@ export type Database = {
           id: string
           note: number | null
           note_bareme: number | null
-          owner_id: string | null
           passage_evalue: string | null
           present: boolean
           seance_id: string
@@ -488,7 +469,6 @@ export type Database = {
           id?: string
           note?: number | null
           note_bareme?: number | null
-          owner_id?: string | null
           passage_evalue?: string | null
           present?: boolean
           seance_id: string
@@ -504,7 +484,6 @@ export type Database = {
           id?: string
           note?: number | null
           note_bareme?: number | null
-          owner_id?: string | null
           passage_evalue?: string | null
           present?: boolean
           seance_id?: string
@@ -539,7 +518,6 @@ export type Database = {
           heure_fin: string
           id: string
           observations: string | null
-          owner_id: string | null
           sourate: string | null
           sourate_numero: number | null
           statut: string
@@ -559,7 +537,6 @@ export type Database = {
           heure_fin: string
           id?: string
           observations?: string | null
-          owner_id?: string | null
           sourate?: string | null
           sourate_numero?: number | null
           statut?: string
@@ -579,7 +556,6 @@ export type Database = {
           heure_fin?: string
           id?: string
           observations?: string | null
-          owner_id?: string | null
           sourate?: string | null
           sourate_numero?: number | null
           statut?: string
@@ -656,7 +632,6 @@ export type Database = {
           libelle: string
           lien_meet: string | null
           logo: string | null
-          owner_id: string | null
           penaliser_absences_excusees: boolean | null
           penalite_absence: number | null
           penalite_retard: number | null

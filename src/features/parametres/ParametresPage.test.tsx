@@ -135,6 +135,20 @@ describe('ParametresPage', () => {
       expect(screen.getByText(/ne s'impose pas aux autres enseignants/)).toBeInTheDocument()
     })
 
+    it('enregistre le barème choisi par un enseignant', async () => {
+      // Le choix part sur SA ligne `membre` — la seule colonne qu'un client
+      // puisse y écrire (migration 0012), éprouvé côté base par
+      // `supabase/tests/rls_etancheite.sql`.
+      useMembreMock.mockReturnValue(membre('enseignant'))
+      simuler({ data: parametres(20, true) })
+      const utilisateur = userEvent.setup()
+
+      rendreAvecQuery(<ParametresPage />)
+      await utilisateur.click(screen.getByRole('radio', { name: /sur 10/i }))
+
+      expect(mutate).toHaveBeenCalledExactlyOnceWith(10)
+    })
+
     it('mais lui ferme les règles de notation du centre', () => {
       useMembreMock.mockReturnValue(membre('enseignant'))
       simuler({ data: parametres(20, true) })

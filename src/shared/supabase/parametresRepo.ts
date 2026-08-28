@@ -27,7 +27,7 @@ export const BAREME_PAR_DEFAUT: Bareme = 20
 
 /** Champs réglables. Un patch partiel ne touche que ce qu'il contient. */
 export type ParametresPatch = Partial<
-  Omit<TableParametres['Insert'], 'id' | 'owner_id' | 'centre_id' | 'created_at' | 'updated_at'>
+  Omit<TableParametres['Insert'], 'id' | 'centre_id' | 'created_at' | 'updated_at'>
 >
 
 /** Ce que l'application lit, que la ligne existe ou non. */

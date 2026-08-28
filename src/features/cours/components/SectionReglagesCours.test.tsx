@@ -32,7 +32,6 @@ const LOGO_COURS = 'data:image/png;base64,COURS'
 function cours(extra: Partial<CoursAvecDetails> = {}): CoursAvecDetails {
   return {
     id: 'c1',
-    owner_id: 'proprietaire',
     centre_id: 'centre-1',
     libelle: 'Groupe Hifz',
     type_cours_id: 'type-1',

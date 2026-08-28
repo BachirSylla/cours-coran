@@ -17,7 +17,7 @@ export type Seance = TableSeance['Row']
 /** Champs saisis par l'enseignant, plus la clé de l'occurrence. */
 export type SeanceInput = Omit<
   TableSeance['Insert'],
-  'id' | 'owner_id' | 'centre_id' | 'created_at' | 'updated_at'
+  'id' | 'centre_id' | 'created_at' | 'updated_at'
 >
 
 const COLONNES = '*'

@@ -10,6 +10,7 @@ import { useApprenants } from '@/features/apprenants/hooks/useApprenants'
 import { useCreerApprenant } from '@/features/apprenants/hooks/useCreerApprenant'
 import { useModifierApprenant } from '@/features/apprenants/hooks/useModifierApprenant'
 import { useSupprimerApprenant } from '@/features/apprenants/hooks/useSupprimerApprenant'
+import { useMembre } from '@/features/membres/hooks/useMembre'
 import type { Apprenant } from '@/shared/supabase/apprenantRepo'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
@@ -20,6 +21,9 @@ export function ApprenantsPage() {
   const creer = useCreerApprenant()
   const modifier = useModifierApprenant()
   const supprimer = useSupprimerApprenant()
+  // Un enseignant voit l'identité de ses apprenants ; il ne tient pas leur
+  // fiche — la RLS le lui refuse, on ne lui montre donc pas les commandes.
+  const { estResponsable } = useMembre()
 
   const [formulaireOuvert, setFormulaireOuvert] = useState(false)
   const [apprenantEdite, setApprenantEdite] = useState<Apprenant | null>(null)
@@ -70,10 +74,12 @@ export function ApprenantsPage() {
           </p>
         </div>
 
-        <Button onClick={ouvrirCreation}>
-          <Plus className="size-4" aria-hidden="true" />
-          Nouvel apprenant
-        </Button>
+        {estResponsable && (
+          <Button onClick={ouvrirCreation}>
+            <Plus className="size-4" aria-hidden="true" />
+            Nouvel apprenant
+          </Button>
+        )}
       </div>
 
       {supprimer.isError && (
@@ -111,13 +117,17 @@ export function ApprenantsPage() {
           <div>
             <p className="font-medium">Aucun apprenant pour le moment</p>
             <p className="text-sm text-muted-foreground">
-              Créez une première fiche pour pouvoir l’inscrire à un cours.
+              {estResponsable
+                ? 'Créez une première fiche pour pouvoir l’inscrire à un cours.'
+                : 'Aucun apprenant n’est inscrit à vos cours pour l’instant.'}
             </p>
           </div>
-          <Button variant="outline" onClick={ouvrirCreation}>
-            <Plus className="size-4" aria-hidden="true" />
-            Nouvel apprenant
-          </Button>
+          {estResponsable && (
+            <Button variant="outline" onClick={ouvrirCreation}>
+              <Plus className="size-4" aria-hidden="true" />
+              Nouvel apprenant
+            </Button>
+          )}
         </div>
       )}
 
@@ -127,6 +137,7 @@ export function ApprenantsPage() {
           onOuvrir={setApprenantDetaille}
           onModifier={ouvrirEdition}
           onSupprimer={setApprenantASupprimer}
+          actionsGestion={estResponsable}
         />
       )}
 
@@ -136,6 +147,7 @@ export function ApprenantsPage() {
           if (!ouvert) setApprenantDetaille(null)
         }}
         onModifier={ouvrirEdition}
+        actionsGestion={estResponsable}
       />
 
       <ApprenantFormDialog
