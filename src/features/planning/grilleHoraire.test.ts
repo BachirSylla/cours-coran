@@ -17,14 +17,19 @@ import {
 import type { JourSemaine } from '@/shared/lib/conflits'
 import type { CoursAvecDetails } from '@/shared/supabase/coursRepo'
 
+/** Centre à un enseignant, sauf mention contraire — la situation d'aujourd'hui. */
+const ENSEIGNANT = 'ens-a'
+const AUTRE_ENSEIGNANT = 'ens-b'
+
 function creneau(
   id: string,
   jour_semaine: JourSemaine,
   heure_debut: string,
   heure_fin: string,
-  cours_id = `cours-${id}`
+  cours_id = `cours-${id}`,
+  enseignant_id: string | null = ENSEIGNANT
 ): CreneauPlanning {
-  return { id, cours_id, jour_semaine, heure_debut, heure_fin }
+  return { id, cours_id, enseignant_id, jour_semaine, heure_debut, heure_fin }
 }
 
 function cours(
@@ -143,6 +148,27 @@ describe('idsEnConflit', () => {
     ])
 
     expect([...ids].sort()).toEqual(['a', 'b'])
+  })
+
+  it('ne marque rien quand le chevauchement oppose deux enseignants', () => {
+    // La grille cesserait sinon de colorer en rouge deux cours parfaitement
+    // légitimes, tenus au même moment par deux personnes différentes.
+    const ids = idsEnConflit([
+      creneau('a', 1, '10:00', '11:30', 'cours-a', ENSEIGNANT),
+      creneau('b', 1, '11:00', '12:00', 'cours-b', AUTRE_ENSEIGNANT),
+    ])
+
+    expect(ids.size).toBe(0)
+  })
+
+  it('marque le double-booking de chaque enseignant, et lui seul', () => {
+    const ids = idsEnConflit([
+      creneau('a1', 1, '10:00', '11:30', 'cours-a1', ENSEIGNANT),
+      creneau('a2', 1, '11:00', '12:00', 'cours-a2', ENSEIGNANT),
+      creneau('b1', 1, '10:30', '11:15', 'cours-b1', AUTRE_ENSEIGNANT),
+    ])
+
+    expect([...ids].sort()).toEqual(['a1', 'a2'])
   })
 })
 

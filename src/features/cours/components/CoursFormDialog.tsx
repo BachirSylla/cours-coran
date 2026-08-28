@@ -54,6 +54,12 @@ export interface CoursFormDialogProps {
   typesCours: TypeCours[]
   /** Tous les créneaux déjà enregistrés, pour la détection de conflit. */
   creneauxExistants: CreneauExistant[]
+  /**
+   * Enseignant qui assurera ce cours : l'affecté en modification, le créateur
+   * en création — c'est ce que pose `enregistrer_cours`. Le conflit se contrôle
+   * contre SON agenda, pas contre celui du centre (CLAUDE.md §5.1).
+   */
+  enseignantId: string | null
   onEnregistrer: (valeurs: CoursValues) => Promise<void>
   enCours: boolean
   erreur?: string | null
@@ -87,6 +93,7 @@ export function CoursFormDialog({
   cours,
   typesCours,
   creneauxExistants,
+  enseignantId,
   onEnregistrer,
   enCours,
   erreur,
@@ -119,8 +126,14 @@ export function CoursFormDialog({
   const creneauxSaisis = useWatch({ control, name: 'creneaux' })
 
   const conflits = useMemo(
-    () => detecterConflitsFormulaire(creneauxSaisis ?? [], creneauxExistants, cours?.id),
-    [creneauxSaisis, creneauxExistants, cours?.id]
+    () =>
+      detecterConflitsFormulaire(
+        creneauxSaisis ?? [],
+        creneauxExistants,
+        cours?.id,
+        enseignantId
+      ),
+    [creneauxSaisis, creneauxExistants, cours?.id, enseignantId]
   )
 
   const lignesEnConflit = useMemo(() => calculerIndexEnConflit(conflits), [conflits])
@@ -139,8 +152,8 @@ export function CoursFormDialog({
         <DialogHeader>
           <DialogTitle>{modeEdition ? 'Modifier le cours' : 'Nouveau cours'}</DialogTitle>
           <DialogDescription>
-            Un cours occupe un ou plusieurs créneaux hebdomadaires. Deux cours ne peuvent jamais
-            se chevaucher.
+            Un cours occupe un ou plusieurs créneaux hebdomadaires. Un même enseignant ne peut
+            pas en tenir deux à la même heure.
           </DialogDescription>
         </DialogHeader>
 

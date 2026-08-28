@@ -32,7 +32,9 @@ export function CoursPage() {
   const modifier = useModifierCours()
   // Créer, modifier et supprimer un cours sont des actes de gestion : la RLS les
   // refuse à un enseignant (migration 0012). On ne lui montre pas les commandes.
-  const { estResponsable } = useMembre()
+  // Un cours créé est affecté à son créateur — c'est ce que fait
+  // `enregistrer_cours`. L'aperçu de conflit doit viser le même agenda.
+  const { estResponsable, userId } = useMembre()
   const supprimer = useSupprimerCours()
 
   const [formulaireOuvert, setFormulaireOuvert] = useState(false)
@@ -176,6 +178,7 @@ export function CoursPage() {
         cours={coursEdite}
         typesCours={typesCours ?? []}
         creneauxExistants={creneauxExistants ?? []}
+        enseignantId={coursEdite?.enseignant_id ?? userId}
         onEnregistrer={enregistrer}
         enCours={creer.isPending || modifier.isPending}
         erreur={erreurFormulaire ?? null}

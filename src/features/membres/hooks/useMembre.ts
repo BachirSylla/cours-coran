@@ -11,6 +11,12 @@ export const membreKeys = {
 
 export interface MembreCourant {
   membre: Membre | null
+  /**
+   * Compte connecté. Il vient de la session, donc il est disponible tout de
+   * suite — contrairement au reste, qui attend la requête. C'est l'enseignant
+   * auquel `enregistrer_cours` affecte un cours neuf.
+   */
+  userId: string | null
   centreId: string | null
   role: RoleMembre | null
   /** Vrai seulement pour un responsable **confirmé** — voir la note ci-dessous. */
@@ -48,6 +54,7 @@ export function useMembre(): MembreCourant {
 
   return {
     membre,
+    userId,
     centreId: membre?.centre_id ?? null,
     role,
     estResponsable: role === 'responsable',

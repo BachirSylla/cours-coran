@@ -187,3 +187,55 @@ psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls_etancheite.sql
 
 Il monte son propre décor, l'éprouve identité par identité, et **annule tout** à
 la fin. Succès = « TOUTES LES ASSERTIONS PASSENT ».
+
+---
+
+## Conflit d'horaire par enseignant (migration 0013)
+
+La ressource rare est **l'enseignant**, pas le centre : nul ne peut être à deux
+endroits à la fois, mais deux enseignants tiennent très bien cours à la même
+heure. Le scénario 15 se déroule avec le compte actuel ; les scénarios 16 et 17
+demandent le second compte du scénario 13.
+
+### 15. Non-régression : un seul enseignant
+
+1. Créer un cours dont un créneau chevauche celui d'un cours existant.
+2. Créer un cours dont le créneau **commence exactement à l'heure où** un autre
+   se termine (11:00–12:00 après 10:00–11:00).
+
+**Attendu** : le premier est refusé et nomme le cours en travers (« Ce créneau
+chevauche le cours « … » »), le second passe. Le refus apparaît **avant même de
+soumettre**, en rouge sous la ligne du formulaire — et le serveur le refuse
+aussi si l'on force. Rien ne doit avoir changé par rapport à hier.
+
+### 16. Deux enseignants au même horaire
+
+Prérequis : un cours affecté à l'enseignant du scénario 13.
+
+```sql
+update public.cours set enseignant_id = '<uuid du second compte>' where libelle = '<un cours>';
+```
+
+1. En responsable, créer un nouveau cours au **même jour et à la même heure** que
+   ce cours-là.
+
+**Attendu** : **aucun conflit**, ni dans l'aperçu du formulaire, ni au moment
+d'enregistrer. Dans le planning, les deux blocs se placent côte à côte **sans
+bordure rouge** et sans bandeau d'alerte.
+
+### 17. Le contrôle vise l'enseignant affecté, pas soi-même
+
+1. Toujours en responsable, **modifier** le cours affecté à l'autre enseignant
+   et lui donner un créneau qui chevauche un **autre** cours de cette même
+   personne.
+
+**Attendu** : refus, et le message **nomme l'enseignant** (« Amina est déjà pris
+sur ce créneau : il chevauche le cours « … » »). C'est bien son agenda qui
+décide, alors que c'est vous qui agissez. Sur vos propres cours, le message
+reste celui du scénario 15, sans nom.
+
+La preuve automatisée vit dans `supabase/tests/conflit_enseignant.sql` :
+
+```bash
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/conflit_enseignant.sql
+```

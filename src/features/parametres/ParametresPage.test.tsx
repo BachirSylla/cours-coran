@@ -27,6 +27,7 @@ const useMembreMock = vi.mocked(useMembre)
 function membre(role: 'responsable' | 'enseignant' = 'responsable') {
   return {
     membre: null,
+    userId: 'moi',
     centreId: 'centre-1',
     role,
     estResponsable: role === 'responsable',

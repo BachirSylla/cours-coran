@@ -10,7 +10,7 @@
 --
 -- `owner_id` est CONSERVÉ ici, en filet : rendu nullable, son défaut retiré, ses
 -- policies supprimées. Il n'est plus qu'une trace d'audit. Sa suppression —
--- seul acte irréversible — fait l'objet de la migration 0013, une fois celle-ci
+-- seul acte irréversible — fait l'objet de la migration 0014, une fois celle-ci
 -- éprouvée.
 --
 -- Gain collatéral : supprimer un compte ne détruit plus les données. L'ancien
@@ -482,7 +482,7 @@ end
 $$;
 
 -- `owner_id` n'est plus qu'une trace d'audit : plus de défaut, plus de NOT NULL,
--- plus aucune policy. La migration 0013 le supprimera.
+-- plus aucune policy. La migration 0014 le supprimera.
 do $$
 declare
   v_table text;
@@ -955,7 +955,7 @@ grant update (note_bareme) on public.membre to authenticated;
  * `jeton`. Sans cela un responsable pourrait poser un secret prévisible.
  *
  * `owner_id` est volontairement absent de la liste : le client ne l'a jamais
- * écrit (la base le posait par défaut), et il disparaît en 0013.
+ * écrit (la base le posait par défaut), et il disparaît en 0014.
  */
 revoke insert, update on public.inscription from authenticated;
 grant insert (id, centre_id, apprenant_id, cours_id, note_examen, examen_bareme, created_at, updated_at)

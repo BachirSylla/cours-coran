@@ -2,6 +2,7 @@ import { abregeJour, libelleJour } from '@/features/cours/coursSchema'
 import {
   detecterTousLesConflits,
   heureEnMinutes,
+  type CreneauAffecte,
   type CreneauHoraire,
   type JourSemaine,
 } from '@/shared/lib/conflits'
@@ -28,8 +29,12 @@ export interface PlageHoraire {
   finMinutes: number
 }
 
-/** Créneau prêt à être placé : identité + rattachement au cours. */
-export interface CreneauPlanning extends CreneauHoraire {
+/**
+ * Créneau prêt à être placé : identité, rattachement au cours, et enseignant
+ * affecté — sans lui, la grille signalerait comme conflit deux cours tenus au
+ * même moment par deux personnes différentes (CLAUDE.md §5.1).
+ */
+export interface CreneauPlanning extends CreneauAffecte {
   id: string
   cours_id: string
 }
@@ -99,8 +104,9 @@ export function heuresDeLaPlage(plage: PlageHoraire): number[] {
 }
 
 /**
- * Identifiants des créneaux impliqués dans au moins un chevauchement.
- * Toute la logique vient de `detecterTousLesConflits` (CLAUDE.md §5.1).
+ * Identifiants des créneaux impliqués dans au moins un chevauchement **du même
+ * enseignant**. Toute la logique vient de `detecterTousLesConflits`
+ * (CLAUDE.md §5.1) : rien n'est réimplémenté ici.
  */
 export function idsEnConflit(creneaux: readonly CreneauPlanning[]): Set<string> {
   const ids = new Set<string>()
@@ -192,6 +198,7 @@ export function extraireCreneaux(cours: readonly CoursAvecDetails[]): CreneauPla
     unCours.creneau.map((creneau) => ({
       id: creneau.id,
       cours_id: unCours.id,
+      enseignant_id: unCours.enseignant_id,
       jour_semaine: creneau.jour_semaine as JourSemaine,
       heure_debut: creneau.heure_debut,
       heure_fin: creneau.heure_fin,

@@ -144,7 +144,7 @@ Les types de cours sont dans une **table de référence** (extensible), pas en d
 Toutes les tables : **RLS activé**, isolant les données au **centre**. Les tables possédées
 portent `centre_id uuid not null default centre_courant()`, plus `created_at` / `updated_at`
 (trigger automatique). `type_cours` est une référence **globale** : pas de `centre_id`, lecture
-seule pour les utilisateurs authentifiés. `owner_id` survit en filet jusqu'à la migration 0013 :
+seule pour les utilisateurs authentifiés. `owner_id` survit en filet jusqu'à la migration 0014 :
 nullable, sans défaut, sans aucune policy — simple trace d'audit, ne rien construire dessus.
 
 **Les clés étrangères transportent le tenant** : `creneau`, `seance`, `paiement` et `inscription`
@@ -156,13 +156,23 @@ L'étanchéité est **structurelle**, pas seulement déclarative.
 
 ## 5. Règles métier (critiques)
 
-1. **Détection de conflit** (périmètre : le centre) : deux **créneaux** entrent en conflit si
-   `même jour_semaine ET heure_debut_A < heure_fin_B ET heure_debut_B < heure_fin_A`,
-   tous cours confondus. **Pas de marge** entre les cours (début/fin fixes ; le débordement
-   est hors système). Cette règle doit être **couverte par des tests Vitest**.
-   Le garde-fou en base vit dans `enregistrer_cours` et joint sur `centre_id` : identique à
-   l'ancien comportement tant qu'il n'y a qu'un enseignant, mais deux enseignants d'un même
-   centre se gêneraient à tort. **Le scoper par enseignant est le lot 2** — pas encore fait.
+1. **Détection de conflit** (périmètre : l'**enseignant**, migration 0013) : deux **créneaux**
+   entrent en conflit s'ils relèvent du **même enseignant affecté** (`cours.enseignant_id`) ET
+   que `même jour_semaine ET heure_debut_A < heure_fin_B ET heure_debut_B < heure_fin_A`.
+   La ressource rare est la personne, pas le centre : deux enseignants tiennent très bien cours
+   à la même heure. **Pas de marge** (début/fin fixes ; le débordement est hors système) :
+   deux créneaux adjacents ne se chevauchent pas. Couverte par des tests Vitest.
+
+   Le scope est l'enseignant **affecté au cours**, jamais `auth.uid()` : un responsable qui pose
+   le planning de quelqu'un doit voir ses créneaux contrôlés contre l'agenda de cette
+   personne-là. Un cours sans enseignant (`null`, possible après suppression d'un membre) forme
+   un groupe qui se contrôle contre lui-même — d'où `is not distinct from` en SQL et `===` sur
+   `null` côté TypeScript, jamais `=`, qui cesserait silencieusement de contrôler quoi que ce soit.
+
+   Le **chevauchement temporel** (`creneauxSeChevauchent`) reste séparé de la **règle métier**
+   (`creneauxEnConflit`) : le premier ne connaît que des heures. Le garde-fou de `enregistrer_cours`
+   est la source de vérité, atomique ; la détection côté client n'est qu'un aperçu.
+
 2. **Deux temporalités distinctes** à ne pas confondre :
    - le créneau hebdomadaire récurrent → table `creneau` (`jour_semaine` + `heure_debut`/`heure_fin`) ;
    - la plage de vie du cours → table `cours` (`date_debut` obligatoire, `date_fin` optionnelle).
@@ -274,11 +284,12 @@ npm run test         # Vitest
 npm run gen:types    # types Supabase → src/shared/supabase/types.ts (nécessite supabase login)
 ```
 
-Étanchéité de la RLS — à rejouer après toute migration touchant aux policies. Le script monte son
-propre décor, éprouve chaque identité et **annule tout** à la fin :
+Épreuves SQL — chacune monte son propre décor et **annule tout** à la fin. À rejouer après toute
+migration touchant aux policies (la première) ou à `enregistrer_cours` (la seconde) :
 
 ```bash
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls_etancheite.sql
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/conflit_enseignant.sql
 ```
 
 Variante sans `supabase login`, avec la chaîne de connexion de `.env.local` :
@@ -307,6 +318,8 @@ npx supabase gen types typescript --db-url "$SUPABASE_DB_URL" > src/shared/supab
 - Ne pas mettre le lien Meet sur la séance.
 - Ne pas ajouter de rappels de paiement.
 - Ne pas ajouter de marge horaire automatique entre les cours.
+- Ne pas scoper le conflit sur `auth.uid()` : c'est l'enseignant **affecté** qui décide, sinon un
+  responsable posant le planning d'autrui contrôlerait contre son propre agenda.
 - Ne pas stocker les types de cours en dur (table `type_cours`).
 - Ne pas parler à Supabase hors de la couche repository.
 - Ne pas gater l'écriture d'une table de **gestion** sur `cours_lisibles()` : c'est un helper de
@@ -316,4 +329,4 @@ npx supabase gen types typescript --db-url "$SUPABASE_DB_URL" > src/shared/supab
 - Ne pas se fier à `revoke <priv> (colonne)` : un privilège de colonne ne retire rien tant qu'un
   privilège de TABLE le couvre. Il faut retirer celui de la table, puis le réaccorder colonne par
   colonne — c'est ce qui protège `inscription.jeton` et `membre.role`.
-- Ne rien construire sur `owner_id` : il n'est plus qu'une trace d'audit, supprimée en 0013.
+- Ne rien construire sur `owner_id` : il n'est plus qu'une trace d'audit, supprimée en 0014.

@@ -2,28 +2,41 @@ import { describe, expect, it } from 'vitest'
 
 import {
   aDesConflits,
+  creneauxEnConflit,
   creneauxSeChevauchent,
   detecterTousLesConflits,
   heureEnMinutes,
+  memeEnseignant,
   trouverConflits,
+  type CreneauAffecte,
   type CreneauHoraire,
   type JourSemaine,
 } from '@/shared/lib/conflits'
 
 /** Créneau de test avec identité, comme les lignes de la table `creneau`. */
-interface CreneauTest extends CreneauHoraire {
+interface CreneauTest extends CreneauAffecte {
   id: string
   cours_id: string
 }
+
+/**
+ * Sauf mention contraire, tous les créneaux de ce fichier appartiennent au
+ * MÊME enseignant : les cas historiques décrivent alors exactement le
+ * comportement mono-enseignant d'avant le scoping par agenda, et servent de
+ * non-régression.
+ */
+const ENSEIGNANT = 'ens-a'
+const AUTRE_ENSEIGNANT = 'ens-b'
 
 function creneau(
   id: string,
   jour_semaine: JourSemaine,
   heure_debut: string,
   heure_fin: string,
-  cours_id = `cours-${id}`
+  cours_id = `cours-${id}`,
+  enseignant_id: string | null = ENSEIGNANT
 ): CreneauTest {
-  return { id, cours_id, jour_semaine, heure_debut, heure_fin }
+  return { id, cours_id, enseignant_id, jour_semaine, heure_debut, heure_fin }
 }
 
 const LUNDI = 1 satisfies JourSemaine
@@ -283,5 +296,75 @@ describe('detecterTousLesConflits', () => {
     const doublon = creneau('c1', LUNDI, '09:00', '11:00')
 
     expect(detecterTousLesConflits([doublon, doublon])).toEqual([[doublon, doublon]])
+  })
+})
+
+describe('le conflit se scope sur l’enseignant', () => {
+  // L'intention du lot 2 : la ressource rare est la personne, pas le centre.
+  const HORAIRE = { jour_semaine: LUNDI, heure_debut: '10:00', heure_fin: '11:00' } as const
+
+  it('deux enseignants différents au même horaire ne se gênent pas', () => {
+    const a = creneau('c1', LUNDI, '10:00', '11:00', 'cours-a', ENSEIGNANT)
+    const b = creneau('c2', LUNDI, '10:00', '11:00', 'cours-b', AUTRE_ENSEIGNANT)
+
+    expect(creneauxSeChevauchent(a, b)).toBe(true) // ils se recouvrent bien…
+    expect(creneauxEnConflit(a, b)).toBe(false) // …mais ce n'est pas un conflit.
+    expect(detecterTousLesConflits([a, b])).toEqual([])
+    expect(trouverConflits(a, [b])).toEqual([])
+    expect(aDesConflits(a, [b])).toBe(false)
+  })
+
+  it('le même enseignant sur deux créneaux qui se chevauchent est en conflit', () => {
+    const a = creneau('c1', LUNDI, '10:00', '11:00', 'cours-a', ENSEIGNANT)
+    const b = creneau('c2', LUNDI, '10:30', '11:30', 'cours-b', ENSEIGNANT)
+
+    expect(creneauxEnConflit(a, b)).toBe(true)
+    expect(detecterTousLesConflits([a, b])).toEqual([[a, b]])
+    expect(trouverConflits(a, [b]).map((c) => c.id)).toEqual(['c2'])
+  })
+
+  it('le même enseignant sur deux créneaux adjacents ne l’est pas', () => {
+    // La frontière stricte est inchangée : 11:00 finit là où 11:00 commence.
+    const a = creneau('c1', LUNDI, '10:00', '11:00', 'cours-a', ENSEIGNANT)
+    const b = creneau('c2', LUNDI, '11:00', '12:00', 'cours-b', ENSEIGNANT)
+
+    expect(creneauxEnConflit(a, b)).toBe(false)
+    expect(detecterTousLesConflits([a, b])).toEqual([])
+  })
+
+  it('sépare les agendas dans un ensemble mêlé, sans perdre les vrais conflits', () => {
+    const a1 = creneau('a1', LUNDI, '09:00', '11:00', 'cours-a1', ENSEIGNANT)
+    const a2 = creneau('a2', LUNDI, '10:00', '12:00', 'cours-a2', ENSEIGNANT)
+    const b1 = creneau('b1', LUNDI, '09:30', '10:30', 'cours-b1', AUTRE_ENSEIGNANT)
+    const b2 = creneau('b2', LUNDI, '10:00', '11:00', 'cours-b2', AUTRE_ENSEIGNANT)
+
+    const paires = detecterTousLesConflits([a1, b1, a2, b2])
+
+    // Un conflit par agenda, et aucun croisé — malgré quatre créneaux qui se
+    // recouvrent tous deux à deux dans le temps.
+    expect(paires.map(([x, y]) => `${x.id}-${y.id}`)).toEqual(['a1-a2', 'b1-b2'])
+  })
+
+  it('range les cours sans enseignant dans un groupe à part', () => {
+    // `null` n'est pas « personne ne gêne personne » : deux cours orphelins qui
+    // se chevauchent restent un problème à régler.
+    const orphelin1 = creneau('o1', LUNDI, '10:00', '11:00', 'cours-o1', null)
+    const orphelin2 = creneau('o2', LUNDI, '10:30', '11:30', 'cours-o2', null)
+    const affecte = creneau('c1', LUNDI, '10:00', '11:00', 'cours-a', ENSEIGNANT)
+
+    expect(memeEnseignant(orphelin1, orphelin2)).toBe(true)
+    expect(memeEnseignant(orphelin1, affecte)).toBe(false)
+    expect(detecterTousLesConflits([orphelin1, affecte, orphelin2])).toEqual([
+      [orphelin1, orphelin2],
+    ])
+  })
+
+  it('ignore l’enseignant dans `creneauxSeChevauchent`, qui ne connaît que l’heure', () => {
+    // La règle temporelle (§5.1) reste isolée et testable seule : elle ne prend
+    // qu'un `CreneauHoraire`, sans identité d'aucune sorte.
+    const a: CreneauHoraire = HORAIRE
+    const b: CreneauHoraire = HORAIRE
+
+    expect(creneauxSeChevauchent(a, b)).toBe(true)
   })
 })

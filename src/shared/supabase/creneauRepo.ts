@@ -18,9 +18,14 @@ export type CreneauInput = Omit<
   'id' | 'owner_id' | 'centre_id' | 'created_at' | 'updated_at'
 >
 
-/** Créneau enrichi du libellé de son cours — base de la détection de conflit. */
+/**
+ * Créneau enrichi de son cours — base de la détection de conflit.
+ *
+ * `enseignant_id` en fait partie : le conflit se scope sur l'agenda de
+ * l'enseignant affecté, pas sur le centre (CLAUDE.md §5.1).
+ */
 export type CreneauAvecCours = Creneau & {
-  cours: { libelle: string } | null
+  cours: { libelle: string; enseignant_id: string | null } | null
 }
 
 export async function listByCours(coursId: string): Promise<Creneau[]> {
@@ -37,13 +42,13 @@ export async function listByCours(coursId: string): Promise<Creneau[]> {
 }
 
 /**
- * Tous les créneaux du propriétaire, tous cours confondus.
+ * Tous les créneaux visibles, tous cours confondus.
  * C'est l'ensemble contre lequel se fait la détection de conflit (CLAUDE.md §5.1).
  */
 export async function listAll(): Promise<CreneauAvecCours[]> {
   const { data, error } = await getSupabaseClient()
     .from('creneau')
-    .select('*, cours(libelle)')
+    .select('*, cours(libelle, enseignant_id)')
     .order('jour_semaine', { ascending: true })
     .order('heure_debut', { ascending: true })
 
