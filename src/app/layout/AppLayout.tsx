@@ -14,23 +14,43 @@ import {
 } from 'lucide-react'
 
 import { useAuth } from '@/features/auth/useAuth'
+import { useMembre } from '@/features/membres/hooks/useMembre'
 import { cn } from '@/shared/lib/utils'
 import { useTheme } from '@/shared/lib/useTheme'
 import { Button } from '@/shared/ui/button'
 import { PwaInstallPrompt } from '@/shared/ui/PwaInstallPrompt'
 
-/** Navigation principale — les écrans à venir (cours, séances…) s'ajoutent ici. */
+/**
+ * Navigation principale.
+ *
+ * `responsable: true` retire l'entrée pour un enseignant. La RLS lui refuse déjà
+ * la table `paiement` — il verrait une page vide plutôt qu'une erreur, ce qui
+ * est pire qu'un onglet absent (migration 0012).
+ */
 const NAVIGATION = [
-  { to: '/', libelle: 'Planning', icone: CalendarDays, exact: true },
-  { to: '/cours', libelle: 'Cours', icone: BookOpen, exact: false },
-  { to: '/seances', libelle: 'Séances', icone: CalendarCheck, exact: false },
-  { to: '/apprenants', libelle: 'Apprenants', icone: Users, exact: false },
-  { to: '/paiements', libelle: 'Paiements', icone: Wallet, exact: false },
+  { to: '/', libelle: 'Planning', icone: CalendarDays, exact: true, responsable: false },
+  { to: '/cours', libelle: 'Cours', icone: BookOpen, exact: false, responsable: false },
+  {
+    to: '/seances',
+    libelle: 'Séances',
+    icone: CalendarCheck,
+    exact: false,
+    responsable: false,
+  },
+  { to: '/apprenants', libelle: 'Apprenants', icone: Users, exact: false, responsable: false },
+  { to: '/paiements', libelle: 'Paiements', icone: Wallet, exact: false, responsable: true },
 ] as const
 
 export function AppLayout() {
   const { theme, toggleTheme } = useTheme()
   const { user, signOut } = useAuth()
+  const { estResponsable, chargement } = useMembre()
+
+  // Tant que le rôle n'est pas connu, on n'affiche pas l'onglet réservé : mieux
+  // vaut le voir apparaître que le voir disparaître.
+  const navigation = NAVIGATION.filter(
+    (entree) => !entree.responsable || (estResponsable && !chargement)
+  )
 
   return (
     <div className="flex min-h-dvh flex-col bg-background">
@@ -99,7 +119,7 @@ export function AppLayout() {
           aria-label="Navigation principale"
           className="mx-auto flex w-full max-w-6xl items-center gap-1 overflow-x-auto px-2 pb-2 sm:px-4"
         >
-          {NAVIGATION.map(({ to, libelle, icone: Icone, exact }) => (
+          {navigation.map(({ to, libelle, icone: Icone, exact }) => (
             <NavLink
               key={to}
               to={to}

@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { useMembre } from '@/features/membres/hooks/useMembre'
 import type { LigneMois } from '@/features/paiements/hooks/usePaiementsMois'
 import { usePaiementsMois } from '@/features/paiements/hooks/usePaiementsMois'
 import { PaiementsPage } from '@/features/paiements/PaiementsPage'
@@ -21,6 +22,24 @@ vi.mock('@/features/paiements/components/PaiementFormDialog', () => ({
   PaiementFormDialog: ({ cible }: { cible: { cours_libelle: string } | null }) =>
     cible ? <div role="dialog">Règlement {cible.cours_libelle}</div> : null,
 }))
+vi.mock('@/features/membres/hooks/useMembre', () => ({ useMembre: vi.fn() }))
+
+const useMembreMock = vi.mocked(useMembre)
+
+/**
+ * Rôle du compte dans son centre. Par défaut responsable — c'est la situation
+ * de l'enseignant solo, qui est aussi responsable de son propre centre : ces
+ * tests décrivent alors exactement le comportement d'avant la migration 0012.
+ */
+function membre(role: 'responsable' | 'enseignant' = 'responsable') {
+  return {
+    membre: null,
+    centreId: 'centre-1',
+    role,
+    estResponsable: role === 'responsable',
+    chargement: false,
+  }
+}
 
 const usePaiementsMoisMock = vi.mocked(usePaiementsMois)
 
@@ -66,6 +85,7 @@ function afficher() {
 describe('PaiementsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    useMembreMock.mockReturnValue(membre())
   })
 
   it('affiche un indicateur pendant le chargement', () => {
@@ -183,5 +203,17 @@ describe('PaiementsPage', () => {
     await utilisateur.click(screen.getByRole('button', { name: /mois précédent/i }))
     expect(usePaiementsMoisMock.mock.calls.at(-1)?.[0]).toBe(moisPrecedent(moisCourant()))
     expect(screen.getByRole('button', { name: /mois courant/i })).toBeEnabled()
+  })
+
+  it('reste fermée à un enseignant, sans laisser croire à une panne', () => {
+    // La RLS lui renvoie zéro règlement : sans ce mot, il verrait un tableau de
+    // bord vide et conclurait au bug (migration 0012).
+    useMembreMock.mockReturnValue(membre('enseignant'))
+    simuler({ lignes: [] })
+
+    afficher()
+
+    expect(screen.getByText('Réservé au responsable')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /mois suivant/i })).not.toBeInTheDocument()
   })
 })

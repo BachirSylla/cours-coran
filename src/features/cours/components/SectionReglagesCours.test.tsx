@@ -33,6 +33,7 @@ function cours(extra: Partial<CoursAvecDetails> = {}): CoursAvecDetails {
   return {
     id: 'c1',
     owner_id: 'proprietaire',
+    centre_id: 'centre-1',
     libelle: 'Groupe Hifz',
     type_cours_id: 'type-1',
     format: 'groupe',
@@ -40,6 +41,7 @@ function cours(extra: Partial<CoursAvecDetails> = {}): CoursAvecDetails {
     date_fin: null,
     lien_meet: null,
     jeton_partage: null,
+    enseignant_id: null,
     logo: null,
     assiduite_active: null,
     base_academique: null,

@@ -1,5 +1,6 @@
 import { getSupabaseClient } from '@/shared/supabase/client'
 import { lancerSiErreur } from '@/shared/supabase/erreurs'
+import * as membreRepo from '@/shared/supabase/membreRepo'
 import type { Bareme } from '@/shared/lib/evaluations'
 import {
   estBaseAcademique,
@@ -9,7 +10,8 @@ import {
 import type { Database } from '@/shared/supabase/types'
 
 /**
- * Paramètres du compte — **une seule ligne par enseignant** (`owner_id` unique).
+ * Réglages du centre — **une seule ligne par centre** (`centre_id` unique,
+ * migration 0012). Tout membre les lit ; seul le responsable les écrit.
  *
  * Aucune ligne n'existe tant que les valeurs par défaut conviennent : `get()`
  * retombe alors sur `BAREME_PAR_DEFAUT` et `NOTATION_PAR_DEFAUT`. Même
@@ -25,12 +27,18 @@ export const BAREME_PAR_DEFAUT: Bareme = 20
 
 /** Champs réglables. Un patch partiel ne touche que ce qu'il contient. */
 export type ParametresPatch = Partial<
-  Omit<TableParametres['Insert'], 'id' | 'owner_id' | 'created_at' | 'updated_at'>
+  Omit<TableParametres['Insert'], 'id' | 'owner_id' | 'centre_id' | 'created_at' | 'updated_at'>
 >
 
 /** Ce que l'application lit, que la ligne existe ou non. */
 export interface ParametresEffectifs extends ConfigNotation {
-  /** Barème des notes de récitation, séance par séance. */
+  /**
+   * Barème des notes de récitation, séance par séance.
+   *
+   * Il vient du membre connecté quand il en a choisi un — c'est son outil de
+   * travail, pas une règle du centre — et retombe sinon sur celui du centre
+   * (migration 0012).
+   */
   note_bareme: number
   /** Logo du centre, data URL, ou `null` s'il n'y en a pas (migration 0010). */
   logo: string | null
@@ -38,22 +46,36 @@ export interface ParametresEffectifs extends ConfigNotation {
   enregistres: boolean
 }
 
-export async function get(): Promise<ParametresEffectifs> {
-  const { data, error } = await getSupabaseClient().from('parametres').select('*').maybeSingle()
+/**
+ * Réglages applicables ici et maintenant.
+ *
+ * `userId` sert à récupérer le barème de récitation propre à l'enseignant. Il
+ * est facultatif : sans lui, c'est celui du centre qui s'applique — le
+ * comportement d'avant la migration 0012.
+ */
+export async function get(userId?: string | null): Promise<ParametresEffectifs> {
+  const [{ data, error }, membre] = await Promise.all([
+    getSupabaseClient().from('parametres').select('*').maybeSingle(),
+    userId ? membreRepo.getCourant(userId) : Promise.resolve(null),
+  ])
 
   lancerSiErreur(error, 'Chargement des paramètres')
 
+  const baremeDuMembre = membre?.note_bareme ?? null
+
   if (!data) {
     return {
-      note_bareme: BAREME_PAR_DEFAUT,
+      note_bareme: baremeDuMembre ?? BAREME_PAR_DEFAUT,
       logo: null,
       ...NOTATION_PAR_DEFAUT,
+      // Le barème du membre ne compte pas comme un réglage du centre : c'est ce
+      // dernier que ce drapeau décrit.
       enregistres: false,
     }
   }
 
   return {
-    note_bareme: data.note_bareme,
+    note_bareme: baremeDuMembre ?? data.note_bareme,
     logo: data.logo,
     assiduite_active: data.assiduite_active,
     // La base est une chaîne côté types générés : on la referme sur le domaine,
@@ -72,9 +94,13 @@ export async function get(): Promise<ParametresEffectifs> {
 }
 
 /**
- * Enregistre un réglage. Idempotent : l'unicité d'`owner_id` fait que le second
- * appel met à jour la ligne au lieu d'en créer une seconde. `owner_id` est posé
- * par la base.
+ * Enregistre un réglage. Idempotent : l'unicité de `centre_id` fait que le
+ * second appel met à jour la ligne au lieu d'en créer une seconde. `centre_id`
+ * est posé par la base.
+ *
+ * ⚠️ `onConflict` est une chaîne littérale : ni TypeScript ni les types générés
+ * ne la vérifient. Se tromper de colonne ici ne casse rien à la compilation et
+ * crée une seconde ligne à l'exécution.
  *
  * Le patch est **partiel** : régler le barème de récitation ne réinitialise pas
  * la configuration de la notation finale, et réciproquement.
@@ -82,7 +108,7 @@ export async function get(): Promise<ParametresEffectifs> {
 export async function upsert(patch: ParametresPatch): Promise<Parametres> {
   const { data, error } = await getSupabaseClient()
     .from('parametres')
-    .upsert(patch, { onConflict: 'owner_id' })
+    .upsert(patch, { onConflict: 'centre_id' })
     .select('*')
     .single()
 

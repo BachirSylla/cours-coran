@@ -27,9 +27,18 @@ export interface SectionInscriptionsProps {
   coursId: string
   /** `individuel` ou `groupe` : pilote la règle de capacité (CLAUDE.md §5.7). */
   format: string
+  /**
+   * Un enseignant consulte la composition de sa classe sans la modifier : la
+   * table `inscription` est une table de gestion (migration 0012).
+   */
+  lectureSeule?: boolean
 }
 
-export function SectionInscriptions({ coursId, format }: SectionInscriptionsProps) {
+export function SectionInscriptions({
+  coursId,
+  format,
+  lectureSeule = false,
+}: SectionInscriptionsProps) {
   const { data: inscriptions, isPending, isError, error } = useInscriptionsCours(coursId)
   const { data: tousLesApprenants } = useApprenants()
 
@@ -80,16 +89,20 @@ export function SectionInscriptions({ coursId, format }: SectionInscriptionsProp
           )}
         </h3>
 
-        <SelecteurApprenant
-          apprenants={disponibles}
-          onChoisir={inscrire}
-          desactive={!verdict.autorise}
-          enCours={ajouter.isPending}
-        />
+        {/* Inscrire et désinscrire relèvent de la gestion : un enseignant voit
+            la liste de sa classe, il ne la compose pas (migration 0012). */}
+        {!lectureSeule && (
+          <SelecteurApprenant
+            apprenants={disponibles}
+            onChoisir={inscrire}
+            desactive={!verdict.autorise}
+            enCours={ajouter.isPending}
+          />
+        )}
       </div>
 
       {/* Le bouton désactivé ne doit pas rester muet : on dit pourquoi. */}
-      {!verdict.autorise && verdict.raison && (
+      {!lectureSeule && !verdict.autorise && verdict.raison && (
         <Alert>
           <Info className="size-4" aria-hidden="true" />
           <AlertDescription>{messageRefus(verdict.raison)}</AlertDescription>
@@ -148,14 +161,16 @@ export function SectionInscriptions({ coursId, format }: SectionInscriptionsProp
                 <StatutApprenantBadge statut={inscription.apprenant.statut} />
               )}
 
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setARetirer(inscription)}
-                aria-label={`Retirer ${inscription.apprenant?.prenom} ${inscription.apprenant?.nom} du cours`}
-              >
-                <UserMinus className="size-4 text-destructive" aria-hidden="true" />
-              </Button>
+              {!lectureSeule && (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setARetirer(inscription)}
+                  aria-label={`Retirer ${inscription.apprenant?.prenom} ${inscription.apprenant?.nom} du cours`}
+                >
+                  <UserMinus className="size-4 text-destructive" aria-hidden="true" />
+                </Button>
+              )}
             </li>
           ))}
         </ul>

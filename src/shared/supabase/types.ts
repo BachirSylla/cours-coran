@@ -41,6 +41,7 @@ export type Database = {
     Tables: {
       apprenant: {
         Row: {
+          centre_id: string
           contact: string | null
           created_at: string
           date_inscription: string
@@ -48,12 +49,13 @@ export type Database = {
           niveau: string | null
           nom: string
           notes: string | null
-          owner_id: string
+          owner_id: string | null
           prenom: string
           statut: string
           updated_at: string
         }
         Insert: {
+          centre_id?: string
           contact?: string | null
           created_at?: string
           date_inscription?: string
@@ -61,12 +63,13 @@ export type Database = {
           niveau?: string | null
           nom: string
           notes?: string | null
-          owner_id?: string
+          owner_id?: string | null
           prenom: string
           statut?: string
           updated_at?: string
         }
         Update: {
+          centre_id?: string
           contact?: string | null
           created_at?: string
           date_inscription?: string
@@ -74,9 +77,38 @@ export type Database = {
           niveau?: string | null
           nom?: string
           notes?: string | null
-          owner_id?: string
+          owner_id?: string | null
           prenom?: string
           statut?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "apprenant_centre_fkey"
+            columns: ["centre_id"]
+            isOneToOne: false
+            referencedRelation: "centre"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      centre: {
+        Row: {
+          created_at: string
+          id: string
+          nom: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nom: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nom?: string
           updated_at?: string
         }
         Relationships: []
@@ -86,17 +118,19 @@ export type Database = {
           assiduite_active: boolean | null
           bareme_assiduite: number | null
           base_academique: string | null
+          centre_id: string
           created_at: string
           date_debut: string
           date_fin: string | null
           devise: string
+          enseignant_id: string | null
           format: string
           id: string
           jeton_partage: string | null
           libelle: string
           lien_meet: string | null
           logo: string | null
-          owner_id: string
+          owner_id: string | null
           penaliser_absences_excusees: boolean | null
           penalite_absence: number | null
           penalite_retard: number | null
@@ -109,17 +143,19 @@ export type Database = {
           assiduite_active?: boolean | null
           bareme_assiduite?: number | null
           base_academique?: string | null
+          centre_id?: string
           created_at?: string
           date_debut: string
           date_fin?: string | null
           devise?: string
+          enseignant_id?: string | null
           format: string
           id?: string
           jeton_partage?: string | null
           libelle: string
           lien_meet?: string | null
           logo?: string | null
-          owner_id?: string
+          owner_id?: string | null
           penaliser_absences_excusees?: boolean | null
           penalite_absence?: number | null
           penalite_retard?: number | null
@@ -132,17 +168,19 @@ export type Database = {
           assiduite_active?: boolean | null
           bareme_assiduite?: number | null
           base_academique?: string | null
+          centre_id?: string
           created_at?: string
           date_debut?: string
           date_fin?: string | null
           devise?: string
+          enseignant_id?: string | null
           format?: string
           id?: string
           jeton_partage?: string | null
           libelle?: string
           lien_meet?: string | null
           logo?: string | null
-          owner_id?: string
+          owner_id?: string | null
           penaliser_absences_excusees?: boolean | null
           penalite_absence?: number | null
           penalite_retard?: number | null
@@ -152,6 +190,20 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "cours_centre_fkey"
+            columns: ["centre_id"]
+            isOneToOne: false
+            referencedRelation: "centre"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cours_enseignant_du_centre_fkey"
+            columns: ["enseignant_id", "centre_id"]
+            isOneToOne: false
+            referencedRelation: "membre"
+            referencedColumns: ["user_id", "centre_id"]
+          },
           {
             foreignKeyName: "cours_type_cours_id_fkey"
             columns: ["type_cours_id"]
@@ -163,95 +215,146 @@ export type Database = {
       }
       creneau: {
         Row: {
+          centre_id: string
           cours_id: string
           created_at: string
           heure_debut: string
           heure_fin: string
           id: string
           jour_semaine: number
-          owner_id: string
+          owner_id: string | null
           updated_at: string
         }
         Insert: {
+          centre_id?: string
           cours_id: string
           created_at?: string
           heure_debut: string
           heure_fin: string
           id?: string
           jour_semaine: number
-          owner_id?: string
+          owner_id?: string | null
           updated_at?: string
         }
         Update: {
+          centre_id?: string
           cours_id?: string
           created_at?: string
           heure_debut?: string
           heure_fin?: string
           id?: string
           jour_semaine?: number
-          owner_id?: string
+          owner_id?: string | null
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "creneau_cours_id_fkey"
-            columns: ["cours_id"]
+            foreignKeyName: "creneau_cours_fkey"
+            columns: ["cours_id", "centre_id"]
             isOneToOne: false
             referencedRelation: "cours"
-            referencedColumns: ["id"]
+            referencedColumns: ["id", "centre_id"]
           },
         ]
       }
       inscription: {
         Row: {
           apprenant_id: string
+          centre_id: string
           cours_id: string
           created_at: string
           examen_bareme: number | null
           id: string
+          jeton: string | null
           note_examen: number | null
-          owner_id: string
+          owner_id: string | null
           updated_at: string
         }
         Insert: {
           apprenant_id: string
+          centre_id?: string
           cours_id: string
           created_at?: string
           examen_bareme?: number | null
           id?: string
+          jeton?: string | null
           note_examen?: number | null
-          owner_id?: string
+          owner_id?: string | null
           updated_at?: string
         }
         Update: {
           apprenant_id?: string
+          centre_id?: string
           cours_id?: string
           created_at?: string
           examen_bareme?: number | null
           id?: string
+          jeton?: string | null
           note_examen?: number | null
-          owner_id?: string
+          owner_id?: string | null
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "inscription_apprenant_id_fkey"
-            columns: ["apprenant_id"]
+            foreignKeyName: "inscription_apprenant_fkey"
+            columns: ["apprenant_id", "centre_id"]
             isOneToOne: false
             referencedRelation: "apprenant"
-            referencedColumns: ["id"]
+            referencedColumns: ["id", "centre_id"]
           },
           {
-            foreignKeyName: "inscription_cours_id_fkey"
-            columns: ["cours_id"]
+            foreignKeyName: "inscription_cours_fkey"
+            columns: ["cours_id", "centre_id"]
             isOneToOne: false
             referencedRelation: "cours"
+            referencedColumns: ["id", "centre_id"]
+          },
+        ]
+      }
+      membre: {
+        Row: {
+          centre_id: string
+          created_at: string
+          id: string
+          nom_affiche: string
+          note_bareme: number | null
+          role: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          centre_id: string
+          created_at?: string
+          id?: string
+          nom_affiche: string
+          note_bareme?: number | null
+          role: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          centre_id?: string
+          created_at?: string
+          id?: string
+          nom_affiche?: string
+          note_bareme?: number | null
+          role?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "membre_centre_id_fkey"
+            columns: ["centre_id"]
+            isOneToOne: false
+            referencedRelation: "centre"
             referencedColumns: ["id"]
           },
         ]
       }
       paiement: {
         Row: {
+          centre_id: string
           cours_id: string
           created_at: string
           date_paiement: string | null
@@ -260,10 +363,11 @@ export type Database = {
           mois_concerne: string
           montant_du: number
           montant_recu: number
-          owner_id: string
+          owner_id: string | null
           updated_at: string
         }
         Insert: {
+          centre_id?: string
           cours_id: string
           created_at?: string
           date_paiement?: string | null
@@ -272,10 +376,11 @@ export type Database = {
           mois_concerne: string
           montant_du: number
           montant_recu?: number
-          owner_id?: string
+          owner_id?: string | null
           updated_at?: string
         }
         Update: {
+          centre_id?: string
           cours_id?: string
           created_at?: string
           date_paiement?: string | null
@@ -284,16 +389,16 @@ export type Database = {
           mois_concerne?: string
           montant_du?: number
           montant_recu?: number
-          owner_id?: string
+          owner_id?: string | null
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "paiement_cours_id_fkey"
-            columns: ["cours_id"]
+            foreignKeyName: "paiement_cours_fkey"
+            columns: ["cours_id", "centre_id"]
             isOneToOne: false
             referencedRelation: "cours"
-            referencedColumns: ["id"]
+            referencedColumns: ["id", "centre_id"]
           },
         ]
       }
@@ -303,11 +408,12 @@ export type Database = {
           bareme_academique: number
           bareme_assiduite: number
           base_academique: string
+          centre_id: string
           created_at: string
           id: string
           logo: string | null
           note_bareme: number
-          owner_id: string
+          owner_id: string | null
           penaliser_absences_excusees: boolean
           penalite_absence: number
           penalite_retard: number
@@ -318,11 +424,12 @@ export type Database = {
           bareme_academique?: number
           bareme_assiduite?: number
           base_academique?: string
+          centre_id?: string
           created_at?: string
           id?: string
           logo?: string | null
           note_bareme?: number
-          owner_id?: string
+          owner_id?: string | null
           penaliser_absences_excusees?: boolean
           penalite_absence?: number
           penalite_retard?: number
@@ -333,28 +440,39 @@ export type Database = {
           bareme_academique?: number
           bareme_assiduite?: number
           base_academique?: string
+          centre_id?: string
           created_at?: string
           id?: string
           logo?: string | null
           note_bareme?: number
-          owner_id?: string
+          owner_id?: string | null
           penaliser_absences_excusees?: boolean
           penalite_absence?: number
           penalite_retard?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "parametres_centre_fkey"
+            columns: ["centre_id"]
+            isOneToOne: true
+            referencedRelation: "centre"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       presence: {
         Row: {
           apprenant_id: string
+          centre_id: string
           commentaire: string | null
+          cours_id: string
           created_at: string
           etat: string | null
           id: string
           note: number | null
           note_bareme: number | null
-          owner_id: string
+          owner_id: string | null
           passage_evalue: string | null
           present: boolean
           seance_id: string
@@ -362,13 +480,15 @@ export type Database = {
         }
         Insert: {
           apprenant_id: string
+          centre_id?: string
           commentaire?: string | null
+          cours_id: string
           created_at?: string
           etat?: string | null
           id?: string
           note?: number | null
           note_bareme?: number | null
-          owner_id?: string
+          owner_id?: string | null
           passage_evalue?: string | null
           present?: boolean
           seance_id: string
@@ -376,13 +496,15 @@ export type Database = {
         }
         Update: {
           apprenant_id?: string
+          centre_id?: string
           commentaire?: string | null
+          cours_id?: string
           created_at?: string
           etat?: string | null
           id?: string
           note?: number | null
           note_bareme?: number | null
-          owner_id?: string
+          owner_id?: string | null
           passage_evalue?: string | null
           present?: boolean
           seance_id?: string
@@ -390,23 +512,24 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "presence_apprenant_id_fkey"
-            columns: ["apprenant_id"]
+            foreignKeyName: "presence_apprenant_fkey"
+            columns: ["apprenant_id", "centre_id"]
             isOneToOne: false
             referencedRelation: "apprenant"
-            referencedColumns: ["id"]
+            referencedColumns: ["id", "centre_id"]
           },
           {
-            foreignKeyName: "presence_seance_id_fkey"
-            columns: ["seance_id"]
+            foreignKeyName: "presence_seance_fkey"
+            columns: ["seance_id", "cours_id"]
             isOneToOne: false
             referencedRelation: "seance"
-            referencedColumns: ["id"]
+            referencedColumns: ["id", "cours_id"]
           },
         ]
       }
       seance: {
         Row: {
+          centre_id: string
           contenu_aborde: string | null
           cours_id: string
           created_at: string
@@ -416,7 +539,7 @@ export type Database = {
           heure_fin: string
           id: string
           observations: string | null
-          owner_id: string
+          owner_id: string | null
           sourate: string | null
           sourate_numero: number | null
           statut: string
@@ -426,6 +549,7 @@ export type Database = {
           versets_de: number | null
         }
         Insert: {
+          centre_id?: string
           contenu_aborde?: string | null
           cours_id: string
           created_at?: string
@@ -435,7 +559,7 @@ export type Database = {
           heure_fin: string
           id?: string
           observations?: string | null
-          owner_id?: string
+          owner_id?: string | null
           sourate?: string | null
           sourate_numero?: number | null
           statut?: string
@@ -445,6 +569,7 @@ export type Database = {
           versets_de?: number | null
         }
         Update: {
+          centre_id?: string
           contenu_aborde?: string | null
           cours_id?: string
           created_at?: string
@@ -454,7 +579,7 @@ export type Database = {
           heure_fin?: string
           id?: string
           observations?: string | null
-          owner_id?: string
+          owner_id?: string | null
           sourate?: string | null
           sourate_numero?: number | null
           statut?: string
@@ -465,11 +590,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "seance_cours_id_fkey"
-            columns: ["cours_id"]
+            foreignKeyName: "seance_cours_fkey"
+            columns: ["cours_id", "centre_id"]
             isOneToOne: false
             referencedRelation: "cours"
-            referencedColumns: ["id"]
+            referencedColumns: ["id", "centre_id"]
           },
         ]
       }
@@ -497,6 +622,9 @@ export type Database = {
     }
     Functions: {
       activer_partage: { Args: { p_cours_id: string }; Returns: string }
+      apprenants_lisibles: { Args: never; Returns: string[] }
+      centre_courant: { Args: never; Returns: string }
+      cours_lisibles: { Args: never; Returns: string[] }
       cours_public: {
         Args: { jeton: string }
         Returns: {
@@ -516,17 +644,19 @@ export type Database = {
           assiduite_active: boolean | null
           bareme_assiduite: number | null
           base_academique: string | null
+          centre_id: string
           created_at: string
           date_debut: string
           date_fin: string | null
           devise: string
+          enseignant_id: string | null
           format: string
           id: string
           jeton_partage: string | null
           libelle: string
           lien_meet: string | null
           logo: string | null
-          owner_id: string
+          owner_id: string | null
           penaliser_absences_excusees: boolean | null
           penalite_absence: number | null
           penalite_retard: number | null
@@ -542,6 +672,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      est_responsable: { Args: never; Returns: boolean }
       regenerer_partage: { Args: { p_cours_id: string }; Returns: string }
       revoquer_partage: { Args: { p_cours_id: string }; Returns: undefined }
     }

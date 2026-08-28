@@ -10,6 +10,7 @@ import { useModifierCours } from '@/features/cours/hooks/useModifierCours'
 import { useSupprimerCours } from '@/features/cours/hooks/useSupprimerCours'
 import { useTousLesCreneaux } from '@/features/cours/hooks/useTousLesCreneaux'
 import { useTypesCours } from '@/features/cours/hooks/useTypesCours'
+import { useMembre } from '@/features/membres/hooks/useMembre'
 import type { CoursAvecDetails } from '@/shared/supabase/coursRepo'
 import { rendreAvecQuery } from '@/test/rendreAvecQuery'
 
@@ -27,6 +28,24 @@ vi.mock('@/features/cours/hooks/useModifierCours', () => ({ useModifierCours: vi
 vi.mock('@/features/cours/hooks/useSupprimerCours', () => ({ useSupprimerCours: vi.fn() }))
 vi.mock('@/features/cours/hooks/useTousLesCreneaux', () => ({ useTousLesCreneaux: vi.fn() }))
 vi.mock('@/features/cours/hooks/useTypesCours', () => ({ useTypesCours: vi.fn() }))
+vi.mock('@/features/membres/hooks/useMembre', () => ({ useMembre: vi.fn() }))
+
+const useMembreMock = vi.mocked(useMembre)
+
+/**
+ * Rôle du compte dans son centre. Par défaut responsable — c'est la situation
+ * de l'enseignant solo, qui est aussi responsable de son propre centre : ces
+ * tests décrivent alors exactement le comportement d'avant la migration 0012.
+ */
+function membre(role: 'responsable' | 'enseignant' = 'responsable') {
+  return {
+    membre: null,
+    centreId: 'centre-1',
+    role,
+    estResponsable: role === 'responsable',
+    chargement: false,
+  }
+}
 
 const useCoursMock = vi.mocked(useCours)
 const useCreerMock = vi.mocked(useCreerCours)
@@ -63,6 +82,7 @@ function cours(
   return {
     id,
     owner_id: 'proprietaire',
+    centre_id: 'centre-1',
     libelle,
     type_cours_id: 'type-1',
     format: 'groupe',
@@ -70,6 +90,7 @@ function cours(
     date_fin: null,
     lien_meet: null,
     jeton_partage: null,
+    enseignant_id: null,
     logo: null,
     assiduite_active: null,
     base_academique: null,
@@ -87,6 +108,7 @@ function cours(
     creneau: creneaux.map((creneau, index) => ({
       id: `${id}-cr${index}`,
       owner_id: 'proprietaire',
+      centre_id: 'centre-1',
       cours_id: id,
       created_at: '2026-07-27T10:00:00Z',
       updated_at: '2026-07-27T10:00:00Z',
@@ -109,6 +131,7 @@ function simulerListe(etat: Partial<UseQueryResult<CoursAvecDetails[], Error>>) 
 describe('CoursPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    useMembreMock.mockReturnValue(membre())
     useCreerMock.mockReturnValue(mutationInerte<ReturnType<typeof useCreerCours>>())
     useModifierMock.mockReturnValue(mutationInerte<ReturnType<typeof useModifierCours>>())
     useSupprimerMock.mockReturnValue(mutationInerte<ReturnType<typeof useSupprimerCours>>())
@@ -196,6 +219,48 @@ describe('CoursPage', () => {
     rerender(page())
 
     expect(screen.getByTestId('detail')).toHaveAttribute('data-jeton', 'jeton-frais')
+  })
+
+  describe('selon le rôle', () => {
+    it('ouvre la création et les actions de gestion au responsable', () => {
+      simulerListe({ data: [cours('1', 'Groupe Hifz', [])] })
+
+      rendreAvecQuery(<CoursPage />)
+
+      expect(screen.getAllByRole('button', { name: /Nouveau cours/ })).not.toHaveLength(0)
+      expect(screen.getAllByRole('button', { name: /Modifier Groupe Hifz/ })).not.toHaveLength(
+        0
+      )
+    })
+
+    it('les retire à un enseignant, qui garde la lecture', () => {
+      // La RLS les refuserait de toute façon (migration 0012) : lui tendre les
+      // boutons ne ferait que promettre une action impossible.
+      useMembreMock.mockReturnValue(membre('enseignant'))
+      simulerListe({ data: [cours('1', 'Groupe Hifz', [])] })
+
+      rendreAvecQuery(<CoursPage />)
+
+      expect(screen.queryByRole('button', { name: /Nouveau cours/ })).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /Modifier Groupe Hifz/ })
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /Supprimer Groupe Hifz/ })
+      ).not.toBeInTheDocument()
+      // Son cours reste visible : il l'enseigne.
+      expect(screen.getAllByText('Groupe Hifz')).not.toHaveLength(0)
+    })
+
+    it('n’invite pas un enseignant sans cours à en créer un', () => {
+      useMembreMock.mockReturnValue(membre('enseignant'))
+      simulerListe({ data: [] })
+
+      rendreAvecQuery(<CoursPage />)
+
+      expect(screen.getByText(/Aucun cours ne vous est affecté/)).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Nouveau cours/ })).not.toBeInTheDocument()
+    })
   })
 
   it('remonte l’erreur d’une suppression échouée', () => {

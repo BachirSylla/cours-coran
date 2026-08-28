@@ -9,6 +9,7 @@ import {
   type CibleReglement,
 } from '@/features/paiements/components/PaiementFormDialog'
 import { TotauxMois } from '@/features/paiements/components/TotauxMois'
+import { useMembre } from '@/features/membres/hooks/useMembre'
 import { usePaiementsMois } from '@/features/paiements/hooks/usePaiementsMois'
 import type { LigneMois } from '@/features/paiements/hooks/usePaiementsMois'
 import { moisCourant, moisPrecedent, moisSuivant } from '@/shared/lib/paiements'
@@ -18,6 +19,7 @@ import { Button } from '@/shared/ui/button'
 export function PaiementsPage() {
   const [mois, setMois] = useState(moisCourant)
   const [cible, setCible] = useState<CibleReglement | null>(null)
+  const { estResponsable, chargement } = useMembre()
 
   const { lignes, totaux, isPending, isError, error } = usePaiementsMois(mois)
 
@@ -34,6 +36,21 @@ export function PaiementsPage() {
       montant_recu: ligne.montant_recu,
       devise: ligne.devise,
     })
+  }
+
+  // L'onglet est masqué pour un enseignant, mais l'URL reste tapable. La RLS lui
+  // renvoie zéro ligne : sans ce mot, il verrait un tableau de bord vide et
+  // croirait à une panne (migration 0012).
+  if (!chargement && !estResponsable) {
+    return (
+      <Alert>
+        <Wallet className="size-4" aria-hidden="true" />
+        <AlertTitle>Réservé au responsable</AlertTitle>
+        <AlertDescription>
+          Le suivi des règlements n'est pas accessible depuis un compte enseignant.
+        </AlertDescription>
+      </Alert>
+    )
   }
 
   return (

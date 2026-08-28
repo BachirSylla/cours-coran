@@ -27,6 +27,7 @@ const useInscriptionsMock = vi.mocked(useInscriptionsApprenant)
 const APPRENANT: Apprenant = {
   id: 'a1',
   owner_id: 'proprietaire',
+  centre_id: 'centre-1',
   nom: 'Diallo',
   prenom: 'Aïcha',
   contact: '+224 600 00 00 00',
@@ -42,15 +43,18 @@ function inscription(id: string, libelleCours: string): InscriptionAvecCours {
   return {
     id,
     owner_id: 'proprietaire',
+    centre_id: 'centre-1',
     apprenant_id: 'a1',
     cours_id: `cours-${id}`,
     note_examen: null,
     examen_bareme: null,
+    jeton: null,
     created_at: '2026-07-27T10:00:00Z',
     updated_at: '2026-07-27T10:00:00Z',
     cours: {
       id: `cours-${id}`,
       owner_id: 'proprietaire',
+      centre_id: 'centre-1',
       libelle: libelleCours,
       type_cours_id: 'type-1',
       format: 'groupe',
@@ -58,6 +62,7 @@ function inscription(id: string, libelleCours: string): InscriptionAvecCours {
       date_fin: null,
       lien_meet: null,
       jeton_partage: null,
+      enseignant_id: null,
       logo: null,
       assiduite_active: null,
       base_academique: null,
@@ -75,6 +80,7 @@ function inscription(id: string, libelleCours: string): InscriptionAvecCours {
         {
           id: `cr-${id}`,
           owner_id: 'proprietaire',
+          centre_id: 'centre-1',
           cours_id: `cours-${id}`,
           jour_semaine: 1,
           heure_debut: '10:00:00',

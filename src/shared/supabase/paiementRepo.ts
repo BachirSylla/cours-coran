@@ -8,7 +8,7 @@ import type { Database } from '@/shared/supabase/types'
  * Les mois dus ne sont pas pré-enregistrés : `upsert` crée la ligne au premier
  * règlement et la met à jour ensuite, sur la clé `(cours_id, mois_concerne)`.
  * Le **statut n'est pas une colonne** : il se calcule dans
- * `shared/lib/paiements.ts`. `owner_id` est posé par la base.
+ * `shared/lib/paiements.ts`. `centre_id` est posé par la base.
  */
 type TablePaiement = Database['public']['Tables']['paiement']
 
@@ -16,7 +16,7 @@ export type Paiement = TablePaiement['Row']
 
 export type PaiementInput = Omit<
   TablePaiement['Insert'],
-  'id' | 'owner_id' | 'created_at' | 'updated_at'
+  'id' | 'owner_id' | 'centre_id' | 'created_at' | 'updated_at'
 >
 
 const COLONNES = '*'

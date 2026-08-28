@@ -36,6 +36,7 @@ function cours(
   return {
     id,
     owner_id: 'proprietaire',
+    centre_id: 'centre-1',
     libelle,
     type_cours_id: 'type-1',
     format: 'groupe',
@@ -43,6 +44,7 @@ function cours(
     date_fin: null,
     lien_meet: null,
     jeton_partage: null,
+    enseignant_id: null,
     logo: null,
     assiduite_active: null,
     base_academique: null,
@@ -60,6 +62,7 @@ function cours(
     creneau: creneaux.map((c) => ({
       ...c,
       owner_id: 'proprietaire',
+      centre_id: 'centre-1',
       cours_id: id,
       created_at: '2026-07-27T10:00:00Z',
       updated_at: '2026-07-27T10:00:00Z',

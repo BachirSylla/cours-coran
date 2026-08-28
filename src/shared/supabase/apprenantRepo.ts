@@ -6,8 +6,8 @@ import type { Database } from '@/shared/supabase/types'
  * Accès aux apprenants — couche repository (CLAUDE.md §3).
  * Aucun composant ni hook de feature n'appelle Supabase directement.
  *
- * `owner_id` n'est **jamais** posé ici : la base l'affecte via
- * `default auth.uid()`, et les policies RLS le vérifient.
+ * `centre_id` n'est **jamais** posé ici : la base l'affecte via
+ * `default centre_courant()`, et les policies RLS le vérifient (migration 0012).
  */
 type TableApprenant = Database['public']['Tables']['apprenant']
 
@@ -16,7 +16,7 @@ export type Apprenant = TableApprenant['Row']
 /** Champs modifiables par l'utilisateur (le reste est géré par la base). */
 export type ApprenantInput = Omit<
   TableApprenant['Insert'],
-  'id' | 'owner_id' | 'created_at' | 'updated_at'
+  'id' | 'owner_id' | 'centre_id' | 'created_at' | 'updated_at'
 >
 
 export type ApprenantPatch = Partial<ApprenantInput>

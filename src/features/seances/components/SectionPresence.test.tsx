@@ -34,6 +34,7 @@ function apprenant(id: string, prenom: string, nom: string): Apprenant {
   return {
     id,
     owner_id: 'proprietaire',
+    centre_id: 'centre-1',
     nom,
     prenom,
     contact: null,
@@ -53,10 +54,12 @@ function inscription(id: string, personne: Apprenant): InscriptionAvecApprenant 
   return {
     id,
     owner_id: 'proprietaire',
+    centre_id: 'centre-1',
     apprenant_id: personne.id,
     cours_id: 'cours-1',
     note_examen: null,
     examen_bareme: null,
+    jeton: null,
     created_at: '2026-07-27T10:00:00Z',
     updated_at: '2026-07-27T10:00:00Z',
     apprenant: personne,
@@ -67,7 +70,9 @@ function presence(apprenantId: string, present: boolean): PresenceAvecApprenant 
   return {
     id: `p-${apprenantId}`,
     owner_id: 'proprietaire',
+    centre_id: 'centre-1',
     seance_id: 'seance-1',
+    cours_id: 'cours-1',
     apprenant_id: apprenantId,
     present,
     // `null` : ces fixtures représentent des lignes d'avant la migration 0008,

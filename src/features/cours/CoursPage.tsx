@@ -9,6 +9,7 @@ import type { CoursValues } from '@/features/cours/coursSchema'
 import { useCours } from '@/features/cours/hooks/useCours'
 import { useCreerCours } from '@/features/cours/hooks/useCreerCours'
 import { useModifierCours } from '@/features/cours/hooks/useModifierCours'
+import { useMembre } from '@/features/membres/hooks/useMembre'
 import { useSupprimerCours } from '@/features/cours/hooks/useSupprimerCours'
 import { useTousLesCreneaux } from '@/features/cours/hooks/useTousLesCreneaux'
 import { useTypesCours } from '@/features/cours/hooks/useTypesCours'
@@ -29,6 +30,9 @@ export function CoursPage() {
 
   const creer = useCreerCours()
   const modifier = useModifierCours()
+  // Créer, modifier et supprimer un cours sont des actes de gestion : la RLS les
+  // refuse à un enseignant (migration 0012). On ne lui montre pas les commandes.
+  const { estResponsable } = useMembre()
   const supprimer = useSupprimerCours()
 
   const [formulaireOuvert, setFormulaireOuvert] = useState(false)
@@ -91,10 +95,12 @@ export function CoursPage() {
           </p>
         </div>
 
-        <Button onClick={ouvrirCreation}>
-          <Plus className="size-4" aria-hidden="true" />
-          Nouveau cours
-        </Button>
+        {estResponsable && (
+          <Button onClick={ouvrirCreation}>
+            <Plus className="size-4" aria-hidden="true" />
+            Nouveau cours
+          </Button>
+        )}
       </div>
 
       {supprimer.isError && (
@@ -132,13 +138,17 @@ export function CoursPage() {
           <div>
             <p className="font-medium">Aucun cours pour le moment</p>
             <p className="text-sm text-muted-foreground">
-              Créez un cours et placez ses créneaux dans la semaine.
+              {estResponsable
+                ? 'Créez un cours et placez ses créneaux dans la semaine.'
+                : "Aucun cours ne vous est affecté pour l'instant."}
             </p>
           </div>
-          <Button variant="outline" onClick={ouvrirCreation}>
-            <Plus className="size-4" aria-hidden="true" />
-            Nouveau cours
-          </Button>
+          {estResponsable && (
+            <Button variant="outline" onClick={ouvrirCreation}>
+              <Plus className="size-4" aria-hidden="true" />
+              Nouveau cours
+            </Button>
+          )}
         </div>
       )}
 
@@ -148,6 +158,7 @@ export function CoursPage() {
           onOuvrir={(unCours) => setIdDetaille(unCours.id)}
           onModifier={ouvrirEdition}
           onSupprimer={setCoursASupprimer}
+          actionsGestion={estResponsable}
         />
       )}
 

@@ -34,7 +34,9 @@ describe('coursPublicSchema', () => {
    */
   it('ne laisse passer aucune donnée hors de la liste blanche', () => {
     const hostile = payload({
-      owner_id: '11111111-1111-1111-1111-111111111111',
+      centre_id: '11111111-1111-1111-1111-111111111111',
+      enseignant_id: '33333333-3333-3333-3333-333333333333',
+      jeton_partage: '44444444-4444-4444-4444-444444444444',
       id: '22222222-2222-2222-2222-222222222222',
       prix_mensuel: 15000,
       devise: 'XOF',
@@ -69,7 +71,7 @@ describe('coursPublicSchema', () => {
             jour_semaine: 6,
             heure_debut: '15:00:00',
             heure_fin: '17:00:00',
-            owner_id: 'secret',
+            centre_id: 'secret',
             cours_id: 'secret',
           },
         ],

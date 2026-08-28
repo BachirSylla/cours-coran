@@ -29,6 +29,7 @@ function apprenant(id: string, prenom: string, nom: string, extra?: Partial<Appr
   return {
     id,
     owner_id: 'proprietaire',
+    centre_id: 'centre-1',
     nom,
     prenom,
     contact: null,

@@ -9,7 +9,7 @@ import type { Database } from '@/shared/supabase/types'
  * La capacité d'un cours (individuel = 1, groupe = 1..N) n'est **pas** vérifiée
  * ici : c'est une règle applicative tenue par
  * `features/inscriptions/reglesInscription.ts` (CLAUDE.md §5.7).
- * `owner_id` est posé par la base via `default auth.uid()`.
+ * `centre_id` est posé par la base via `default centre_courant()`.
  */
 type TableInscription = Database['public']['Tables']['inscription']
 

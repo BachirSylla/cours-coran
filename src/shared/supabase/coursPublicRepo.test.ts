@@ -56,7 +56,12 @@ describe('coursPublicRepo.getParJeton', () => {
   it('n’expose aucune donnée sensible que la base aurait renvoyée en trop', async () => {
     maybeSingle.mockResolvedValue({
       data: payload({
-        owner_id: '11111111-1111-1111-1111-111111111111',
+        // Les colonnes ajoutées par la migration 0012. `owner_id` restait ici
+        // après son renommage, et l'assertion serait devenue vraie *toute
+        // seule* — sans jamais échouer si la fonction SQL s'élargissait.
+        centre_id: '11111111-1111-1111-1111-111111111111',
+        enseignant_id: '33333333-3333-3333-3333-333333333333',
+        jeton_partage: '44444444-4444-4444-4444-444444444444',
         prix_mensuel: 15000,
         observations: 'Impayé de juillet',
       }),
@@ -65,7 +70,10 @@ describe('coursPublicRepo.getParJeton', () => {
 
     const cours = await getParJeton(JETON)
 
-    expect(cours).not.toHaveProperty('owner_id')
+    expect(cours).not.toHaveProperty('centre_id')
+    expect(cours).not.toHaveProperty('enseignant_id')
+    // Publier le jeton reviendrait à publier le lien de partage lui-même.
+    expect(cours).not.toHaveProperty('jeton_partage')
     expect(cours).not.toHaveProperty('prix_mensuel')
     expect(JSON.stringify(cours)).not.toContain('Impayé')
   })

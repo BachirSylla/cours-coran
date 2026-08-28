@@ -8,7 +8,7 @@ import type { Database } from '@/shared/supabase/types'
  * Les séances ne sont pas pré-générées : `upsert` crée la ligne au moment de la
  * première saisie et la met à jour ensuite, sur la clé
  * `(cours_id, date, heure_debut)`. L'appelant n'a donc pas à savoir si la
- * séance existait déjà. `owner_id` est posé par la base.
+ * séance existait déjà. `centre_id` est posé par la base.
  */
 type TableSeance = Database['public']['Tables']['seance']
 
@@ -17,7 +17,7 @@ export type Seance = TableSeance['Row']
 /** Champs saisis par l'enseignant, plus la clé de l'occurrence. */
 export type SeanceInput = Omit<
   TableSeance['Insert'],
-  'id' | 'owner_id' | 'created_at' | 'updated_at'
+  'id' | 'owner_id' | 'centre_id' | 'created_at' | 'updated_at'
 >
 
 const COLONNES = '*'

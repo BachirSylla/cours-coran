@@ -105,3 +105,85 @@ dialogue du système.
 **Attendu** : une A4 **paysage**, les aplats de couleur présents (états de
 présence, note finale), le logo visible, aucune colonne coupée. Refaire l'essai
 en **thème sombre** : la feuille doit rester blanche.
+
+---
+
+## Rôles et centre (migration 0012)
+
+Les données appartiennent désormais au **centre**, et un **rôle** décide de ce
+que chacun voit. Un enseignant seul est responsable **et** enseignant de son
+propre centre : rien ne doit changer pour lui.
+
+Les scénarios 10 à 12 se déroulent avec un compte responsable — c'est le cas
+d'aujourd'hui. Les scénarios 13 et 14 demandent un second compte, créé à la main
+(voir plus bas).
+
+### 10. Non-régression : le compte actuel
+
+1. Se connecter normalement et parcourir Planning, Cours, Séances, Apprenants,
+   Paiements, Paramètres.
+2. Créer un cours, le modifier, saisir une séance et une présence, exporter un
+   rapport.
+
+**Attendu** : rigoureusement le comportement d'avant. C'est le point le plus
+important de cette recette — le passage au modèle centre/rôles ne doit se voir
+nulle part pour un enseignant seul.
+
+### 11. Le garde-fou de chevauchement tient toujours
+
+1. Créer un cours dont un créneau chevauche celui d'un cours existant.
+
+**Attendu** : le refus nomme le cours en conflit (« Ce créneau chevauche le
+cours « … » »), et **rien n'est enregistré**. Le périmètre du conflit est
+désormais le centre — identique tant qu'il n'y a qu'un enseignant.
+
+### 12. Le barème de récitation est personnel
+
+1. Dans **Paramètres**, passer le barème de notation sur 10, puis saisir une
+   note de récitation.
+
+**Attendu** : le barème suit. C'est **votre** choix : il ne s'impose pas aux
+autres enseignants du centre, et les notes déjà données gardent le leur.
+
+### 13. Un compte enseignant ne gère pas
+
+Créer le second compte dans le dashboard Supabase (Authentication → Add user),
+puis l'inscrire au centre en SQL :
+
+```sql
+insert into public.membre (centre_id, user_id, role, nom_affiche)
+values ((select id from public.centre limit 1), '<uuid du compte>', 'enseignant', 'Prénom Nom');
+
+update public.cours set enseignant_id = '<uuid du compte>' where libelle = '<un cours>';
+```
+
+Se connecter avec ce compte.
+
+**Attendu** :
+
+- **Cours** ne liste que les cours qui lui sont affectés, sans « Nouveau cours »,
+  ni « Modifier », ni « Supprimer » ;
+- dans le détail d'un cours : ni prix, ni partage, ni note d'examen, ni réglages,
+  ni règlements ; la liste des apprenants est visible mais **non modifiable** ;
+- **Paiements** a disparu de la navigation, et l'URL `/paiements` répond
+  « Réservé au responsable » ;
+- **Paramètres** annonce « Consultation seule » — mais le **barème de
+  récitation reste modifiable** ;
+- séances, présences et notes de récitation se saisissent normalement.
+
+### 14. Étanchéité entre enseignants
+
+Avec un second enseignant affecté à un autre cours, et un apprenant inscrit aux
+deux cours :
+
+**Attendu** : chaque enseignant voit **l'identité** de l'apprenant partagé, mais
+aucune note ni présence prise par l'autre. Le responsable, lui, voit les deux.
+
+La preuve automatisée de tout cela vit dans `supabase/tests/rls_etancheite.sql` :
+
+```bash
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls_etancheite.sql
+```
+
+Il monte son propre décor, l'éprouve identité par identité, et **annule tout** à
+la fin. Succès = « TOUTES LES ASSERTIONS PASSENT ».

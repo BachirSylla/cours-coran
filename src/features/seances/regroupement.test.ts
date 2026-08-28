@@ -12,6 +12,7 @@ function seanceEnregistree(statut: string, date = '2026-07-27'): Seance {
   return {
     id: `s-${date}-${statut}`,
     owner_id: 'proprietaire',
+    centre_id: 'centre-1',
     cours_id: 'cours-1',
     date,
     heure_debut: '10:00:00',

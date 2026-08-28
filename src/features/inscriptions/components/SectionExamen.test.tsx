@@ -28,6 +28,7 @@ function apprenant(id: string, prenom: string, nom: string): Apprenant {
   return {
     id,
     owner_id: 'proprietaire',
+    centre_id: 'centre-1',
     nom,
     prenom,
     contact: null,
@@ -51,10 +52,12 @@ function inscription(
   return {
     id,
     owner_id: 'proprietaire',
+    centre_id: 'centre-1',
     apprenant_id: personne.id,
     cours_id: 'cours-1',
     note_examen: null,
     examen_bareme: null,
+    jeton: null,
     created_at: '2026-07-01T10:00:00Z',
     updated_at: '2026-07-01T10:00:00Z',
     apprenant: personne,

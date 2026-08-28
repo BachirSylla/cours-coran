@@ -26,6 +26,11 @@ export interface CoursListeProps {
   onOuvrir: (cours: CoursAvecDetails) => void
   onModifier: (cours: CoursAvecDetails) => void
   onSupprimer: (cours: CoursAvecDetails) => void
+  /**
+   * Modifier et supprimer un cours relèvent de la gestion : réservé au
+   * responsable du centre (migration 0012).
+   */
+  actionsGestion?: boolean
 }
 
 const CLASSES_STATUT: Record<StatutCours, string> = {
@@ -55,7 +60,13 @@ function resumerCreneaux(creneaux: CoursAvecDetails['creneau']): string {
 }
 
 /** Liste des cours — composant présentational pur. */
-export function CoursListe({ cours, onOuvrir, onModifier, onSupprimer }: CoursListeProps) {
+export function CoursListe({
+  cours,
+  onOuvrir,
+  onModifier,
+  onSupprimer,
+  actionsGestion = true,
+}: CoursListeProps) {
   return (
     <>
       <div className="hidden rounded-lg border md:block">
@@ -108,22 +119,26 @@ export function CoursListe({ cours, onOuvrir, onModifier, onSupprimer }: CoursLi
                   <LienMeet lien={unCours.lien_meet} />
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => onModifier(unCours)}
-                    aria-label={`Modifier ${unCours.libelle}`}
-                  >
-                    <Pencil className="size-4" aria-hidden="true" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => onSupprimer(unCours)}
-                    aria-label={`Supprimer ${unCours.libelle}`}
-                  >
-                    <Trash2 className="size-4 text-destructive" aria-hidden="true" />
-                  </Button>
+                  {actionsGestion && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => onModifier(unCours)}
+                        aria-label={`Modifier ${unCours.libelle}`}
+                      >
+                        <Pencil className="size-4" aria-hidden="true" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => onSupprimer(unCours)}
+                        aria-label={`Supprimer ${unCours.libelle}`}
+                      >
+                        <Trash2 className="size-4 text-destructive" aria-hidden="true" />
+                      </Button>
+                    </>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
@@ -161,26 +176,28 @@ export function CoursListe({ cours, onOuvrir, onModifier, onSupprimer }: CoursLi
 
             <div className="mt-3 flex items-center justify-between">
               <LienMeet lien={unCours.lien_meet} />
-              <div className="flex gap-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onModifier(unCours)}
-                  aria-label={`Modifier ${unCours.libelle}`}
-                >
-                  <Pencil className="size-4" aria-hidden="true" />
-                  Modifier
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onSupprimer(unCours)}
-                  aria-label={`Supprimer ${unCours.libelle}`}
-                >
-                  <Trash2 className="size-4 text-destructive" aria-hidden="true" />
-                  Supprimer
-                </Button>
-              </div>
+              {actionsGestion && (
+                <div className="flex gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onModifier(unCours)}
+                    aria-label={`Modifier ${unCours.libelle}`}
+                  >
+                    <Pencil className="size-4" aria-hidden="true" />
+                    Modifier
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onSupprimer(unCours)}
+                    aria-label={`Supprimer ${unCours.libelle}`}
+                  >
+                    <Trash2 className="size-4 text-destructive" aria-hidden="true" />
+                    Supprimer
+                  </Button>
+                </div>
+              )}
             </div>
           </li>
         ))}

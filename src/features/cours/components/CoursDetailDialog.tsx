@@ -12,6 +12,7 @@ import {
   type StatutCours,
 } from '@/features/cours/coursSchema'
 import { SectionReglagesCours } from '@/features/cours/components/SectionReglagesCours'
+import { useMembre } from '@/features/membres/hooks/useMembre'
 import { SectionExamen } from '@/features/inscriptions/components/SectionExamen'
 import { SectionInscriptions } from '@/features/inscriptions/components/SectionInscriptions'
 import { SectionPaiements } from '@/features/paiements/components/SectionPaiements'
@@ -61,6 +62,12 @@ function Champ({ libelle, children }: { libelle: string; children: React.ReactNo
 /**
  * Détail d'un cours : ses informations, ses apprenants inscrits, et l'accès à
  * l'édition. C'est la porte d'entrée depuis la liste comme depuis la grille.
+ *
+ * Ce qui relève de la **gestion** — partage, prix et règlements, note d'examen,
+ * réglages, édition du cours — n'est montré qu'au responsable. La RLS le
+ * refuserait de toute façon à un enseignant (migration 0012) ; le masquer
+ * évite de lui tendre des boutons qui échoueraient. Ce qui relève de la
+ * **pédagogie** — séances, présences, notes de récitation — lui reste ouvert.
  */
 export function CoursDetailDialog({
   cours,
@@ -69,6 +76,7 @@ export function CoursDetailDialog({
 }: CoursDetailDialogProps) {
   const [vueSaisie, setVueSaisie] = useState<SeanceVueEnrichie | null>(null)
   const [exportOuvert, setExportOuvert] = useState(false)
+  const { estResponsable } = useMembre()
 
   return (
     <Dialog open={Boolean(cours)} onOpenChange={onOuvertChange}>
@@ -107,30 +115,40 @@ export function CoursDetailDialog({
                 </span>
               </Champ>
 
-              <Champ libelle="Prix mensuel">
-                {cours.prix_mensuel === null ? '—' : `${cours.prix_mensuel} ${cours.devise}`}
-              </Champ>
+              {estResponsable && (
+                <Champ libelle="Prix mensuel">
+                  {cours.prix_mensuel === null ? '—' : `${cours.prix_mensuel} ${cours.devise}`}
+                </Champ>
+              )}
 
               <Champ libelle="Visioconférence">
                 <LienMeet lien={cours.lien_meet} />
               </Champ>
             </dl>
 
-            <SectionInscriptions coursId={cours.id} format={cours.format} />
-
-            <SectionPartage
+            <SectionInscriptions
               coursId={cours.id}
-              libelle={cours.libelle}
-              jetonPartage={cours.jeton_partage}
+              format={cours.format}
+              lectureSeule={!estResponsable}
             />
+
+            {estResponsable && (
+              <SectionPartage
+                coursId={cours.id}
+                libelle={cours.libelle}
+                jetonPartage={cours.jeton_partage}
+              />
+            )}
 
             <SeancesRecentesCours cours={cours} onOuvrir={setVueSaisie} />
 
-            <SectionExamen coursId={cours.id} />
-
-            <SectionReglagesCours cours={cours} />
-
-            <SectionPaiements cours={cours} />
+            {estResponsable && (
+              <>
+                <SectionExamen coursId={cours.id} />
+                <SectionReglagesCours cours={cours} />
+                <SectionPaiements cours={cours} />
+              </>
+            )}
 
             <DialogFooter>
               <Button variant="outline" onClick={() => setExportOuvert(true)}>
@@ -140,10 +158,12 @@ export function CoursDetailDialog({
               <Button variant="outline" onClick={() => onOuvertChange(false)}>
                 Fermer
               </Button>
-              <Button onClick={() => onModifier(cours)}>
-                <Pencil className="size-4" aria-hidden="true" />
-                Modifier le cours
-              </Button>
+              {estResponsable && (
+                <Button onClick={() => onModifier(cours)}>
+                  <Pencil className="size-4" aria-hidden="true" />
+                  Modifier le cours
+                </Button>
+              )}
             </DialogFooter>
           </>
         )}

@@ -6,7 +6,7 @@ import type { Database } from '@/shared/supabase/types'
 
 /**
  * Présence d'un apprenant à une séance (CLAUDE.md §4).
- * Utile surtout pour les cours en groupe ; `owner_id` est posé par la base.
+ * Utile surtout pour les cours en groupe ; `centre_id` est posé par la base.
  */
 type TablePresence = Database['public']['Tables']['presence']
 type Seance = Database['public']['Tables']['seance']['Row']
@@ -25,6 +25,17 @@ export type PresenceAvecApprenant = Presence & {
 export type PresenceAvecSeance = Presence & {
   seance: (Seance & { cours: { libelle: string } | null }) | null
 }
+
+/**
+ * `presence.cours_id` (migration 0012) est **posé par la base**, via le trigger
+ * `presence_hydrater_cours` : le client ne l'envoie pas, et ne peut donc pas
+ * mentir sur le cours auquel une présence se rattache — c'est ce qui fait tenir
+ * la policy de la table. La colonne étant `not null`, les types générés la
+ * déclarent pourtant obligatoire à l'insertion. D'où cette conversion, le seul
+ * endroit du code où elle est admise.
+ */
+const laBasePoseLeCours = (charge: Omit<TablePresence['Insert'], 'cours_id'>) =>
+  charge as TablePresence['Insert']
 
 export async function listBySeance(seanceId: string): Promise<PresenceAvecApprenant[]> {
   const { data, error } = await getSupabaseClient()
@@ -60,7 +71,12 @@ export async function definirEtat(
   const { data, error } = await getSupabaseClient()
     .from('presence')
     .upsert(
-      { seance_id: seanceId, apprenant_id: apprenantId, etat, present: estPresent(etat) },
+      laBasePoseLeCours({
+        seance_id: seanceId,
+        apprenant_id: apprenantId,
+        etat,
+        present: estPresent(etat),
+      }),
       { onConflict: 'seance_id,apprenant_id' }
     )
     .select('*')
@@ -95,7 +111,7 @@ export async function noter(
   const { data, error } = await getSupabaseClient()
     .from('presence')
     .upsert(
-      { seance_id: seanceId, apprenant_id: apprenantId, ...evaluation },
+      laBasePoseLeCours({ seance_id: seanceId, apprenant_id: apprenantId, ...evaluation }),
       { onConflict: 'seance_id,apprenant_id' }
     )
     .select('*')

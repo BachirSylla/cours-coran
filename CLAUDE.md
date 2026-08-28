@@ -5,13 +5,16 @@
 
 ## 1. Vue d'ensemble
 
-Application **PWA** permettant à un enseignant **unique** de gérer ses cours en ligne
-(initiation à la lecture du Coran, lecture, mémorisation), donnés en **individuel** ou en
-**groupe**. Objectifs de qualité : **évolutive, modulaire, bien structurée, et soignée
-visuellement**. Accès **multi-appareils** (téléphone, tablette, PC) synchronisé.
+Application **PWA** de gestion de cours de Coran (initiation à la lecture, lecture,
+mémorisation), donnés en **individuel** ou en **groupe**. Objectifs de qualité : **évolutive,
+modulaire, bien structurée, et soignée visuellement**. Accès **multi-appareils** (téléphone,
+tablette, PC) synchronisé.
 
-Problème n°1 à résoudre : **ne jamais placer deux cours sur le même créneau** (l'enseignant
-est la ressource unique).
+Elle s'organise autour d'un **centre** (migration 0012) : un responsable qui gère, des
+enseignants à qui des cours sont affectés. L'enseignant seul est simplement un centre à une
+personne, responsable **et** enseignant — un seul modèle, pas de cas particulier.
+
+Problème n°1 à résoudre : **ne jamais placer deux cours sur le même créneau**.
 
 ## 2. Stack technique
 
@@ -129,17 +132,37 @@ Les types de cours sont dans une **table de référence** (extensible), pas en d
   de la plage de vie du cours : une ligne n'existe qu'une fois un règlement enregistré, et son
   `montant_du` est alors figé.
 
-Toutes les tables : **RLS activé**, isolant les données au propriétaire (auth Supabase).
-Les tables possédées portent `owner_id uuid not null default auth.uid()` référençant
-`auth.users(id)`, plus `created_at` / `updated_at` (trigger automatique). `type_cours` est une
-référence **globale** : pas de `owner_id`, lecture seule pour les utilisateurs authentifiés.
+### `centre` et `membre` (migration 0012)
+
+- `centre` : `id`, `nom`. **C'est lui qui possède les données**, plus un compte.
+- `membre` : `centre_id`, `user_id` (→ `auth.users`), `role` (responsable | enseignant),
+  `nom_affiche` (dénormalisé — `auth.users` est illisible depuis le client), `note_bareme`.
+  `unique (user_id)` : un utilisateur, un centre. C'est ce qui rend `centre_courant()` scalaire.
+- `cours.enseignant_id` : à qui le cours est affecté. FK **composite** vers
+  `membre (user_id, centre_id)` — on ne peut pas affecter un cours à quelqu'un d'un autre centre.
+
+Toutes les tables : **RLS activé**, isolant les données au **centre**. Les tables possédées
+portent `centre_id uuid not null default centre_courant()`, plus `created_at` / `updated_at`
+(trigger automatique). `type_cours` est une référence **globale** : pas de `centre_id`, lecture
+seule pour les utilisateurs authentifiés. `owner_id` survit en filet jusqu'à la migration 0013 :
+nullable, sans défaut, sans aucune policy — simple trace d'audit, ne rien construire dessus.
+
+**Les clés étrangères transportent le tenant** : `creneau`, `seance`, `paiement` et `inscription`
+pointent `cours (id, centre_id)`, `inscription` et `presence` pointent `apprenant (id, centre_id)`,
+`presence` pointe `seance (id, cours_id)`. Sans cela, un responsable pourrait planter chez lui une
+ligne pointant un parent d'un autre centre : invisible pour l'autre, mais les contraintes
+d'unicité étant globales, elle lui interdirait définitivement d'enregistrer ce créneau ou ce mois.
+L'étanchéité est **structurelle**, pas seulement déclarative.
 
 ## 5. Règles métier (critiques)
 
-1. **Détection de conflit** (enseignant unique) : deux **créneaux** entrent en conflit si
+1. **Détection de conflit** (périmètre : le centre) : deux **créneaux** entrent en conflit si
    `même jour_semaine ET heure_debut_A < heure_fin_B ET heure_debut_B < heure_fin_A`,
    tous cours confondus. **Pas de marge** entre les cours (début/fin fixes ; le débordement
    est hors système). Cette règle doit être **couverte par des tests Vitest**.
+   Le garde-fou en base vit dans `enregistrer_cours` et joint sur `centre_id` : identique à
+   l'ancien comportement tant qu'il n'y a qu'un enseignant, mais deux enseignants d'un même
+   centre se gêneraient à tort. **Le scoper par enseignant est le lot 2** — pas encore fait.
 2. **Deux temporalités distinctes** à ne pas confondre :
    - le créneau hebdomadaire récurrent → table `creneau` (`jour_semaine` + `heure_debut`/`heure_fin`) ;
    - la plage de vie du cours → table `cours` (`date_debut` obligatoire, `date_fin` optionnelle).
@@ -180,6 +203,35 @@ référence **globale** : pas de `owner_id`, lecture seule pour les utilisateurs
    n'est jamais pénalisée. Un apprenant sans note d'examen n'a pas 0 : la note finale vaut `null`.
    Ne compter que les présences de séances **réellement tenues** — `seance.statut` vaut aussi
    `annulee` et `reportee`.
+10. **Rôles** (migration 0012). Deux familles de tables, et elles ne partagent **aucun prédicat
+    d'écriture** :
+    - **gestion** (`cours`, `creneau`, `apprenant`, `inscription`, `paiement`) : écriture gardée
+      par `est_responsable()`, **et rien d'autre**. Y glisser `cours_lisibles()` rouvrirait
+      l'écriture à l'enseignant — d'où le suffixe `_lisibles`, pour que la faute saute aux yeux ;
+    - **pédagogie** (`seance`, `presence`) : écriture gardée par `cours_lisibles()`, le métier de
+      l'enseignant.
+
+    Un enseignant voit l'**identité** des apprenants inscrits à ses cours, jamais leur travail
+    ailleurs. Il ne voit **aucun paiement**, pas même sur ses cours. Il lit les réglages du centre
+    (le rapport en dépend) sans pouvoir les écrire — sauf **son** barème de récitation, qui vit sur
+    sa ligne `membre` et non dans `parametres`.
+
+    Le rôle vit **côté serveur**, dans `membre` : jamais dans le JWT (révocation différée jusqu'au
+    rafraîchissement du jeton), jamais dans un réglage client. Le masquage d'interface
+    (`useMembre()`) est de la lisibilité, pas de la sécurité : l'autorité reste les policies.
+
+    Helpers de policy, tous `security definer`, `stable`, `search_path = ''`, `owner postgres`, et
+    **aucun ne lève jamais** (une exception dans un `using` avorte toute la requête) :
+    `centre_courant()`, `est_responsable()`, `cours_lisibles()`, `apprenants_lisibles()`. Les
+    appeler **enveloppés** — `(select f())::uuid[]` — pour obtenir un InitPlan : un appel par
+    requête, pas par ligne.
+
+    ⚠️ **Une policy de SELECT ne doit jamais passer par un helper qui relit sa propre table.** Un
+    helper `stable` ne voit pas la ligne que l'instruction est en train d'insérer, et le
+    `returning` — que PostgREST ajoute dès qu'un repository chaîne `.select()` — échouerait sur
+    toute création. `cours_select` et `apprenant_select` portent donc leur prédicat sur les
+    colonnes de la ligne. Éprouvé par `supabase/tests/rls_etancheite.sql`, qui teste le refus
+    **et** l'acceptation.
 
 ## 6. Fonctionnalités
 
@@ -222,6 +274,13 @@ npm run test         # Vitest
 npm run gen:types    # types Supabase → src/shared/supabase/types.ts (nécessite supabase login)
 ```
 
+Étanchéité de la RLS — à rejouer après toute migration touchant aux policies. Le script monte son
+propre décor, éprouve chaque identité et **annule tout** à la fin :
+
+```bash
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls_etancheite.sql
+```
+
 Variante sans `supabase login`, avec la chaîne de connexion de `.env.local` :
 
 ```bash
@@ -250,3 +309,11 @@ npx supabase gen types typescript --db-url "$SUPABASE_DB_URL" > src/shared/supab
 - Ne pas ajouter de marge horaire automatique entre les cours.
 - Ne pas stocker les types de cours en dur (table `type_cours`).
 - Ne pas parler à Supabase hors de la couche repository.
+- Ne pas gater l'écriture d'une table de **gestion** sur `cours_lisibles()` : c'est un helper de
+  **lecture**, et l'employer dans un `with check` rouvrirait l'écriture à l'enseignant.
+- Ne pas faire relire à une policy de SELECT la table qu'elle protège (voir §5.10) : toute
+  création avec `returning` cesserait de fonctionner.
+- Ne pas se fier à `revoke <priv> (colonne)` : un privilège de colonne ne retire rien tant qu'un
+  privilège de TABLE le couvre. Il faut retirer celui de la table, puis le réaccorder colonne par
+  colonne — c'est ce qui protège `inscription.jeton` et `membre.role`.
+- Ne rien construire sur `owner_id` : il n'est plus qu'une trace d'audit, supprimée en 0013.
