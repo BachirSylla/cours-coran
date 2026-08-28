@@ -155,6 +155,18 @@ seule pour les utilisateurs authentifiés. `owner_id`, l'ancien porteur du tenan
 recherché — supprimer un compte ne détruit plus les données, ce que faisait l'ancien
 `owner_id ... on delete cascade`.
 
+### `invitation` (migration 0016)
+
+- `centre_id`, `role`, `code_hash`, `cree_par`, `expire_le`, `utilise_le` / `utilise_par`,
+  `revoquee_le`.
+- **Le code n'est jamais stocké** — seulement son SHA-256. Le clair n'apparaît qu'une fois, dans
+  le retour de `creer_invitation` ; `code_hash` n'est accordé à **personne** en lecture, pas même
+  au responsable qui l'a créée. Perdu = révoquer et réémettre.
+- **Pas de colonne `statut`** : comme pour `paiement`, « active / expirée / utilisée / révoquée »
+  se déduit des horodatages et de `now()` (`etatInvitation` dans `invitationRepo.ts`).
+- La table n'accorde **que le SELECT**, au seul responsable de son centre. Insert, update et
+  delete ne sont accordés à personne : les trois RPC `security definer` sont les seules écritures.
+
 **Les clés étrangères transportent le tenant** : `creneau`, `seance`, `paiement` et `inscription`
 pointent `cours (id, centre_id)`, `inscription` et `presence` pointent `apprenant (id, centre_id)`,
 `presence` pointe `seance (id, cours_id)`. Sans cela, un responsable pourrait planter chez lui une
@@ -258,6 +270,49 @@ L'étanchéité est **structurelle**, pas seulement déclarative.
     colonnes de la ligne. Éprouvé par `supabase/tests/rls_etancheite.sql`, qui teste le refus
     **et** l'acceptation.
 
+11. **Invitation d'enseignants** (migration 0016). Le responsable génère un code, le transmet hors
+    bande, l'enseignant crée son compte puis l'échange. Trois fonctions, toutes `security definer`
+    et possédées par `postgres` :
+    - `creer_invitation(jours)` → le code en clair, **une seule fois**. Gardée par
+      `est_responsable()`. **Aucun paramètre `centre_id` ni `role`** : le centre vient de
+      `centre_courant()`, le rôle est `'enseignant'` en dur ;
+    - `racheter_invitation(code, nom)` → **le seul chemin qui crée une ligne `membre`**. Ni le
+      centre ni le rôle ne sont des arguments : ils viennent de la ligne `invitation`. C'est
+      l'analogue exact du garde-fou anti-escalade du §5.10 — ce que le client ne peut pas nommer,
+      il ne peut pas le forcer ;
+    - `revoquer_invitation(id)` → responsable, même centre, invitation non utilisée.
+
+    **Usage unique**, garanti par une **seule instruction** portant sa garde dans le `where` :
+    `update … set utilise_le = now() where code_hash = … and utilise_le is null … returning`.
+    L'UPDATE pose un verrou de ligne ; en READ COMMITTED une transaction concurrente attend puis
+    réévalue son `where` sur la ligne modifiée, et ne touche rien. ⚠️ **Ne jamais réécrire cela en
+    « select … puis update »** : ce serait rouvrir exactement la course que cette forme supprime.
+    `supabase/tests/invitation.sql` vérifie la FORME de la fonction pour attraper cette régression.
+
+    `invitation.role` n'accepte **qu'une seule valeur**, `'enseignant'` : le rachat recopie ce
+    rôle dans `membre` sans le questionner — c'est ce qui garantit qu'il ne vient pas du client —
+    donc la contrainte est la seconde ligne de défense derrière le littéral de `creer_invitation`.
+    Inviter un co-responsable demandera une migration délibérée.
+
+    **Ce que le hachage ne protège pas**, et qu'il vaut mieux savoir : le code transite en
+    littéral de requête RPC (les journaux du dashboard peuvent en garder trace) ; `service_role`
+    garde `all` par défaut et lit donc l'empreinte — « accordé à personne » vaut pour `anon` et
+    `authenticated` ; et le SHA-256 est nu, toute la marge tenant aux 60 bits d'entropie et à
+    l'expiration, pas au coût du calcul.
+
+    **Impasse connue** : rien ne permet de quitter un centre ni d'en retirer un membre depuis
+    l'application — pas de `delete` accordé sur `membre`, pas de fonction. Un rattachement erroné
+    se défait en SQL. À traiter le jour où cela se posera.
+
+    **Sécurité par inertie.** L'inscription Supabase est **ouverte** (`disable_signup = false`) et
+    **sans confirmation d'e-mail** (`mailer_autoconfirm = true`). Ce n'est pas un relâchement :
+    l'adresse n'est qu'un identifiant de connexion — on ne lui envoie jamais rien — et un compte
+    sans ligne `membre` a `centre_courant() = null`, donc ne voit rien, n'écrit rien, et n'existe
+    pour aucune policy. C'est ce que protège l'invariant, pas la confirmation. Garder celle-ci
+    aurait été un faux gage : le SMTP partagé plafonne à deux envois par heure et le lien pointe
+    vers `site_url`. `RequireMembre` accueille ces comptes inertes plutôt que de leur montrer une
+    application vide, qui se lirait comme une panne.
+
 ## 6. Fonctionnalités
 
 - Vue principale : **grille hebdomadaire** (jours × heures), blocs colorés, **conflit visible
@@ -305,6 +360,7 @@ migration touchant aux policies (la première) ou à `enregistrer_cours` (la sec
 ```bash
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls_etancheite.sql
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/conflit_enseignant.sql
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/invitation.sql
 ```
 
 ⚠️ Les migrations qui remplacent `enregistrer_cours` se succèdent (0002, 0012, 0013, 0014) :
@@ -347,6 +403,12 @@ npx supabase gen types typescript --db-url "$SUPABASE_DB_URL" > src/shared/supab
   création avec `returning` cesserait de fonctionner.
 - Ne pas se fier à `revoke <priv> (colonne)` : un privilège de colonne ne retire rien tant qu'un
   privilège de TABLE le couvre. Il faut retirer celui de la table, puis le réaccorder colonne par
-  colonne — c'est ce qui protège `inscription.jeton` et `membre.role`.
+  colonne — c'est ce qui protège `inscription.jeton`, `membre.role` et `invitation.code_hash`.
+- Ne pas se fier non plus à `revoke … from public` sur une fonction : Supabase pose un
+  `alter default privileges … grant execute on functions to authenticated`, qui est un privilège
+  **nommé** et survit. Toujours révoquer explicitement `from public, anon, authenticated`, puis
+  réaccorder ce qui doit l'être.
+- Ne jamais donner à une fonction d'invitation un paramètre `centre_id` ou `role` : ce que le
+  client peut nommer, il peut le forcer.
 - Ne pas réintroduire de propriétaire par compte : `owner_id` a disparu en 0015, et le tenant est
   le centre. Une isolation par `auth.uid()` rouvrirait tout ce que 0012 a refermé.

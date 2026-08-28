@@ -5,6 +5,7 @@ import { RouterProvider } from 'react-router/dom'
 
 import { LoginPage } from '@/features/auth/LoginPage'
 import { RequireAuth } from '@/features/auth/RequireAuth'
+import { RequireMembre } from '@/features/membres/RequireMembre'
 import { AppLayout } from '@/app/layout/AppLayout'
 import { NotFoundPage } from '@/app/routes/NotFoundPage'
 
@@ -83,6 +84,10 @@ const RapportSessionPage = lazy(() =>
  * Deux écrans seulement échappent à `RequireAuth` : `/login`, et `/c/:jeton`,
  * la page de cours partagée — destinée à des apprenants qui n'ont pas de compte
  * et n'en auront pas. Tout le reste exige une session.
+ *
+ * Sous `RequireAuth`, `RequireMembre` exige en plus d'appartenir à un centre :
+ * l'inscription étant ouverte (migration 0016), un compte peut exister sans
+ * rattachement. Il n'ajoute aucune route — il substitue son écran à l'`Outlet`.
  */
 const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -98,25 +103,30 @@ const router = createBrowserRouter([
     element: <RequireAuth />,
     children: [
       {
-        // Hors `AppLayout` : le rapport occupe la feuille entière.
-        path: '/cours/:coursId/rapport',
-        element: (
-          <Suspense fallback={<EcranAttente />}>
-            <RapportSessionPage />
-          </Suspense>
-        ),
-      },
-      {
-        path: '/',
-        element: <AppLayout />,
+        element: <RequireMembre />,
         children: [
-          { index: true, element: <PlanningPage /> },
-          { path: 'cours', element: <CoursPage /> },
-          { path: 'seances', element: <SeancesSemainePage /> },
-          { path: 'apprenants', element: <ApprenantsPage /> },
-          { path: 'paiements', element: <PaiementsPage /> },
-          { path: 'parametres', element: <ParametresPage /> },
-          { path: '*', element: <NotFoundPage /> },
+          {
+            // Hors `AppLayout` : le rapport occupe la feuille entière.
+            path: '/cours/:coursId/rapport',
+            element: (
+              <Suspense fallback={<EcranAttente />}>
+                <RapportSessionPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/',
+            element: <AppLayout />,
+            children: [
+              { index: true, element: <PlanningPage /> },
+              { path: 'cours', element: <CoursPage /> },
+              { path: 'seances', element: <SeancesSemainePage /> },
+              { path: 'apprenants', element: <ApprenantsPage /> },
+              { path: 'paiements', element: <PaiementsPage /> },
+              { path: 'parametres', element: <ParametresPage /> },
+              { path: '*', element: <NotFoundPage /> },
+            ],
+          },
         ],
       },
     ],

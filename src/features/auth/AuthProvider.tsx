@@ -60,6 +60,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatut('connecte')
   }, [])
 
+  const signUp = useCallback(async (email: string, motDePasse: string) => {
+    const nouvelleSession = await authService.signUp(email, motDePasse)
+    setSession(nouvelleSession)
+    setStatut('connecte')
+  }, [])
+
   const signOut = useCallback(async () => {
     await authService.signOut()
     setSession(null)
@@ -70,8 +76,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [queryClient])
 
   const valeur = useMemo<AuthContextValue>(
-    () => ({ session, user: session?.user ?? null, statut, signIn, signOut }),
-    [session, statut, signIn, signOut]
+    () => ({ session, user: session?.user ?? null, statut, signIn, signUp, signOut }),
+    [session, statut, signIn, signUp, signOut]
   )
 
   return <AuthContext.Provider value={valeur}>{children}</AuthContext.Provider>

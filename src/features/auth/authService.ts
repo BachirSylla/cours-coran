@@ -7,9 +7,10 @@ import { getSupabaseClient } from '@/shared/supabase/client'
  * `supabase.auth` (CLAUDE.md §3, §9). Le reste de l'application passe par
  * `useAuth()`.
  *
- * L'application est mono-utilisateur : un unique compte enseignant, créé à la
- * main dans le dashboard Supabase. Il n'y a donc volontairement **aucune
- * fonction d'inscription** ici.
+ * L'inscription est **ouverte** depuis la migration 0016 : n'importe qui peut
+ * créer un compte. Ce qui rend cela sans danger est l'inertie — un compte sans
+ * ligne `membre` a `centre_courant() = null`, donc ne voit rien et n'écrit
+ * rien. Il ne devient quelque chose qu'en échangeant un code d'invitation.
  */
 
 /** Traduit les messages d'erreur GoTrue, qui sont en anglais et peu explicites. */
@@ -21,6 +22,18 @@ function messageErreur(message: string): string {
   }
   if (normalise.includes('email not confirmed')) {
     return "Ce compte n'est pas confirmé. Dans le dashboard Supabase, recréez l'utilisateur avec l'option « Auto Confirm User »."
+  }
+  if (
+    normalise.includes('already registered') ||
+    normalise.includes('already been registered')
+  ) {
+    return 'Un compte existe déjà avec cette adresse. Connectez-vous plutôt.'
+  }
+  if (normalise.includes('signups not allowed') || normalise.includes('signup is disabled')) {
+    return 'La création de comptes est désactivée sur ce projet. Prévenez le responsable du centre.'
+  }
+  if (normalise.includes('password should be') || normalise.includes('weak password')) {
+    return 'Mot de passe trop court : il faut au moins 6 caractères.'
   }
   if (normalise.includes('failed to fetch') || normalise.includes('network')) {
     return 'Connexion au serveur impossible. Vérifiez votre connexion internet.'
@@ -43,6 +56,30 @@ export async function signIn(email: string, motDePasse: string): Promise<Session
   }
   if (!data.session) {
     throw new Error('Connexion impossible : aucune session renvoyée par Supabase.')
+  }
+
+  return data.session
+}
+
+/**
+ * Crée un compte, et ouvre la session dans la foulée.
+ *
+ * La confirmation par e-mail est désactivée sur le projet (`mailer_autoconfirm`)
+ * : l'adresse n'est ici qu'un identifiant de connexion, on ne lui envoie jamais
+ * rien. Si elle était réactivée, Supabase ne renverrait pas de session — d'où
+ * le message explicite plutôt qu'un échec muet.
+ */
+export async function signUp(email: string, motDePasse: string): Promise<Session> {
+  const { data, error } = await getSupabaseClient().auth.signUp({
+    email,
+    password: motDePasse,
+  })
+
+  if (error) {
+    throw new Error(messageErreur(error.message))
+  }
+  if (!data.session) {
+    throw new Error('Compte créé. Confirmez votre adresse e-mail, puis connectez-vous.')
   }
 
   return data.session

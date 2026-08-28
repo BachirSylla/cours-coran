@@ -17,6 +17,7 @@ function simulerStatut(statut: StatutAuth) {
     session: null,
     user: null,
     signIn: vi.fn(),
+    signUp: vi.fn(),
     signOut: vi.fn(),
   } satisfies AuthContextValue)
 }

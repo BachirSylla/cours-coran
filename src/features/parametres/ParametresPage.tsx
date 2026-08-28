@@ -1,5 +1,6 @@
 import { Check, Info, Loader2, Lock, TriangleAlert } from 'lucide-react'
 
+import { SectionMembres } from '@/features/membres/components/SectionMembres'
 import { useMembre } from '@/features/membres/hooks/useMembre'
 import { SectionLogo } from '@/features/parametres/components/SectionLogo'
 import { SectionNotation } from '@/features/parametres/components/SectionNotation'
@@ -126,6 +127,8 @@ export function ParametresPage() {
           </Alert>
         </section>
       )}
+
+      {estResponsable && <SectionMembres />}
 
       {!isPending && !isError && parametres && estResponsable && (
         <SectionNotation parametres={parametres} />

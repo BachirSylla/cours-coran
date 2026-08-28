@@ -12,6 +12,9 @@ export interface AuthContextValue {
   user: User | null
   statut: StatutAuth
   signIn: (email: string, motDePasse: string) => Promise<void>
+  /** Crée un compte et ouvre la session. Le compte est inerte tant qu'il n'a
+   *  pas échangé un code d'invitation (migration 0016). */
+  signUp: (email: string, motDePasse: string) => Promise<void>
   signOut: () => Promise<void>
 }
 

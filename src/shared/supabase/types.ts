@@ -299,6 +299,56 @@ export type Database = {
           },
         ]
       }
+      invitation: {
+        Row: {
+          centre_id: string
+          code_hash: string
+          created_at: string
+          cree_par: string | null
+          expire_le: string
+          id: string
+          revoquee_le: string | null
+          role: string
+          updated_at: string
+          utilise_le: string | null
+          utilise_par: string | null
+        }
+        Insert: {
+          centre_id: string
+          code_hash: string
+          created_at?: string
+          cree_par?: string | null
+          expire_le: string
+          id?: string
+          revoquee_le?: string | null
+          role?: string
+          updated_at?: string
+          utilise_le?: string | null
+          utilise_par?: string | null
+        }
+        Update: {
+          centre_id?: string
+          code_hash?: string
+          created_at?: string
+          cree_par?: string | null
+          expire_le?: string
+          id?: string
+          revoquee_le?: string | null
+          role?: string
+          updated_at?: string
+          utilise_le?: string | null
+          utilise_par?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invitation_centre_id_fkey"
+            columns: ["centre_id"]
+            isOneToOne: false
+            referencedRelation: "centre"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       membre: {
         Row: {
           centre_id: string
@@ -614,6 +664,8 @@ export type Database = {
           type_libelle: string
         }[]
       }
+      creer_invitation: { Args: { p_jours?: number }; Returns: string }
+      empreinte_code: { Args: { p_code: string }; Returns: string }
       enregistrer_cours: {
         Args: { p_cours: Json; p_cours_id?: string; p_creneaux: Json }
         Returns: {
@@ -648,7 +700,13 @@ export type Database = {
         }
       }
       est_responsable: { Args: never; Returns: boolean }
+      normaliser_code: { Args: { p_code: string }; Returns: string }
+      racheter_invitation: {
+        Args: { p_code: string; p_nom_affiche: string }
+        Returns: string
+      }
       regenerer_partage: { Args: { p_cours_id: string }; Returns: string }
+      revoquer_invitation: { Args: { p_id: string }; Returns: undefined }
       revoquer_partage: { Args: { p_cours_id: string }; Returns: undefined }
     }
     Enums: {

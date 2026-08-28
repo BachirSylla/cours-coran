@@ -17,16 +17,26 @@ interface EtatRedirection {
   from?: { pathname?: string }
 }
 
+/**
+ * Connexion, et **création de compte** depuis la migration 0016.
+ *
+ * Un compte neuf est inerte : sans ligne `membre`, il ne voit rien. C'est
+ * `RequireMembre` qui l'accueille ensuite avec l'écran « Rejoindre un centre ».
+ * Le même formulaire sert aux deux modes — seuls le libellé, l'`autoComplete`
+ * et l'action changent.
+ */
 export function LoginPage() {
-  const { statut, signIn } = useAuth()
+  const { statut, signIn, signUp } = useAuth()
   const location = useLocation()
   const [erreur, setErreur] = useState<string | null>(null)
+  const [inscription, setInscription] = useState(false)
 
   const destination = (location.state as EtatRedirection | null)?.from?.pathname ?? '/'
 
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -41,12 +51,22 @@ export function LoginPage() {
   async function onSubmit(valeurs: LoginFormValues) {
     setErreur(null)
     try {
-      await signIn(valeurs.email, valeurs.motDePasse)
+      if (inscription) {
+        await signUp(valeurs.email, valeurs.motDePasse)
+      } else {
+        await signIn(valeurs.email, valeurs.motDePasse)
+      }
       // La redirection est prise en charge par le rendu ci-dessus, dès que le
       // statut passe à « connecte ».
     } catch (cause) {
       setErreur(cause instanceof Error ? cause.message : 'Connexion impossible.')
     }
+  }
+
+  function basculer() {
+    setInscription((precedent) => !precedent)
+    setErreur(null)
+    reset()
   }
 
   return (
@@ -57,7 +77,11 @@ export function LoginPage() {
             <BookOpen className="size-5" aria-hidden="true" />
           </span>
           <CardTitle className="text-xl">Cours Coran</CardTitle>
-          <CardDescription>Connectez-vous pour accéder à votre planning.</CardDescription>
+          <CardDescription>
+            {inscription
+              ? 'Créez votre compte, puis saisissez le code reçu de votre centre.'
+              : 'Connectez-vous pour accéder à votre planning.'}
+          </CardDescription>
         </CardHeader>
 
         <CardContent>
@@ -90,7 +114,7 @@ export function LoginPage() {
               <Input
                 id="motDePasse"
                 type="password"
-                autoComplete="current-password"
+                autoComplete={inscription ? 'new-password' : 'current-password'}
                 aria-invalid={Boolean(errors.motDePasse)}
                 {...register('motDePasse')}
               />
@@ -101,9 +125,29 @@ export function LoginPage() {
 
             <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-              {isSubmitting ? 'Connexion…' : 'Se connecter'}
+              {inscription
+                ? isSubmitting
+                  ? 'Création…'
+                  : 'Créer mon compte'
+                : isSubmitting
+                  ? 'Connexion…'
+                  : 'Se connecter'}
             </Button>
           </form>
+
+          <p className="mt-4 text-center text-sm text-muted-foreground">
+            {inscription
+              ? 'Vous avez déjà un compte ?'
+              : 'Vous avez reçu un code d’invitation ?'}{' '}
+            <Button
+              type="button"
+              variant="link"
+              className="h-auto p-0 text-sm"
+              onClick={basculer}
+            >
+              {inscription ? 'Se connecter' : 'Créer un compte'}
+            </Button>
+          </p>
         </CardContent>
       </Card>
     </div>

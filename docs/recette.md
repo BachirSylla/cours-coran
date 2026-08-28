@@ -349,3 +349,92 @@ membres.
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls_etancheite.sql
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/conflit_enseignant.sql
 ```
+
+---
+
+## Invitation d'enseignants par code (migration 0016)
+
+Ajouter un enseignant ne demande plus ni SQL ni passage par le dashboard. Le
+responsable génère un code, le transmet, l'enseignant crée son compte et
+l'échange.
+
+> **Configuration Supabase appliquée avec ce lot** : `Authentication → Sign In /
+Providers → Email` — _Allow new users to sign up_ **activé**, _Confirm email_
+> **désactivé**. Aucun e-mail n'est envoyé : l'adresse ne sert qu'à se connecter.
+> Ce qui protège n'est pas la confirmation mais l'**inertie** — un compte sans
+> rattachement ne voit rien (scénario 27).
+
+### 26. Générer et transmettre un code
+
+1. En responsable, **Paramètres → Enseignants du centre → Inviter un enseignant**.
+
+**Attendu** : un code de la forme `XXXX-XXXX-XXXX` apparaît, avec un bouton
+copier et la mention qu'il ne s'affichera plus. Il apparaît aussi dans
+« Invitations en attente », avec sa date d'expiration — **sans le code**, qui
+n'est plus récupérable nulle part.
+
+### 27. Un compte sans centre ne voit rien
+
+1. En navigation privée, aller sur l'application, cliquer **Créer un compte**,
+   saisir une adresse quelconque et un mot de passe.
+
+**Attendu** : le compte est créé et la session s'ouvre **immédiatement**, sans
+e-mail de confirmation. L'écran affiché est **« Rejoindre un centre »** — pas
+l'application vide. Aucune donnée d'aucun centre n'est visible, et le bouton
+**Se déconnecter** permet de repartir si l'on s'est trompé de compte.
+
+### 28. Échanger le code
+
+1. Saisir le code **en minuscules et avec des espaces** au lieu des tirets
+   (`ys66 hy51 qhpt`), et un nom affiché.
+
+**Attendu** : accepté — la saisie est normalisée côté serveur (majuscules,
+ponctuation ignorée, `O` lu comme `0`, `I` et `L` comme `1`). Un message
+« Vous avez rejoint … » s'affiche, puis l'application s'ouvre **en enseignant**
+(voir le tableau du scénario 22). Côté responsable, le nouveau membre apparaît
+dans la liste et l'invitation quitte « en attente ».
+
+### 29. Les refus
+
+Chacun doit être **explicite**, et ne rien créer :
+
+| Situation          | Message attendu                              |
+| ------------------ | -------------------------------------------- |
+| Code inexistant    | « Ce code est inconnu. Vérifiez la saisie. » |
+| Code déjà utilisé  | « Ce code a déjà été utilisé… »              |
+| Code révoqué       | « Ce code a été révoqué… »                   |
+| Code expiré        | « Ce code a expiré… »                        |
+| Compte déjà membre | « Ce compte appartient déjà à un centre. »   |
+
+Le dernier cas ne consomme **pas** le code : il reste utilisable par quelqu'un
+d'autre.
+
+### 30. Révoquer
+
+1. Générer un code, puis cliquer la corbeille sur la ligne correspondante.
+2. Tenter de l'échanger depuis un autre compte.
+
+**Attendu** : l'invitation disparaît de « en attente », et le rachat est refusé.
+
+### 31. Un enseignant n'invite pas
+
+1. Avec un compte enseignant, ouvrir **Paramètres**.
+
+**Attendu** : la section « Enseignants du centre » est **absente**. La base le
+refuserait de toute façon — c'est ce que vérifie le script :
+
+```bash
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/invitation.sql
+```
+
+### 32. Limite connue : on ne quitte pas un centre
+
+Rien ne permet, depuis l'application, de retirer un membre ni de se détacher
+d'un centre. Un compte rattaché par erreur se corrige en SQL :
+
+```sql
+delete from public.membre where user_id = '<uuid du compte>';
+```
+
+À garder en tête avant de transmettre un code : le rattachement est définitif
+côté interface.
