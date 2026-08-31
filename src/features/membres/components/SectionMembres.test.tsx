@@ -4,11 +4,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { UseQueryResult } from '@tanstack/react-query'
 
 import { SectionMembres } from '@/features/membres/components/SectionMembres'
+import { useCours } from '@/features/cours/hooks/useCours'
 import { useCreerInvitation } from '@/features/membres/hooks/useCreerInvitation'
 import { useInvitations } from '@/features/membres/hooks/useInvitations'
 import { useMembre } from '@/features/membres/hooks/useMembre'
 import { useMembres } from '@/features/membres/hooks/useMembres'
+import { useRetirerMembre } from '@/features/membres/hooks/useRetirerMembre'
 import { useRevoquerInvitation } from '@/features/membres/hooks/useRevoquerInvitation'
+import type { CoursAvecDetails } from '@/shared/supabase/coursRepo'
 import type { Invitation } from '@/shared/supabase/invitationRepo'
 import type { Membre } from '@/shared/supabase/membreRepo'
 
@@ -19,15 +22,20 @@ vi.mock('@/features/membres/hooks/useCreerInvitation', () => ({ useCreerInvitati
 vi.mock('@/features/membres/hooks/useRevoquerInvitation', () => ({
   useRevoquerInvitation: vi.fn(),
 }))
+vi.mock('@/features/membres/hooks/useRetirerMembre', () => ({ useRetirerMembre: vi.fn() }))
+vi.mock('@/features/cours/hooks/useCours', () => ({ useCours: vi.fn() }))
 
 const useMembreMock = vi.mocked(useMembre)
 const useMembresMock = vi.mocked(useMembres)
 const useInvitationsMock = vi.mocked(useInvitations)
 const useCreerMock = vi.mocked(useCreerInvitation)
 const useRevoquerMock = vi.mocked(useRevoquerInvitation)
+const useRetirerMock = vi.mocked(useRetirerMembre)
+const useCoursMock = vi.mocked(useCours)
 
 const creerMutate = vi.fn()
 const revoquerMutate = vi.fn()
+const retirerMutate = vi.fn()
 
 const CODE = 'BP3Q-DNS5-WEQZ'
 const DEMAIN = new Date(Date.now() + 86_400_000).toISOString()
@@ -66,6 +74,49 @@ function simulerInvitations(data: Invitation[]) {
   useInvitationsMock.mockReturnValue({ data } as UseQueryResult<Invitation[], Error>)
 }
 
+/** Cours du centre — le responsable les voit tous, d''où la liste complète. */
+function cours(id: string, libelle: string, enseignant_id: string | null): CoursAvecDetails {
+  return {
+    id,
+    centre_id: 'centre-1',
+    enseignant_id,
+    libelle,
+    type_cours_id: 'type-1',
+    format: 'groupe',
+    date_debut: '2026-07-01',
+    date_fin: null,
+    lien_meet: null,
+    jeton_partage: null,
+    logo: null,
+    assiduite_active: null,
+    base_academique: null,
+    bareme_assiduite: null,
+    penalite_absence: null,
+    penalite_retard: null,
+    penaliser_absences_excusees: null,
+    statut: 'actif',
+    created_at: '2026-07-01T10:00:00Z',
+    updated_at: '2026-07-01T10:00:00Z',
+    type_cours: { libelle: 'Mémorisation' },
+    inscription: [{ count: 0 }],
+    creneau: [],
+    tarif: [],
+  }
+}
+
+function simulerMembres(data: Membre[]) {
+  useMembresMock.mockReturnValue({
+    data,
+    isPending: false,
+    isError: false,
+    error: null,
+  } as UseQueryResult<Membre[], Error>)
+}
+
+function simulerCours(data: CoursAvecDetails[]) {
+  useCoursMock.mockReturnValue({ data } as UseQueryResult<CoursAvecDetails[], Error>)
+}
+
 function mutation<T>(supplement: Record<string, unknown> = {}): T {
   return {
     mutate: vi.fn(),
@@ -87,12 +138,10 @@ describe('SectionMembres', () => {
       estResponsable: true,
       chargement: false,
     })
-    useMembresMock.mockReturnValue({
-      data: [membre('moi', 'Bachir', 'responsable'), membre('u2', 'Amina', 'enseignant')],
-      isPending: false,
-      isError: false,
-      error: null,
-    } as UseQueryResult<Membre[], Error>)
+    simulerMembres([
+      membre('moi', 'Bachir', 'responsable'),
+      membre('u2', 'Amina', 'enseignant'),
+    ])
     simulerInvitations([])
     useCreerMock.mockReturnValue(
       mutation<ReturnType<typeof useCreerInvitation>>({ mutate: creerMutate })
@@ -100,6 +149,10 @@ describe('SectionMembres', () => {
     useRevoquerMock.mockReturnValue(
       mutation<ReturnType<typeof useRevoquerInvitation>>({ mutate: revoquerMutate })
     )
+    useRetirerMock.mockReturnValue(
+      mutation<ReturnType<typeof useRetirerMembre>>({ mutate: retirerMutate })
+    )
+    simulerCours([])
   })
 
   it('liste les membres avec leur rôle, et se signale soi-même', () => {
@@ -188,5 +241,158 @@ describe('SectionMembres', () => {
     await utilisateur.click(screen.getByRole('button', { name: /Inviter un enseignant/ }))
 
     expect(screen.getByText(/Il ne s'affichera plus/)).toBeInTheDocument()
+  })
+})
+
+describe('SectionMembres — retrait d’un membre', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    useMembreMock.mockReturnValue({
+      membre: null,
+      userId: 'moi',
+      centreId: 'centre-1',
+      role: 'responsable',
+      estResponsable: true,
+      chargement: false,
+    })
+    simulerInvitations([])
+    useCreerMock.mockReturnValue(
+      mutation<ReturnType<typeof useCreerInvitation>>({ mutate: creerMutate })
+    )
+    useRevoquerMock.mockReturnValue(
+      mutation<ReturnType<typeof useRevoquerInvitation>>({ mutate: revoquerMutate })
+    )
+    useRetirerMock.mockReturnValue(
+      mutation<ReturnType<typeof useRetirerMembre>>({ mutate: retirerMutate })
+    )
+    simulerMembres([
+      membre('moi', 'Bachir', 'responsable'),
+      membre('u2', 'Amina', 'enseignant'),
+    ])
+    simulerCours([])
+  })
+
+  it('ne propose pas de se retirer soi-même', () => {
+    render(<SectionMembres />)
+
+    expect(screen.queryByRole('button', { name: /Retirer Bachir/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Retirer Amina/ })).toBeInTheDocument()
+  })
+
+  it('ne propose pas de retirer le dernier responsable', () => {
+    // La base le refuserait (trigger de 0012) : offrir le bouton ne ferait que
+    // promettre un geste impossible.
+    simulerMembres([
+      membre('moi', 'Bachir', 'enseignant'),
+      membre('u2', 'Amina', 'responsable'),
+    ])
+
+    render(<SectionMembres />)
+
+    expect(screen.queryByRole('button', { name: /Retirer Amina/ })).not.toBeInTheDocument()
+  })
+
+  it('propose de retirer un responsable dès qu’il y en a deux', () => {
+    simulerMembres([
+      membre('moi', 'Bachir', 'responsable'),
+      membre('u2', 'Amina', 'responsable'),
+    ])
+
+    render(<SectionMembres />)
+
+    expect(screen.getByRole('button', { name: /Retirer Amina/ })).toBeInTheDocument()
+  })
+
+  it('dit ce que le retrait ne détruit pas', async () => {
+    // C'est la question qu'on se pose à cet instant : « est-ce que je perds son
+    // travail ? ». Non — tout pend du cours.
+    const utilisateur = userEvent.setup()
+
+    render(<SectionMembres />)
+    await utilisateur.click(screen.getByRole('button', { name: /Retirer Amina/ }))
+
+    expect(screen.getByText(/restent intactes/)).toBeInTheDocument()
+    expect(screen.getByText(/Son compte est conservé/)).toBeInTheDocument()
+  })
+
+  it('ne montre aucun sélecteur quand le partant n’enseigne rien', async () => {
+    const utilisateur = userEvent.setup()
+
+    render(<SectionMembres />)
+    await utilisateur.click(screen.getByRole('button', { name: /Retirer Amina/ }))
+
+    expect(screen.queryByLabelText(/cours revient à/)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/cours reviennent à/)).not.toBeInTheDocument()
+  })
+
+  it('liste les cours du partant et les réaffecte au responsable par défaut', async () => {
+    simulerCours([
+      cours('c1', 'Groupe Hifz', 'u2'),
+      cours('c2', 'Tajwid du soir', 'u2'),
+      cours('c3', 'Lecture Aïcha', 'moi'),
+    ])
+    const utilisateur = userEvent.setup()
+
+    render(<SectionMembres />)
+    await utilisateur.click(screen.getByRole('button', { name: /Retirer Amina/ }))
+
+    // Deux cours, pas trois : celui du responsable n'est pas concerné.
+    expect(screen.getByLabelText('Ses 2 cours reviennent à')).toHaveValue('moi')
+    expect(screen.getByText('Groupe Hifz, Tajwid du soir')).toBeInTheDocument()
+
+    await utilisateur.click(screen.getByRole('button', { name: /^Retirer$/ }))
+
+    expect(retirerMutate).toHaveBeenCalledExactlyOnceWith(
+      { userId: 'u2', reaffecterA: 'moi' },
+      expect.anything()
+    )
+  })
+
+  it('permet de laisser les cours sans enseignant', async () => {
+    // `null` est un CHOIX, pas un oubli : `cours_animables()` rend les cours
+    // orphelins au responsable, donc rien ne se gèle (migration 0017).
+    simulerCours([cours('c1', 'Groupe Hifz', 'u2')])
+    const utilisateur = userEvent.setup()
+
+    render(<SectionMembres />)
+    await utilisateur.click(screen.getByRole('button', { name: /Retirer Amina/ }))
+    await utilisateur.selectOptions(
+      screen.getByLabelText('Son cours revient à'),
+      'Laisser sans enseignant'
+    )
+    await utilisateur.click(screen.getByRole('button', { name: /^Retirer$/ }))
+
+    expect(retirerMutate).toHaveBeenCalledExactlyOnceWith(
+      { userId: 'u2', reaffecterA: null },
+      expect.anything()
+    )
+  })
+
+  it('ne propose pas le partant comme repreneur de ses propres cours', async () => {
+    simulerCours([cours('c1', 'Groupe Hifz', 'u2')])
+    const utilisateur = userEvent.setup()
+
+    render(<SectionMembres />)
+    await utilisateur.click(screen.getByRole('button', { name: /Retirer Amina/ }))
+
+    const options = [...screen.getByLabelText('Son cours revient à').querySelectorAll('option')]
+    expect(options.map((option) => option.value)).toEqual(['moi', ''])
+  })
+
+  it('remonte le refus du serveur', () => {
+    // Le message vient de la RPC : le reformuler ici le ferait diverger.
+    useRetirerMock.mockReturnValue(
+      mutation<ReturnType<typeof useRetirerMembre>>({
+        mutate: retirerMutate,
+        isError: true,
+        error: new Error('Un centre doit garder au moins un responsable.'),
+      })
+    )
+
+    render(<SectionMembres />)
+
+    expect(
+      screen.getByText('Un centre doit garder au moins un responsable.')
+    ).toBeInTheDocument()
   })
 })

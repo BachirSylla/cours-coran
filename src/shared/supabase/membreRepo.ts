@@ -74,3 +74,28 @@ export async function definirBareme(userId: string, bareme: number): Promise<Mem
 
   return data
 }
+
+/**
+ * Retire un membre du centre (migration 0018).
+ *
+ * `membre` n'accorde ni `delete` ni policy de suppression à personne : cette
+ * RPC `security definer` est le seul chemin, et elle vérifie elle-même que
+ * l'appelant est responsable et que la cible est de son centre.
+ *
+ * @param reaffecterA qui reprend ses cours. `null` est un CHOIX — « laisser
+ *   sans enseignant » — et non un oubli : le paramètre n'a pas de défaut côté
+ *   base, donc l'omettre échoue plutôt que d'orphaniser par accident.
+ * @returns le nombre de cours déplacés, ou devenus orphelins.
+ */
+export async function retirer(userId: string, reaffecterA: string | null): Promise<number> {
+  const { data, error } = await getSupabaseClient().rpc('retirer_membre', {
+    p_user_id: userId,
+    // Les arguments d'une fonction Postgres ne portent pas de nullabilité : les
+    // types générés déclarent `string`, alors que `null` est ici une valeur.
+    p_reaffecter_a: reaffecterA as string,
+  })
+
+  lancerSiErreur(error, 'Retrait du membre')
+
+  return data ?? 0
+}

@@ -377,6 +377,48 @@ L'étanchéité est **structurelle**, pas seulement déclarative.
     effectifs, les séances, les présences et l'examen de tout ce que `cours_lisibles()` leur
     ouvre. Le rapport en dépend.
 
+13. **Retrait d'un membre** (migration 0018). `retirer_membre(user_id, reaffecter_a)`,
+    `security definer` — `membre` n'accorde ni `delete` ni policy de suppression à personne, cette
+    RPC est donc le seul chemin, comme `racheter_invitation` l'est pour l'insertion.
+
+    Gardes, et **leur ordre compte** : `est_responsable()` · le membre visé doit être du centre
+    (message unique, donc pas d'oracle inter-centres) · la cible de réaffectation aussi, et ce
+    n'est pas le partant · **le dernier responsable, AVANT « pas soi-même »** — un responsable
+    seul ne peut viser que lui-même, et l'ordre inverse rendrait ce contrôle inatteignable en lui
+    répondant « vous ne pouvez pas vous retirer » là où la vraie action est de nommer un
+    successeur.
+
+    `reaffecter_a` à `null` est une **valeur**, « laisser sans enseignant » — pas un oubli : la
+    fonction n'a pas de défaut, donc l'omettre échoue. Les cours passent alors orphelins, et
+    `cours_animables()` les rend au responsable.
+
+    **Réaffecter d'abord, supprimer ensuite.** L'ordre n'est pas interchangeable : supprimer en
+    premier déclenche le `set null` de la clé étrangère, qui efface justement l'information
+    « quels cours étaient les siens ».
+
+    ⚠️ **`on delete set null` sur une clé étrangère COMPOSITE annule TOUTES ses colonnes.**
+    `cours_enseignant_du_centre_fkey` tentait donc de mettre `cours.centre_id` à `null`, qui est
+    `not null` : supprimer un membre ayant des cours échouait purement et simplement. 0018 nomme
+    la colonne à annuler — `on delete set null (enseignant_id)`, possible depuis PostgreSQL 15.
+
+    **Deux retraits concurrents** laisseraient un centre sans aucun responsable — et c'est
+    irrécupérable, aucun chemin ne permettant de promouvoir quelqu'un. Le trigger de 0012 ne
+    rattrapait rien : son `select` était ordinaire, donc aveugle à une suppression non validée en
+    READ COMMITTED. La RPC **et** le trigger verrouillent désormais (`for update`) les
+    responsables du centre avant de décider.
+
+    ⚠️ **La réaffectation contournerait le garde-fou de chevauchement** (§5.1), qui vit dans
+    `enregistrer_cours` et nulle part ailleurs : un simple UPDATE de `enseignant_id` poserait deux
+    cours du même enseignant sur le même créneau, et ces cours deviendraient **ineditables** — la
+    sauvegarde qui voudrait les séparer lèverait elle-même P0003. La RPC vérifie donc l'état final
+    et refuse (P0033). Le cas « sans enseignant » compte autant : `is not distinct from` range tous
+    les orphelins dans un même agenda.
+
+    **Rien de pédagogique ne pend d'un membre** : une seule clé étrangère du schéma pointe vers
+    `membre`, et depuis 0015 aucune table ne référence `auth.users` hors `membre` et `invitation`.
+    Séances, présences, notes et examens pendent du **cours**. Le compte `auth.users` du partant
+    survit : il redevient inerte, et un nouveau code le fait revenir.
+
 ## 6. Fonctionnalités
 
 - Vue principale : **grille hebdomadaire** (jours × heures), blocs colorés, **conflit visible
@@ -425,6 +467,7 @@ migration touchant aux policies (la première) ou à `enregistrer_cours` (la sec
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls_etancheite.sql
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/conflit_enseignant.sql
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/invitation.sql
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/retrait_membre.sql
 ```
 
 Les migrations qui verrouillent `cours` prennent un verrou exclusif : les lancer avec
@@ -483,5 +526,14 @@ npx supabase gen types typescript --db-url "$SUPABASE_DB_URL" > src/shared/supab
   `enseignant_id = auth.uid()`.
 - Ne pas ajouter une colonne aux `grant` de `cours` sans se demander qui doit l'écrire :
   la liste est exactement ce que `enregistrer_cours` touche, et rien de plus.
+- Ne pas écrire `on delete set null` sur une clé étrangère **composite** sans nommer la
+  colonne : sans liste, Postgres annule TOUTES les colonnes de la clé, `centre_id` compris —
+  et la suppression échoue sur le `not null`.
+- Ne pas oublier d'ajouter un nouveau code métier `P00xx` à `shared/supabase/erreurs.ts` :
+  sans cela, le message rédigé côté base s'affiche préfixé du contexte.
+- Ne pas se fier à un `select` de trigger pour arbitrer une concurrence : en READ COMMITTED il ne
+  voit pas la transaction voisine. Il faut un `for update`.
+- Ne pas écrire `cours.enseignant_id` par un UPDATE sans revérifier les chevauchements : le
+  garde-fou §5.1 vit dans `enregistrer_cours`, pas en contrainte.
 - Ne pas réintroduire de propriétaire par compte : `owner_id` a disparu en 0015, et le tenant est
   le centre. Une isolation par `auth.uid()` rouvrirait tout ce que 0012 a refermé.

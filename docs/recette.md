@@ -512,3 +512,75 @@ psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls_etancheite.sql
 
 Section **E** : chaque RPC remonte elle-même jusqu'au cours et vérifie qui
 appelle. Le client ne nomme jamais le cours, donc ne peut pas le forcer.
+
+---
+
+## Retirer un enseignant du centre (migration 0018)
+
+Le dernier geste d'administration qui demandait du SQL. Il se fait désormais
+depuis **Paramètres → Enseignants du centre**, avec la corbeille rouge en bout
+de ligne.
+
+Ce retrait est destructif de l'**accès**, pas des données : les séances,
+présences et notes que la personne a saisies restent intactes — elles pendent du
+cours, jamais du membre. Et son compte survit : un nouveau code d'invitation la
+fait revenir.
+
+### 38. Retirer un enseignant et transférer ses cours
+
+Prérequis : le compte enseignant du scénario 13, avec au moins un cours affecté.
+
+1. **Paramètres → Enseignants du centre**, cliquer la corbeille sur sa ligne.
+
+**Attendu** : le dialogue liste ses cours et propose « Ses N cours reviennent
+à », **pré-rempli sur vous**. Il rappelle que son travail reste intact.
+
+2. Confirmer.
+
+**Attendu** : il quitte la liste ; ses cours apparaissent à votre nom dans le
+sélecteur d'enseignant de chaque fiche. Aucune séance, aucune note n'a bougé.
+
+### 39. Laisser des cours sans enseignant
+
+1. Refaire le scénario 38, mais choisir **« Laisser sans enseignant »**.
+
+**Attendu** : le membre part, ses cours restent — sans enseignant. Vous pouvez
+toujours y saisir séances et notes : `cours_animables()` rend au responsable les
+cours que personne n'anime. Réaffectez-les quand vous voulez, depuis le
+sélecteur du formulaire de cours.
+
+### 40. Ce qui n'est pas proposé
+
+**Attendu** :
+
+- **aucune corbeille sur votre propre ligne** — se verrouiller dehors n'est pas
+  un geste qu'on doit pouvoir faire par accident ;
+- **aucune corbeille sur le dernier responsable**. Nommez-en un second d'abord
+  (invitez-le, puis passez son rôle à `responsable` en SQL — le changement de
+  rôle depuis l'écran n'existe pas encore).
+
+### 41. Un transfert qui créerait un double-booking est refusé
+
+1. Faire en sorte que le partant et le repreneur aient chacun un cours **au même
+   créneau**.
+2. Tenter le retrait en réaffectant au repreneur.
+
+**Attendu** : refus nommant les deux cours. Rien n'est retiré, rien n'est
+transféré. C'est voulu : sans ce contrôle, les deux cours se superposeraient et
+deviendraient **impossibles à modifier** — même la correction serait refusée.
+Choisissez un autre repreneur, « laisser sans enseignant », ou déplacez un
+créneau d'abord.
+
+### 42. Le partant redevient inerte
+
+1. Se reconnecter avec le compte retiré.
+
+**Attendu** : l'écran **« Rejoindre un centre »**, et plus aucune donnée. Un
+nouveau code d'invitation le fait revenir — avec un nom affiché qu'il ressaisit.
+
+La preuve automatisée, y compris le comptage avant/après qui montre qu'aucune
+donnée n'a disparu :
+
+```bash
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/retrait_membre.sql
+```
