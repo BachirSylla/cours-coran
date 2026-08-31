@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { addWeeks, startOfISOWeek } from 'date-fns'
 import { CalendarCheck, Loader2, TriangleAlert } from 'lucide-react'
 
+import { useMembre } from '@/features/membres/hooks/useMembre'
 import { ListeSeancesJour } from '@/features/seances/components/ListeSeancesJour'
 import { NavigateurSemaine } from '@/features/seances/components/NavigateurSemaine'
 import { SeanceFormDialog } from '@/features/seances/components/SeanceFormDialog'
@@ -31,6 +32,9 @@ function ajouterJours(date: string, jours: number): string {
 export function SeancesSemainePage() {
   const [lundi, setLundi] = useState(lundiCourant)
   const [vueSaisie, setVueSaisie] = useState<SeanceVueEnrichie | null>(null)
+  // Saisir une séance revient à l'enseignant affecté au cours (migration 0017) :
+  // la liste montre tout ce qu'on a le droit de lire, la saisie suit l'affectation.
+  const { userId } = useMembre()
 
   const dimanche = ajouterJours(lundi, 6)
   const aujourdhui = chaineDepuisDate(new Date())
@@ -104,6 +108,7 @@ export function SeancesSemainePage() {
               groupe={groupe}
               estAujourdhui={groupe.date === aujourdhui}
               onOuvrir={setVueSaisie}
+              userId={userId}
             />
           ))}
         </div>

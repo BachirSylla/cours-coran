@@ -136,12 +136,19 @@ $$;
 -- =============================================================================
 -- 2. Le double-booking d'un même enseignant reste refusé
 -- =============================================================================
+-- Décor, donc en `postgres` : depuis le verrou de colonne de 0017, nommer
+-- `centre_id` dans un insert est refusé à `authenticated` — l'application ne le
+-- fait pas non plus, elle laisse le défaut de la table le poser.
+reset role;
+
 insert into public.cours (centre_id, enseignant_id, libelle, type_cours_id, format, date_debut)
 select public.__id('centre'), public.__id('u_a'), 'Amina-second', id, 'individuel', '2026-01-05'
 from public.type_cours limit 1;
 
 insert into public.t_ids (cle, val)
 select 'cours_amina2', id from public.cours where libelle = 'Amina-second';
+
+set local role authenticated;
 
 do $$
 begin

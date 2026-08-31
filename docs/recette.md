@@ -438,3 +438,77 @@ delete from public.membre where user_id = '<uuid du compte>';
 
 À garder en tête avant de transmettre un code : le rattachement est définitif
 côté interface.
+
+---
+
+## Autonomie de l'enseignant (migration 0017)
+
+La frontière des rôles a **changé de place**. Elle ne sépare plus « gestion » et
+« pédagogie » mais ce qu'on **structure** et ce qu'on **anime** — et l'autorité
+pédagogique tient à l'**affectation**, pas au rôle.
+
+|                                          | Responsable               | Enseignant affecté            |
+| ---------------------------------------- | ------------------------- | ----------------------------- |
+| Identité du cours, créneaux, affectation | ✅                        | ❌                            |
+| Prix et règlements                       | ✅                        | ❌ (ne le **voit** même plus) |
+| Composition de la classe                 | ✅                        | lecture seule                 |
+| Séances, présences, notes                | ❌ _(sauf s'il enseigne)_ | ✅                            |
+| Examen, réglages, logo, visio, partage   | ❌ _(idem)_               | ✅                            |
+| Rapport, lecture des réglages            | ✅                        | ✅                            |
+
+### 33. Non-régression : le compte solo
+
+Vous êtes responsable **et** enseignant de vos cours : tout doit se comporter
+comme avant. Créez un cours, modifiez-le, saisissez une séance et une présence,
+notez un examen, réglez la notation du cours, activez le partage, exportez un
+rapport.
+
+**Attendu** : rien ne change — sauf **un** détail : le champ « Lien de
+visioconférence » a quitté le formulaire de cours pour une section
+**Visioconférence** dans la fiche du cours. C'est le seul déplacement visible.
+
+### 34. Le prix n'est plus lisible par un enseignant
+
+1. Avec le compte enseignant (scénario 13), ouvrir un cours qui lui est affecté.
+
+**Attendu** : ni « Prix mensuel », ni section « Règlements ». Ce n'était
+auparavant qu'un masquage d'interface — la base le lui laissait lire. Le tarif
+vit désormais dans sa propre table, fermée en **lecture** au non-responsable.
+
+### 35. L'enseignant devient autonome
+
+Toujours avec le compte enseignant, sur **son** cours :
+
+**Attendu** — tout ceci lui est désormais ouvert, alors que c'était refusé hier :
+
+- saisir la **note d'examen** de fin de session ;
+- déplier **Réglages spécifiques** et changer la part d'assiduité, les
+  pénalités, la base académique, le **logo** du cours ;
+- renseigner le **lien de visioconférence** ;
+- **activer, régénérer et révoquer** le lien de partage.
+
+### 36. Le responsable qui n'enseigne pas ce cours
+
+Avec votre compte, ouvrez un cours **affecté à l'autre enseignant**.
+
+**Attendu** : vous voyez la structure (prix, règlements, « Modifier le cours »,
+composition de la classe) et vous **lisez** tout — séances, notes, examen, et le
+rapport s'exporte. Mais les sections **Visioconférence, Partage, Examen et
+Réglages spécifiques ont disparu**, et vous ne pouvez plus saisir de séance ni
+de présence sur ce cours.
+
+⚠️ **Conséquence à connaître** : vous ne pouvez plus rattraper une note ni
+activer un lien de partage sur le cours d'un collègue. Il faut vous l'affecter
+le temps de le faire, puis le lui rendre.
+
+### 37. Un enseignant ne touche pas au cours d'un collègue
+
+Sans interface pour cela, c'est le script qui le prouve — et il teste le refus
+**entre deux enseignants**, pas seulement le refus d'un responsable :
+
+```bash
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls_etancheite.sql
+```
+
+Section **E** : chaque RPC remonte elle-même jusqu'au cours et vérifie qui
+appelle. Le client ne nomme jamais le cours, donc ne peut pas le forcer.

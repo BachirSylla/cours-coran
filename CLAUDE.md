@@ -132,6 +132,17 @@ Les types de cours sont dans une **table de référence** (extensible), pas en d
   de la plage de vie du cours : une ligne n'existe qu'une fois un règlement enregistré, et son
   `montant_du` est alors figé.
 
+### `tarif` (migration 0017)
+
+- `cours_id` (PK), `centre_id`, `prix_mensuel`, `devise`. FK **composite** vers
+  `cours (id, centre_id)`.
+- **Gardée `est_responsable()` en LECTURE comme en écriture.** C'est la fermeture d'une fuite :
+  un enseignant lisait `cours.prix_mensuel` sur ses propres cours — l'interface le masquait, la
+  RLS non — et `inscriptionRepo.listByApprenant` embarquait `cours(*)` dans la fiche apprenant.
+- L'embed PostgREST revient **vide** pour un enseignant, pas en erreur : ce n'est pas un cas
+  d'exception à traiter. Passer par `tarifDuCours()` (`coursRepo.ts`), la relation n'étant pas
+  reconnue comme un-à-un à cause de la FK composite.
+
 ### `centre` et `membre` (migration 0012)
 
 - `centre` : `id`, `nom`. **C'est lui qui possède les données**, plus un compte.
@@ -313,6 +324,59 @@ L'étanchéité est **structurelle**, pas seulement déclarative.
     vers `site_url`. `RequireMembre` accueille ces comptes inertes plutôt que de leur montrer une
     application vide, qui se lirait comme une panne.
 
+12. **Structure contre pédagogie** (migration 0017) — le renversement de 0011 et de la place que
+    0012 donnait à l'examen. La frontière ne passe plus entre « gestion » et « pédagogie » mais
+    entre ce qu'on **structure** et ce qu'on **anime**, et l'autorité pédagogique tient à
+    l'**affectation**, jamais au rôle :
+    - **responsable**, sur tout cours de son centre : identité du cours, créneaux, affectation
+      (`enseignant_id`), tarif et règlements, composition de la classe, réglages **par défaut** du
+      centre (`parametres`) ;
+    - **enseignant affecté** (`cours.enseignant_id = auth.uid()`), sur **son** cours : séances,
+      présences, notes de récitation, note d'examen, surcharges de notation, logo du cours, lien
+      de visioconférence, lien de partage, rapport.
+
+    Un responsable qui enseigne le cours fait les deux ; un responsable qui ne l'enseigne pas ne
+    peut **rien** y corriger côté pédagogique — il doit se l'affecter le temps de le faire.
+
+    **La règle qui décide de chaque cas.** Les privilèges de colonne portent sur le rôle Postgres
+    `authenticated`, que le responsable et l'enseignant partagent : ils ne peuvent **jamais**
+    séparer les deux. D'où :
+
+    > on **décompose** quand la LECTURE doit se fermer ; on **révoque la colonne** et on passe par
+    > une RPC quand seule l'ÉCRITURE se ferme.
+
+    Une seule décomposition en découle — `tarif`. Tout le reste garde ses colonnes sur `cours` et
+    `inscription`, sorties des `grant`, écrites par six RPC `security definer` gardées
+    `cours_enseignes()` : `definir_reglages_cours`, `definir_lien_meet`, `noter_examen`, et les
+    trois de partage, passées d'`invoker` à `definer` pour cette raison même.
+
+    Chaque RPC **résout elle-même sa cible jusqu'au cours** — `noter_examen` remonte de
+    l'inscription — et vérifie que l'appelant l'enseigne. Le client ne nomme jamais le cours, donc
+    ne peut pas le forcer ; c'est l'analogue du code d'invitation qui porte son rôle (§5.11).
+
+    ⚠️ `definir_reglages_cours` **remplace** les sept réglages d'un bloc : une clé absente vaut
+    `null`, c'est-à-dire « hériter du centre », et non « inchangé ».
+
+    ⚠️ `enregistrer_cours` est `security invoker` : les privilèges de colonne de `cours`
+    s'appliquent **à l'intérieur** d'elle. La liste re-grantée doit couvrir **exactement** ce
+    qu'elle écrit — une colonne oubliée casse toute création et toute édition de cours, en
+    silence côté client. Éprouvé par le chemin HTTP réel, pas seulement en test unitaire.
+
+    **Un cours sans enseignant ne gèle pas.** `cours.enseignant_id` est
+    `on delete set null` : supprimer un membre désaffecte ses cours. `cours_animables()` — le
+    helper qu'emploient réellement les policies et les RPC — ajoute donc, pour un responsable, les
+    cours que personne n'enseigne. Sans cela, plus personne ne pourrait y toucher une séance ni
+    une note.
+
+    **Cette frontière est à un `update` de distance**, et c'est voulu : `enseignant_id` est de la
+    structure, donc un responsable peut s'affecter n'importe quel cours et récupérer alors toute
+    l'autorité pédagogique. Ce n'est pas une barrière contre lui, c'est une séparation des flux de
+    travail.
+
+    Les **lectures ne se resserrent pas** : responsable et enseignant lisent les réglages
+    effectifs, les séances, les présences et l'examen de tout ce que `cours_lisibles()` leur
+    ouvre. Le rapport en dépend.
+
 ## 6. Fonctionnalités
 
 - Vue principale : **grille hebdomadaire** (jours × heures), blocs colorés, **conflit visible
@@ -363,6 +427,10 @@ psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/conflit_enseignant.
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/invitation.sql
 ```
 
+Les migrations qui verrouillent `cours` prennent un verrou exclusif : les lancer avec
+`-c "set lock_timeout='15s'"`, pour qu'une contention échoue bruyamment plutôt que d'attendre en
+silence derrière une connexion PostgREST restée ouverte.
+
 ⚠️ Les migrations qui remplacent `enregistrer_cours` se succèdent (0002, 0012, 0013, 0014) :
 rejouer une ancienne après une plus récente **restaure son comportement**. L'idempotence se
 vérifie en rejouant une migration juste après elle-même, jamais dans le désordre.
@@ -410,5 +478,10 @@ npx supabase gen types typescript --db-url "$SUPABASE_DB_URL" > src/shared/supab
   réaccorder ce qui doit l'être.
 - Ne jamais donner à une fonction d'invitation un paramètre `centre_id` ou `role` : ce que le
   client peut nommer, il peut le forcer.
+- Ne pas garder l'écriture pédagogique sur `cours_lisibles()` : pour un responsable, ce
+  helper inclut les cours d'autrui. C'est `cours_enseignes()` — strictement
+  `enseignant_id = auth.uid()`.
+- Ne pas ajouter une colonne aux `grant` de `cours` sans se demander qui doit l'écrire :
+  la liste est exactement ce que `enregistrer_cours` touche, et rien de plus.
 - Ne pas réintroduire de propriétaire par compte : `owner_id` a disparu en 0015, et le tenant est
   le centre. Une isolation par `auth.uid()` rouvrirait tout ce que 0012 a refermé.

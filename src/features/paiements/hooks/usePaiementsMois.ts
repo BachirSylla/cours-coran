@@ -12,6 +12,7 @@ import {
   type LignePaiement,
   type StatutPaiement,
 } from '@/shared/lib/paiements'
+import { tarifDuCours } from '@/shared/supabase/coursRepo'
 import * as paiementRepo from '@/shared/supabase/paiementRepo'
 import type { Paiement } from '@/shared/supabase/paiementRepo'
 
@@ -76,7 +77,9 @@ export function usePaiementsMois(mois: string): ResultatPaiementsMois {
       genererMoisDus(
         {
           id: unCours.id,
-          prix_mensuel: unCours.prix_mensuel,
+          // `tarif` est gardée responsable en lecture (0017) ; cette page l'est
+          // aussi, donc l'embed est toujours présent ici.
+          prix_mensuel: tarifDuCours(unCours)?.prix_mensuel ?? null,
           date_debut: unCours.date_debut,
           date_fin: unCours.date_fin,
         },
@@ -100,7 +103,7 @@ export function usePaiementsMois(mois: string): ResultatPaiementsMois {
       return {
         ...ligne,
         cours_libelle: unCours?.libelle ?? 'Cours supprimé',
-        devise: unCours?.devise ?? 'XOF',
+        devise: unCours ? (tarifDuCours(unCours)?.devise ?? 'XOF') : 'XOF',
       }
     })
 

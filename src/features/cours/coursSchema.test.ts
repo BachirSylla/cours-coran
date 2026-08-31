@@ -81,15 +81,16 @@ describe('coursSchema — champs du cours', () => {
     expect(coursSchema.safeParse({ ...minimal, date_fin: '2027-01-01' }).success).toBe(true)
   })
 
-  it('valide le lien Meet quand il est présent', () => {
-    expect(coursSchema.parse({ ...minimal, lien_meet: '' }).lien_meet).toBeNull()
-    expect(
-      coursSchema.parse({ ...minimal, lien_meet: 'https://meet.google.com/abc-defg-hij' })
-        .lien_meet
-    ).toBe('https://meet.google.com/abc-defg-hij')
-    expect(messagePour({ ...minimal, lien_meet: 'meet google' }, 'lien_meet')).toBe(
-      'Le lien doit être une URL valide (https://…).'
-    )
+  it('ignore un lien Meet : il n’est plus de la structure', () => {
+    // Le lien de visioconférence relève de l'enseignant qui assure le cours et
+    // se règle dans sa fiche (migration 0017). Le schéma de structure ne le
+    // valide plus, et ne doit surtout pas le laisser passer au serveur.
+    const analyse = coursSchema.parse({
+      ...minimal,
+      lien_meet: 'https://meet.google.com/abc-defg-hij',
+    })
+
+    expect(analyse).not.toHaveProperty('lien_meet')
   })
 
   it('convertit le prix mensuel et refuse les valeurs négatives ou non numériques', () => {

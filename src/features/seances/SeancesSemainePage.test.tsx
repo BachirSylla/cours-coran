@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { chaineDepuisDate, dateDepuisChaine } from '@/shared/lib/seances'
 
+import { useMembre } from '@/features/membres/hooks/useMembre'
 import { useSeancesSemaine } from '@/features/seances/hooks/useSeancesSemaine'
 import type { SeanceVueEnrichie } from '@/features/seances/regroupement'
 import { SeancesSemainePage } from '@/features/seances/SeancesSemainePage'
@@ -17,6 +18,7 @@ vi.mock('@/features/seances/components/SeanceFormDialog', () => ({
   SeanceFormDialog: ({ vue }: { vue: SeanceVueEnrichie | null }) =>
     vue ? <div role="dialog">Saisie {vue.cours_libelle}</div> : null,
 }))
+vi.mock('@/features/membres/hooks/useMembre', () => ({ useMembre: vi.fn() }))
 
 const useSeancesSemaineMock = vi.mocked(useSeancesSemaine)
 
@@ -55,6 +57,9 @@ function vue(options: Partial<SeanceVueEnrichie> = {}): SeanceVueEnrichie {
     cours_libelle: 'Groupe Hifz',
     type_libelle: 'Mémorisation',
     format: 'groupe',
+    // Par défaut, la séance est celle du compte connecté : c'est la situation
+    // du centre à un enseignant, et celle de tous les cas historiques.
+    enseignant_id: 'moi',
     ...options,
   }
 }
@@ -80,6 +85,14 @@ function afficher() {
 describe('SeancesSemainePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(useMembre).mockReturnValue({
+      membre: null,
+      userId: 'moi',
+      centreId: 'centre-1',
+      role: 'responsable',
+      estResponsable: true,
+      chargement: false,
+    })
   })
 
   it('affiche un indicateur pendant le chargement', () => {
@@ -196,5 +209,18 @@ describe('SeancesSemainePage', () => {
     await utilisateur.click(screen.getByRole('button', { name: /semaine précédente/i }))
 
     expect(screen.getByRole('button', { name: /aujourd/i })).toBeEnabled()
+  })
+
+  it('ne propose pas la saisie sur la séance d’un collègue', () => {
+    // Saisir revient à l'enseignant affecté (migration 0017). La séance reste
+    // LISIBLE — un responsable doit voir le planning de son centre — mais le
+    // bouton est inerte plutôt que de promettre un enregistrement que la RLS
+    // refuserait.
+    simuler({ vues: [vue({ enseignant_id: 'un-collegue' })] })
+
+    afficher()
+
+    expect(screen.getByText('Groupe Hifz')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Groupe Hifz/ })).toBeDisabled()
   })
 })

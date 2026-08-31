@@ -15,6 +15,12 @@ export interface SeanceVueEnrichie extends SeanceVue<Seance> {
   cours_libelle: string
   type_libelle: string | null
   format: string
+  /**
+   * Enseignant affecté au cours. Saisir une séance lui revient (migration
+   * 0017) : sans cette information, l'écran hebdomadaire proposerait la saisie
+   * à un responsable dont la RLS refuserait ensuite l'enregistrement.
+   */
+  enseignant_id: string | null
 }
 
 export interface GroupeJour {

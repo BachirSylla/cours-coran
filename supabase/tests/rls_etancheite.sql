@@ -22,6 +22,9 @@
 --   C. Frontière GESTION / PÉDAGOGIE   — à l'intérieur d'un même centre, sur
 --                                        ses PROPRES cours.
 --   D. Non-régression du durcissement 0007 — `anon` reste sans droit table.
+--   E. STRUCTURE contre PÉDAGOGIE   — le renversement du lot 0017 : l'autorité
+--                                     pédagogique tient à l'AFFECTATION, pas au
+--                                     rôle.
 -- =============================================================================
 
 \set ON_ERROR_STOP on
@@ -89,6 +92,41 @@ begin
 end;
 $$;
 
+/*
+ * Appel qui doit être REFUSÉ par une exception précise.
+ *
+ * Les RPC du lot 0017 lèvent P0020 (« ce n'est pas votre cours ») : `__refus`
+ * ne les reconnaîtrait pas, et laisserait l'exception remonter comme un échec
+ * de script au lieu d'un refus attendu.
+ */
+create function public.__refus_erreur(p_sql text, p_etat text, p_message text)
+returns void language plpgsql security invoker as $$
+declare v_etat text;
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    get stacked diagnostics v_etat = returned_sqlstate;
+    if v_etat <> p_etat then
+      raise exception 'MAUVAIS REFUS — % : attendu %, obtenu % (%)',
+        p_message, p_etat, v_etat, sqlerrm;
+    end if;
+    return;
+  end;
+
+  raise exception 'FAILLE — % : l''appel a été ACCEPTÉ', p_message;
+end;
+$$;
+
+/* Prend l'identité d'un compte pour la suite de la transaction. */
+create function public.__devenir(p_user uuid)
+returns void language plpgsql as $$
+begin
+  perform set_config('request.jwt.claims',
+    format('{"sub":"%s","role":"authenticated"}', p_user), true);
+end;
+$$;
+
 /* Absence de DROIT sur la table — plus fort que « zéro ligne visible ». */
 create function public.__refus_droit(p_sql text, p_message text)
 returns void language plpgsql security invoker as $$
@@ -144,16 +182,16 @@ insert into public.membre (centre_id, user_id, role, nom_affiche) values
   (public.__id('c_alpha'), public.__id('u_b'),  'enseignant',  'B'),
   (public.__id('c_beta'),  public.__id('u_r2'), 'responsable', 'R2');
 
-insert into public.cours (centre_id, enseignant_id, libelle, type_cours_id, format, date_debut, prix_mensuel)
-select public.__id('c_alpha'), public.__id('u_a'), 'Alpha-A', t.id, 'groupe', '2026-01-05', 10000
+insert into public.cours (centre_id, enseignant_id, libelle, type_cours_id, format, date_debut)
+select public.__id('c_alpha'), public.__id('u_a'), 'Alpha-A', t.id, 'groupe', '2026-01-05'
 from public.type_cours as t limit 1;
 
-insert into public.cours (centre_id, enseignant_id, libelle, type_cours_id, format, date_debut, prix_mensuel)
-select public.__id('c_alpha'), public.__id('u_b'), 'Alpha-B', t.id, 'groupe', '2026-01-05', 10000
+insert into public.cours (centre_id, enseignant_id, libelle, type_cours_id, format, date_debut)
+select public.__id('c_alpha'), public.__id('u_b'), 'Alpha-B', t.id, 'groupe', '2026-01-05'
 from public.type_cours as t limit 1;
 
-insert into public.cours (centre_id, enseignant_id, libelle, type_cours_id, format, date_debut, prix_mensuel)
-select public.__id('c_beta'), public.__id('u_r2'), 'Beta', t.id, 'groupe', '2026-01-05', 10000
+insert into public.cours (centre_id, enseignant_id, libelle, type_cours_id, format, date_debut)
+select public.__id('c_beta'), public.__id('u_r2'), 'Beta', t.id, 'groupe', '2026-01-05'
 from public.type_cours as t limit 1;
 
 insert into t_ids (cle, val)
@@ -304,18 +342,23 @@ begin
     format('update public.cours set libelle = ''Renommé'' where id = %L', public.__id('cours_a')),
     'A renomme SON PROPRE cours');
 
-  perform public.__refus(
-    format('update public.cours set prix_mensuel = 1 where id = %L', public.__id('cours_a')),
-    'A change le prix de SON PROPRE cours');
+  perform public.__refus_droit(
+    format($sql$insert into public.tarif (cours_id, centre_id, prix_mensuel)
+                values (%L, %L, 1)$sql$, public.__id('cours_a'), public.__id('c_alpha')),
+    'A fixe le prix de SON PROPRE cours');
+
+  -- Et il ne le LIT même plus : c'est la fermeture de la fuite (0017).
+  perform public.__attendre('select count(*) from public.tarif', 0::bigint,
+    'A lit le tarif de ses propres cours');
 
   perform public.__refus(
     format('delete from public.cours where id = %L', public.__id('cours_a')),
     'A supprime SON PROPRE cours');
 
   perform public.__refus(
-    format($sql$insert into public.cours (centre_id, enseignant_id, libelle, type_cours_id, format, date_debut)
-                select %L, %L, 'Créé par A', id, 'groupe', '2026-02-01' from public.type_cours limit 1$sql$,
-           public.__id('c_alpha'), public.__id('u_a')),
+    format($sql$insert into public.cours (enseignant_id, libelle, type_cours_id, format, date_debut)
+                select %L, 'Créé par A', id, 'groupe', '2026-02-01' from public.type_cours limit 1$sql$,
+           public.__id('u_a')),
     'A crée un cours dans son centre');
 
   -- creneau -------------------------------------------------------------------
@@ -348,9 +391,16 @@ begin
     'A supprime un apprenant');
 
   -- inscription ---------------------------------------------------------------
-  perform public.__refus(
+  -- L'examen a CHANGÉ DE CAMP en 0017 : il appartient à l'enseignant. L'écriture
+  -- directe reste fermée aux deux — seule la RPC écrit, et elle vérifie qui.
+  perform public.__refus_droit(
     format('update public.inscription set note_examen = 20 where cours_id = %L', public.__id('cours_a')),
-    'A saisit la note d''EXAMEN sur son propre cours (elle relève de la gestion)');
+    'A écrit la note d''examen directement dans la table');
+
+  perform public.__attendre(
+    format($sql$select count(*) from public.inscription
+                 where cours_id = %L and note_examen is not null$sql$, public.__id('cours_a')),
+    1::bigint, 'A LIT la note d''examen de son cours');
 
   perform public.__refus(
     format('delete from public.inscription where cours_id = %L', public.__id('cours_a')),
@@ -490,14 +540,21 @@ begin
     2::bigint, 'R1 voit le travail de l''apprenant partagé chez SES DEUX enseignants');
 
   -- --- Il gère ------------------------------------------------------------
+  -- Le prix vit dans `tarif` depuis 0017, gardée responsable en LECTURE comme
+  -- en écriture — c'est ce qui ferme la fuite qu'un enseignant exploitait.
   perform public.__accepte(
-    format('update public.cours set prix_mensuel = 12000 where id = %L', public.__id('cours_a')),
-    'R1 change le prix d''un cours de son centre');
+    format($sql$insert into public.tarif (cours_id, centre_id, prix_mensuel)
+                values (%L, %L, 12000)
+                on conflict (cours_id) do update set prix_mensuel = 12000
+                returning cours_id$sql$,
+           public.__id('cours_a'), public.__id('c_alpha')),
+    'R1 fixe le prix d''un cours de son centre');
 
-  perform public.__accepte(
-    format('update public.inscription set note_examen = 16, examen_bareme = 20 where cours_id = %L',
+  -- La note d'examen, elle, lui échappe désormais : elle relève de l'enseignant.
+  perform public.__refus_erreur(
+    format('select public.noter_examen((select id from public.inscription where cours_id = %L limit 1), 16, 20)',
            public.__id('cours_a')),
-    'R1 saisit la note d''examen');
+    'P0020', 'R1 note l''examen d''un cours qu''il n''enseigne pas');
 
   -- --- Il CRÉE, et la ligne créée lui revient -------------------------------
   --
@@ -512,11 +569,15 @@ begin
     'R1 crée un apprenant et le relit');
 
   perform public.__accepte(
-    format($sql$insert into public.cours (centre_id, enseignant_id, libelle, type_cours_id, format, date_debut)
-                select %L, %L, 'Alpha-neuf', id, 'groupe', '2026-03-01'
+    -- `centre_id` n'est PAS nommé : il vient du défaut de la table, exactement
+    -- comme le fait `enregistrer_cours`. Le nommer exigerait un privilège de
+    -- colonne que le verrou de 0017 ne donne à personne — et l'assertion
+    -- passerait alors pour une mauvaise raison.
+    format($sql$insert into public.cours (enseignant_id, libelle, type_cours_id, format, date_debut)
+                select %L, 'Alpha-neuf', id, 'groupe', '2026-03-01'
                 from public.type_cours limit 1
                 returning id$sql$,
-           public.__id('c_alpha'), public.__id('u_a')),
+           public.__id('u_a')),
     'R1 crée un cours et le relit');
 
   perform public.__accepte(
@@ -537,11 +598,14 @@ begin
            public.__id('c_alpha'), public.__id('cours_a')),
     'R1 enregistre un règlement et le relit');
 
-  perform public.__accepte(
+  -- ⚠️ Renversement du lot 0017 : R1 n'enseigne PAS `cours_a`. Poser une séance
+  -- dessus lui est désormais refusé, alors qu'il le pouvait avant. Le cas
+  -- accepté est plus bas, sur un cours qu'il enseigne réellement.
+  perform public.__refus(
     format($sql$insert into public.seance (centre_id, cours_id, date, heure_debut, heure_fin)
-                values (%L, %L, '2026-03-02', '09:00', '10:00') returning id$sql$,
+                values (%L, %L, '2026-03-02', '09:00', '10:00')$sql$,
            public.__id('c_alpha'), public.__id('cours_a')),
-    'R1 crée une séance et la relit');
+    'R1 pose une séance sur un cours qu''il n''enseigne pas');
 
   -- La voie réelle de l'application : cours + créneaux en une transaction, avec
   -- le garde-fou de chevauchement (CLAUDE.md §5.1).
@@ -669,6 +733,296 @@ end;
 $$;
 
 -- =============================================================================
+-- E. STRUCTURE contre PÉDAGOGIE — le renversement du lot 0017
+--
+-- Jusqu'ici la frontière passait entre « gestion » et « pédagogie », le
+-- responsable pouvant tout écrire dans son centre. Elle passe désormais entre
+-- ce qu'on STRUCTURE et ce qu'on ANIME, et l'autorité pédagogique tient à
+-- l'AFFECTATION, pas au rôle :
+--
+--   * R1, responsable, n'enseigne pas `cours_b` → il n'y écrit RIEN de
+--     pédagogique, alors qu'il le pouvait avant ;
+--   * B, enseignant de `cours_b`, y écrit tout — et rien de la structure ;
+--   * A, enseignant d'un AUTRE cours, est refusé sur celui de B.
+--
+-- `cours_b` est resté à B d'un bout à l'autre du script : les réaffectations
+-- plus haut n'ont touché que `cours_a`.
+-- =============================================================================
+reset role;
+set local role authenticated;
+
+-- --- R1, responsable qui n'enseigne pas ce cours : refusé sur le pédagogique
+do $$
+declare v_inscription uuid;
+begin
+  perform public.__devenir(public.__id('u_r1'));
+
+  select id into v_inscription from public.inscription where cours_id = public.__id('cours_b');
+
+  perform public.__refus(
+    format($sql$insert into public.seance (centre_id, cours_id, date, heure_debut, heure_fin)
+                values (%L, %L, '2026-04-01', '09:00', '10:00')$sql$,
+           public.__id('c_alpha'), public.__id('cours_b')),
+    'R1 pose une séance sur le cours de B');
+
+  perform public.__refus(
+    format($sql$update public.seance set contenu_aborde = 'Par le responsable' where id = %L$sql$,
+           public.__id('seance_b')),
+    'R1 saisit le contenu d''une séance de B');
+
+  perform public.__refus(
+    format('update public.presence set note = 20 where seance_id = %L', public.__id('seance_b')),
+    'R1 note une récitation sur une séance de B');
+
+  perform public.__refus_erreur(
+    format('select public.noter_examen(%L, 12, 20)', v_inscription),
+    'P0020', 'R1 note l''examen d''un cours de B');
+
+  perform public.__refus_erreur(
+    format($sql$select public.definir_reglages_cours(%L, '{"bareme_assiduite": 5}'::jsonb)$sql$,
+           public.__id('cours_b')),
+    'P0020', 'R1 règle la notation d''un cours de B');
+
+  perform public.__refus_erreur(
+    format($sql$select public.definir_lien_meet(%L, 'https://exemple.test/r1')$sql$,
+           public.__id('cours_b')),
+    'P0020', 'R1 pose le lien visio d''un cours de B');
+
+  perform public.__refus_erreur(
+    format('select public.activer_partage(%L)', public.__id('cours_b')),
+    'P0020', 'R1 active le partage d''un cours de B');
+
+  -- Le logo passe par la même RPC que les réglages : une seule porte.
+  perform public.__refus_erreur(
+    format($sql$select public.definir_reglages_cours(%L, '{"logo": "data:image/png;base64,AA"}'::jsonb)$sql$,
+           public.__id('cours_b')),
+    'P0020', 'R1 pose le logo d''un cours de B');
+
+  /*
+   * LE VERROU DE COLONNE — la porte de derrière.
+   *
+   * R1 passe la policy d'UPDATE de `cours` : seul le privilège de colonne
+   * l'arrête sur ces neuf-là. Si le `revoke insert, update on cours` de 0017
+   * cessait de mordre — un `grant` réintroduit, une migration jouée dans le
+   * désordre — le responsable réécrirait directement tout ce que ce lot vient
+   * de lui retirer, et les refus par RPC plus haut n'y verraient rien.
+   */
+  perform public.__refus_droit(
+    format('update public.cours set lien_meet = ''https://pirate.test'' where id = %L',
+           public.__id('cours_a')),
+    'R1 écrit le lien visio directement dans la table');
+
+  perform public.__refus_droit(
+    format('update public.cours set jeton_partage = gen_random_uuid() where id = %L',
+           public.__id('cours_a')),
+    'R1 choisit lui-même le jeton de partage');
+
+  perform public.__refus_droit(
+    format('update public.cours set bareme_assiduite = 3 where id = %L', public.__id('cours_a')),
+    'R1 règle la notation directement dans la table');
+
+  perform public.__refus_droit(
+    format('update public.cours set logo = ''data:image/png;base64,AA'' where id = %L',
+           public.__id('cours_a')),
+    'R1 pose le logo directement dans la table');
+
+  /*
+   * ⚠️ À savoir en relisant : cette frontière est à UN `update` de distance.
+   * `enseignant_id` est de la structure, donc R1 peut s'affecter n'importe quel
+   * cours et récupérer alors toute l'autorité pédagogique. C'est cohérent — il
+   * est le responsable — mais ce n'est pas une barrière contre lui, c'est une
+   * séparation des flux de travail.
+   */
+
+  -- --- Mais il LIT tout : le rapport en dépend (invariant de lecture large).
+  perform public.__attendre(
+    format('select count(*) from public.seance where cours_id = %L', public.__id('cours_b')),
+    1::bigint, 'R1 lit les séances d''un cours qu''il n''enseigne pas');
+
+  perform public.__attendre(
+    format('select count(*) from public.presence where cours_id = %L', public.__id('cours_b')),
+    1::bigint, 'R1 lit les présences d''un cours qu''il n''enseigne pas');
+
+  perform public.__attendre(
+    format($sql$select count(*) from public.inscription
+                 where cours_id = %L and note_examen is not null$sql$, public.__id('cours_b')),
+    1::bigint, 'R1 lit la note d''examen d''un cours qu''il n''enseigne pas');
+end;
+$$;
+
+-- --- B, enseignant du cours : accepté sur les huit points de son métier
+do $$
+declare v_inscription uuid;
+begin
+  perform public.__devenir(public.__id('u_b'));
+
+  select id into v_inscription from public.inscription where cours_id = public.__id('cours_b');
+
+  perform public.__accepte(
+    format($sql$update public.seance set contenu_aborde = 'Leçon 7' where id = %L$sql$,
+           public.__id('seance_b')),
+    'B saisit le contenu de SA séance');
+
+  perform public.__accepte(
+    format('update public.presence set note = 15, note_bareme = 20 where seance_id = %L',
+           public.__id('seance_b')),
+    'B note la récitation sur SA séance');
+
+  perform public.__accepte(
+    format('select public.noter_examen(%L, 14, 20)', v_inscription),
+    'B note l''examen de SON cours');
+
+  -- ⚠️ La RPC REMPLACE les sept réglages d'un bloc : une clé absente vaut
+  -- « hériter du centre », pas « inchangé ». C'est le contrat du formulaire,
+  -- qui les envoie toujours ensemble — d'où un seul appel ici.
+  perform public.__accepte(
+    format($sql$select public.definir_reglages_cours(%L,
+             '{"bareme_assiduite": 5, "assiduite_active": false,
+               "logo": "data:image/png;base64,AA"}'::jsonb)$sql$,
+           public.__id('cours_b')),
+    'B règle la notation et le logo de SON cours');
+
+  perform public.__accepte(
+    format($sql$select public.definir_lien_meet(%L, 'https://exemple.test/b')$sql$,
+           public.__id('cours_b')),
+    'B pose le lien visio de SON cours');
+
+  perform public.__accepte(
+    format('select public.activer_partage(%L)', public.__id('cours_b')),
+    'B active le partage de SON cours');
+
+  perform public.__accepte(
+    format('select public.revoquer_partage(%L)', public.__id('cours_b')),
+    'B révoque le partage de SON cours');
+
+  -- Les réglages ont bien été écrits — l'acceptation ne masque pas un no-op.
+  perform public.__attendre(
+    format($sql$select count(*) from public.cours
+                 where id = %L and bareme_assiduite = 5 and assiduite_active = false
+                   and logo is not null
+                   and lien_meet = 'https://exemple.test/b'$sql$, public.__id('cours_b')),
+    1::bigint, 'les réglages, le logo et le lien de B sont réellement enregistrés');
+
+  -- --- Et il reste refusé sur la STRUCTURE, même de son propre cours -------
+  perform public.__refus(
+    format('update public.cours set libelle = ''Renommé par B'' where id = %L',
+           public.__id('cours_b')),
+    'B renomme SON PROPRE cours');
+
+  perform public.__refus(
+    format('update public.cours set enseignant_id = %L where id = %L',
+           public.__id('u_b'), public.__id('cours_a')),
+    'B se réaffecte le cours de A');
+
+  perform public.__refus(
+    format($sql$insert into public.creneau (centre_id, cours_id, jour_semaine, heure_debut, heure_fin)
+                values (%L, %L, 3, '08:00', '09:00')$sql$,
+           public.__id('c_alpha'), public.__id('cours_b')),
+    'B ajoute un créneau à SON PROPRE cours');
+
+  perform public.__refus_droit(
+    format($sql$insert into public.tarif (cours_id, centre_id, prix_mensuel)
+                values (%L, %L, 500)$sql$, public.__id('cours_b'), public.__id('c_alpha')),
+    'B fixe le prix de SON PROPRE cours');
+
+  perform public.__attendre('select count(*) from public.tarif', 0::bigint, 'B lit un tarif');
+
+  perform public.__refus(
+    format('delete from public.inscription where cours_id = %L', public.__id('cours_b')),
+    'B désinscrit un apprenant de SON PROPRE cours');
+end;
+$$;
+
+-- --- Un cours SANS enseignant ne gèle pas : le responsable reprend la main
+--
+-- `cours.enseignant_id` est `on delete set null` (0012) : supprimer un membre
+-- désaffecte ses cours. Sans la seconde branche de `cours_animables()`, plus
+-- personne — pas même le responsable — ne pourrait y toucher une séance. Un
+-- cours que personne n'enseigne ne prive personne.
+do $$
+begin
+  perform public.__devenir(public.__id('u_r1'));
+
+  perform public.__accepte(
+    format('update public.cours set enseignant_id = null where id = %L', public.__id('cours_a')),
+    'R1 désaffecte un cours');
+
+  perform public.__accepte(
+    format($sql$insert into public.seance (centre_id, cours_id, date, heure_debut, heure_fin)
+                values (%L, %L, '2026-05-01', '09:00', '10:00') returning id$sql$,
+           public.__id('c_alpha'), public.__id('cours_a')),
+    'R1 pose une séance sur un cours que personne n''enseigne');
+
+  perform public.__accepte(
+    format($sql$select public.definir_lien_meet(%L, 'https://exemple.test/orphelin')$sql$,
+           public.__id('cours_a')),
+    'R1 pose le lien visio d''un cours orphelin');
+
+  -- Mais un ENSEIGNANT n'hérite pas des orphelins pour autant.
+  perform public.__devenir(public.__id('u_b'));
+  perform public.__refus_erreur(
+    format($sql$select public.definir_lien_meet(%L, 'https://exemple.test/pirate')$sql$,
+           public.__id('cours_a')),
+    'P0020', 'B pose le lien visio d''un cours orphelin');
+
+  -- On rend le cours à A pour ne pas fausser la suite.
+  perform public.__devenir(public.__id('u_r1'));
+  perform public.__accepte(
+    format('update public.cours set enseignant_id = %L where id = %L',
+           public.__id('u_a'), public.__id('cours_a')),
+    'R1 réaffecte le cours à A');
+end;
+$$;
+
+-- --- A, enseignant d'un AUTRE cours : les RPC ne le laissent pas entrer
+--
+-- C'est l'analogue du « le code porte le rôle, pas le client » du lot 4 : chaque
+-- RPC résout elle-même sa cible jusqu'au cours, et vérifie que l'APPELANT
+-- l'enseigne. Un refus « responsable » ne prouverait pas cela.
+do $$
+declare v_inscription uuid;
+begin
+  select id into v_inscription from public.inscription where cours_id = public.__id('cours_b');
+
+  perform public.__devenir(public.__id('u_a'));
+
+  perform public.__refus_erreur(
+    format('select public.noter_examen(%L, 20, 20)', v_inscription),
+    'P0020', 'A note l''examen d''un cours de B');
+
+  perform public.__refus_erreur(
+    format($sql$select public.definir_reglages_cours(%L, '{"bareme_assiduite": 0}'::jsonb)$sql$,
+           public.__id('cours_b')),
+    'P0020', 'A règle la notation d''un cours de B');
+
+  perform public.__refus_erreur(
+    format($sql$select public.definir_lien_meet(%L, 'https://exemple.test/pirate')$sql$,
+           public.__id('cours_b')),
+    'P0020', 'A pose le lien visio d''un cours de B');
+
+  perform public.__refus_erreur(
+    format('select public.activer_partage(%L)', public.__id('cours_b')),
+    'P0020', 'A active le partage d''un cours de B');
+
+  perform public.__refus_erreur(
+    format('select public.regenerer_partage(%L)', public.__id('cours_b')),
+    'P0020', 'A régénère le lien de partage d''un cours de B');
+
+  perform public.__refus_erreur(
+    format('select public.revoquer_partage(%L)', public.__id('cours_b')),
+    'P0020', 'A révoque le partage d''un cours de B');
+
+  -- Rien n'a bougé chez B. Constaté depuis R1 : A ne voit pas les inscriptions
+  -- de B, et compterait zéro quel que soit le résultat.
+  perform public.__devenir(public.__id('u_r1'));
+  perform public.__attendre(
+    format($sql$select count(*) from public.inscription
+                 where id = %L and note_examen = 14$sql$, v_inscription),
+    1::bigint, 'la note d''examen de B est intacte après les tentatives de A');
+end;
+$$;
+
+-- =============================================================================
 -- Identité : le responsable R2 (centre Beta) — l'étanchéité dans l'autre sens
 -- =============================================================================
 reset role;
@@ -749,6 +1103,26 @@ begin
   perform public.__refus_droit('select public.centre_courant()',   'anon appelle `centre_courant()`');
   perform public.__refus_droit('select public.est_responsable()',  'anon appelle `est_responsable()`');
   perform public.__refus_droit('select public.cours_lisibles()',   'anon appelle `cours_lisibles()`');
+  perform public.__refus_droit('select 1 from public.tarif', 'anon lit `tarif`');
+  perform public.__refus_droit('select public.cours_enseignes()', 'anon appelle `cours_enseignes()`');
+  perform public.__refus_droit('select public.cours_animables()', 'anon appelle `cours_animables()`');
+  -- Les trois RPC de partage sont passées d'`invoker` à `definer` en 0017 :
+  -- elles écrivent désormais en contournant la RLS. Re-prouver que `anon` ne
+  -- les atteint pas est le minimum.
+  perform public.__refus_droit(
+    format('select public.activer_partage(%L)', gen_random_uuid()), 'anon active un partage');
+  perform public.__refus_droit(
+    format('select public.regenerer_partage(%L)', gen_random_uuid()), 'anon régénère un partage');
+  perform public.__refus_droit(
+    format('select public.revoquer_partage(%L)', gen_random_uuid()), 'anon révoque un partage');
+  perform public.__refus_droit(
+    format('select public.noter_examen(%L, 10, 20)', gen_random_uuid()), 'anon note un examen');
+  perform public.__refus_droit(
+    format($sql$select public.definir_lien_meet(%L, 'https://x.test')$sql$, gen_random_uuid()),
+    'anon pose un lien visio');
+  perform public.__refus_droit(
+    format($sql$select public.definir_reglages_cours(%L, '{}'::jsonb)$sql$, gen_random_uuid()),
+    'anon règle la notation');
 end;
 $$;
 

@@ -3,8 +3,11 @@ import { z } from 'zod'
 import { heureEnMinutes, type JourSemaine } from '@/shared/lib/conflits'
 
 /**
- * Validation d'un cours et de ses créneaux — schéma unique partagé par le
- * formulaire (React Hook Form) et la logique (CLAUDE.md §9).
+ * Validation de la **structure** d'un cours et de ses créneaux — schéma unique
+ * partagé par le formulaire (React Hook Form) et la logique (CLAUDE.md §9).
+ *
+ * Le lien de visioconférence n'y figure plus : il relève de l'enseignant qui
+ * assure le cours, et se règle dans sa fiche (migration 0017).
  *
  * Comme pour les apprenants, deux types en sortent : `z.input` (ce que manipule
  * le formulaire, tout en chaînes) et `z.output` (ce qui part vers le repository,
@@ -137,14 +140,6 @@ export const coursSchema = z
       .refine((valeur) => valeur === null || FORMAT_DATE.test(valeur), {
         message: 'La date de fin est invalide.',
       }),
-    lien_meet: z
-      .string()
-      .trim()
-      .optional()
-      .transform((valeur) => (valeur === undefined || valeur === '' ? null : valeur))
-      .refine((valeur) => valeur === null || URL.canParse(valeur), {
-        message: 'Le lien doit être une URL valide (https://…).',
-      }),
     prix_mensuel: z
       .union([z.string(), z.number()])
       .optional()
@@ -193,7 +188,6 @@ export function valeursParDefaut(): CoursFormValues {
     enseignant_id: '',
     date_debut: aujourdhui(),
     date_fin: '',
-    lien_meet: '',
     prix_mensuel: '',
     devise: 'XOF',
     statut: 'actif',

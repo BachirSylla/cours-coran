@@ -3,7 +3,6 @@ import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/r
 import { coursKeys } from '@/features/cours/hooks/coursKeys'
 import type { SurchargesCours } from '@/shared/lib/paramsCours'
 import * as coursRepo from '@/shared/supabase/coursRepo'
-import type { Cours } from '@/shared/supabase/coursRepo'
 
 export interface ReglagesCours {
   coursId: string
@@ -17,7 +16,7 @@ export interface ReglagesCours {
  * Invalide toute la famille `coursKeys` : le rapport lit ces colonnes, la fiche
  * les affiche, et la liste les transporte.
  */
-export function useDefinirReglagesCours(): UseMutationResult<Cours, Error, ReglagesCours> {
+export function useDefinirReglagesCours(): UseMutationResult<void, Error, ReglagesCours> {
   const queryClient = useQueryClient()
 
   return useMutation({

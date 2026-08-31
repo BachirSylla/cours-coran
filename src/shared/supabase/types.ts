@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   graphql_public: {
     Tables: {
@@ -119,7 +119,6 @@ export type Database = {
           created_at: string
           date_debut: string
           date_fin: string | null
-          devise: string
           enseignant_id: string | null
           format: string
           id: string
@@ -130,7 +129,6 @@ export type Database = {
           penaliser_absences_excusees: boolean | null
           penalite_absence: number | null
           penalite_retard: number | null
-          prix_mensuel: number | null
           statut: string
           type_cours_id: string
           updated_at: string
@@ -143,7 +141,6 @@ export type Database = {
           created_at?: string
           date_debut: string
           date_fin?: string | null
-          devise?: string
           enseignant_id?: string | null
           format: string
           id?: string
@@ -154,7 +151,6 @@ export type Database = {
           penaliser_absences_excusees?: boolean | null
           penalite_absence?: number | null
           penalite_retard?: number | null
-          prix_mensuel?: number | null
           statut?: string
           type_cours_id: string
           updated_at?: string
@@ -167,7 +163,6 @@ export type Database = {
           created_at?: string
           date_debut?: string
           date_fin?: string | null
-          devise?: string
           enseignant_id?: string | null
           format?: string
           id?: string
@@ -178,7 +173,6 @@ export type Database = {
           penaliser_absences_excusees?: boolean | null
           penalite_absence?: number | null
           penalite_retard?: number | null
-          prix_mensuel?: number | null
           statut?: string
           type_cours_id?: string
           updated_at?: string
@@ -624,6 +618,41 @@ export type Database = {
           },
         ]
       }
+      tarif: {
+        Row: {
+          centre_id: string
+          cours_id: string
+          created_at: string
+          devise: string
+          prix_mensuel: number | null
+          updated_at: string
+        }
+        Insert: {
+          centre_id: string
+          cours_id: string
+          created_at?: string
+          devise?: string
+          prix_mensuel?: number | null
+          updated_at?: string
+        }
+        Update: {
+          centre_id?: string
+          cours_id?: string
+          created_at?: string
+          devise?: string
+          prix_mensuel?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tarif_cours_fkey"
+            columns: ["cours_id", "centre_id"]
+            isOneToOne: false
+            referencedRelation: "cours"
+            referencedColumns: ["id", "centre_id"]
+          },
+        ]
+      }
       type_cours: {
         Row: {
           created_at: string
@@ -650,6 +679,8 @@ export type Database = {
       activer_partage: { Args: { p_cours_id: string }; Returns: string }
       apprenants_lisibles: { Args: never; Returns: string[] }
       centre_courant: { Args: never; Returns: string }
+      cours_animables: { Args: never; Returns: string[] }
+      cours_enseignes: { Args: never; Returns: string[] }
       cours_lisibles: { Args: never; Returns: string[] }
       cours_public: {
         Args: { jeton: string }
@@ -665,6 +696,14 @@ export type Database = {
         }[]
       }
       creer_invitation: { Args: { p_jours?: number }; Returns: string }
+      definir_lien_meet: {
+        Args: { p_cours_id: string; p_lien: string }
+        Returns: undefined
+      }
+      definir_reglages_cours: {
+        Args: { p_cours_id: string; p_reglages: Json }
+        Returns: undefined
+      }
       empreinte_code: { Args: { p_code: string }; Returns: string }
       enregistrer_cours: {
         Args: { p_cours: Json; p_cours_id?: string; p_creneaux: Json }
@@ -676,7 +715,6 @@ export type Database = {
           created_at: string
           date_debut: string
           date_fin: string | null
-          devise: string
           enseignant_id: string | null
           format: string
           id: string
@@ -687,7 +725,6 @@ export type Database = {
           penaliser_absences_excusees: boolean | null
           penalite_absence: number | null
           penalite_retard: number | null
-          prix_mensuel: number | null
           statut: string
           type_cours_id: string
           updated_at: string
@@ -701,6 +738,10 @@ export type Database = {
       }
       est_responsable: { Args: never; Returns: boolean }
       normaliser_code: { Args: { p_code: string }; Returns: string }
+      noter_examen: {
+        Args: { p_bareme: number; p_inscription_id: string; p_note: number }
+        Returns: undefined
+      }
       racheter_invitation: {
         Args: { p_code: string; p_nom_affiche: string }
         Returns: string

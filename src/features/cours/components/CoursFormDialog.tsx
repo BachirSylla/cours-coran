@@ -26,7 +26,7 @@ import {
 } from '@/features/inscriptions/reglesInscription'
 import type { Membre } from '@/shared/supabase/membreRepo'
 import type { TypeCours } from '@/shared/supabase/typeCoursRepo'
-import type { CoursAvecDetails } from '@/shared/supabase/coursRepo'
+import { tarifDuCours, type CoursAvecDetails } from '@/shared/supabase/coursRepo'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
 import {
@@ -83,9 +83,11 @@ function versFormulaire(cours: CoursAvecDetails): CoursFormValues {
     enseignant_id: cours.enseignant_id ?? '',
     date_debut: cours.date_debut,
     date_fin: cours.date_fin ?? '',
-    lien_meet: cours.lien_meet ?? '',
-    prix_mensuel: cours.prix_mensuel === null ? '' : String(cours.prix_mensuel),
-    devise: cours.devise,
+    prix_mensuel:
+      tarifDuCours(cours)?.prix_mensuel == null
+        ? ''
+        : String(tarifDuCours(cours)?.prix_mensuel),
+    devise: tarifDuCours(cours)?.devise ?? 'XOF',
     statut: (STATUTS_COURS.find((s) => s === cours.statut) ??
       'actif') as CoursFormValues['statut'],
     creneaux: cours.creneau.map((creneau) => ({
@@ -338,23 +340,6 @@ export function CoursFormDialog({
                 <p className="text-sm text-destructive">{errors.date_fin.message}</p>
               )}
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="lien_meet">Lien de visioconférence</Label>
-            <Input
-              id="lien_meet"
-              type="url"
-              placeholder="https://meet.google.com/…"
-              aria-invalid={Boolean(errors.lien_meet)}
-              {...register('lien_meet')}
-            />
-            <p className="text-xs text-muted-foreground">
-              Un seul lien pour tout le cours, réutilisé par toutes ses séances.
-            </p>
-            {errors.lien_meet && (
-              <p className="text-sm text-destructive">{errors.lien_meet.message}</p>
-            )}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3">

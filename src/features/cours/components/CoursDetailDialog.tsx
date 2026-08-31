@@ -12,6 +12,7 @@ import {
   type StatutCours,
 } from '@/features/cours/coursSchema'
 import { SectionReglagesCours } from '@/features/cours/components/SectionReglagesCours'
+import { SectionVisio } from '@/features/cours/components/SectionVisio'
 import { useMembre } from '@/features/membres/hooks/useMembre'
 import { SectionExamen } from '@/features/inscriptions/components/SectionExamen'
 import { SectionInscriptions } from '@/features/inscriptions/components/SectionInscriptions'
@@ -20,7 +21,7 @@ import { SectionPartage } from '@/features/partage/components/SectionPartage'
 import { SeanceFormDialog } from '@/features/seances/components/SeanceFormDialog'
 import { SeancesRecentesCours } from '@/features/seances/components/SeancesRecentesCours'
 import type { SeanceVueEnrichie } from '@/features/seances/regroupement'
-import type { CoursAvecDetails } from '@/shared/supabase/coursRepo'
+import { tarifDuCours, type CoursAvecDetails } from '@/shared/supabase/coursRepo'
 import { Button } from '@/shared/ui/button'
 import {
   Dialog,
@@ -60,14 +61,21 @@ function Champ({ libelle, children }: { libelle: string; children: React.ReactNo
 }
 
 /**
- * Détail d'un cours : ses informations, ses apprenants inscrits, et l'accès à
- * l'édition. C'est la porte d'entrée depuis la liste comme depuis la grille.
+ * Détail d'un cours. C'est la porte d'entrée depuis la liste comme depuis la
+ * grille — et l'endroit où la frontière des rôles se voit le mieux.
  *
- * Ce qui relève de la **gestion** — partage, prix et règlements, note d'examen,
- * réglages, édition du cours — n'est montré qu'au responsable. La RLS le
- * refuserait de toute façon à un enseignant (migration 0012) ; le masquer
- * évite de lui tendre des boutons qui échoueraient. Ce qui relève de la
- * **pédagogie** — séances, présences, notes de récitation — lui reste ouvert.
+ * Deux autorités distinctes, et elles ne se recouvrent pas (migration 0017) :
+ *
+ *   * le **responsable** tient la STRUCTURE — identité, planning, affectation,
+ *     prix et règlements, composition de la classe ;
+ *   * l'**enseignant affecté** anime SON cours — séances, notes, examen,
+ *     réglages de notation, logo, lien visio, lien de partage.
+ *
+ * Un responsable qui enseigne le cours voit les deux ; un responsable qui ne
+ * l'enseigne pas ne voit que la structure. La RLS refuse de toute façon ce qui
+ * est masqué — le masquage évite seulement de tendre des boutons qui
+ * échoueraient. Les LECTURES, elles, restent ouvertes aux deux : le rapport en
+ * dépend.
  */
 export function CoursDetailDialog({
   cours,
@@ -76,7 +84,11 @@ export function CoursDetailDialog({
 }: CoursDetailDialogProps) {
   const [vueSaisie, setVueSaisie] = useState<SeanceVueEnrichie | null>(null)
   const [exportOuvert, setExportOuvert] = useState(false)
-  const { estResponsable } = useMembre()
+  const { estResponsable, userId } = useMembre()
+
+  // L'autorité pédagogique tient à l'affectation, pas au rôle : un responsable
+  // n'anime que les cours qu'il enseigne lui-même.
+  const estEnseignantDuCours = cours !== null && cours.enseignant_id === userId
 
   return (
     <Dialog open={Boolean(cours)} onOpenChange={onOuvertChange}>
@@ -117,13 +129,17 @@ export function CoursDetailDialog({
 
               {estResponsable && (
                 <Champ libelle="Prix mensuel">
-                  {cours.prix_mensuel === null ? '—' : `${cours.prix_mensuel} ${cours.devise}`}
+                  {tarifDuCours(cours)?.prix_mensuel == null
+                    ? '—'
+                    : `${tarifDuCours(cours)?.prix_mensuel} ${tarifDuCours(cours)?.devise}`}
                 </Champ>
               )}
 
-              <Champ libelle="Visioconférence">
-                <LienMeet lien={cours.lien_meet} />
-              </Champ>
+              {!estEnseignantDuCours && (
+                <Champ libelle="Visioconférence">
+                  <LienMeet lien={cours.lien_meet} />
+                </Champ>
+              )}
             </dl>
 
             <SectionInscriptions
@@ -132,23 +148,31 @@ export function CoursDetailDialog({
               lectureSeule={!estResponsable}
             />
 
-            {estResponsable && (
-              <SectionPartage
-                coursId={cours.id}
-                libelle={cours.libelle}
-                jetonPartage={cours.jeton_partage}
-              />
+            {estEnseignantDuCours && (
+              <>
+                <SectionVisio cours={cours} />
+                <SectionPartage
+                  coursId={cours.id}
+                  libelle={cours.libelle}
+                  jetonPartage={cours.jeton_partage}
+                />
+              </>
             )}
 
-            <SeancesRecentesCours cours={cours} onOuvrir={setVueSaisie} />
+            <SeancesRecentesCours
+              cours={cours}
+              onOuvrir={setVueSaisie}
+              lectureSeule={!estEnseignantDuCours}
+            />
 
-            {estResponsable && (
+            {estEnseignantDuCours && (
               <>
                 <SectionExamen coursId={cours.id} />
                 <SectionReglagesCours cours={cours} />
-                <SectionPaiements cours={cours} />
               </>
             )}
+
+            {estResponsable && <SectionPaiements cours={cours} />}
 
             <DialogFooter>
               <Button variant="outline" onClick={() => setExportOuvert(true)}>

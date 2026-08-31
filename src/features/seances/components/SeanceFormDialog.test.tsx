@@ -49,6 +49,7 @@ function vue(options: Partial<SeanceVueEnrichie> = {}): SeanceVueEnrichie {
     cours_libelle: 'Groupe Hifz',
     type_libelle: 'Mémorisation',
     format: 'groupe',
+    enseignant_id: null,
     ...options,
   }
 }

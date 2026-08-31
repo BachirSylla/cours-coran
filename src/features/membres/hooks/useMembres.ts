@@ -19,7 +19,12 @@ export function useMembres(): UseQueryResult<Membre[], Error> {
   return useQuery({
     queryKey: [...membreKeys.tous, 'liste'],
     queryFn: () => membreRepo.list(),
-    // La composition d'un centre ne bouge pas pendant qu'on remplit un formulaire.
-    staleTime: 60 * 60_000,
+    /*
+     * Une minute, et pas une heure. Inviter quelqu'un est PRÉCISÉMENT ce qui
+     * fait bouger cette liste — et le rachat du code invalide le cache du
+     * nouveau venu, pas celui du responsable. Avec une heure, le sélecteur
+     * d'enseignant restait invisible longtemps après l'arrivée du collègue.
+     */
+    staleTime: 60_000,
   })
 }

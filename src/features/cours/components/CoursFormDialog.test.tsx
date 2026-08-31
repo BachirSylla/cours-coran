@@ -76,13 +76,12 @@ function cours(extra: Partial<CoursAvecDetails> = {}): CoursAvecDetails {
     penalite_absence: null,
     penalite_retard: null,
     penaliser_absences_excusees: null,
-    prix_mensuel: null,
-    devise: 'XOF',
     statut: 'actif',
     created_at: '2026-07-01T10:00:00Z',
     updated_at: '2026-07-01T10:00:00Z',
     type_cours: { libelle: 'Mémorisation' },
     inscription: [{ count: 0 }],
+    tarif: [],
     creneau: [
       {
         id: 'creneau-c1',

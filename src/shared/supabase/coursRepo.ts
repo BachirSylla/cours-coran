@@ -16,32 +16,30 @@ export type Cours = TableCours['Row']
 export type Creneau = Database['public']['Tables']['creneau']['Row']
 
 /**
- * Champs du cours pilotés par l'utilisateur (`centre_id` reste à la base).
- * `jeton_partage` en est exclu : le secret du lien public n'est jamais choisi
- * par le formulaire, il est tiré par le serveur (voir `activerPartage`).
+ * La **structure** d'un cours : ce que le responsable pilote (migration 0017).
  *
- * `enseignant_id` en fait partie depuis la migration 0014 : le responsable
- * choisit qui assure le cours. `null` y signifie « inchangé », jamais
- * « désaffecter ».
+ * Ce n'est plus un `Omit<>` de la ligne `cours`, et ce ne peut plus l'être :
+ * `prix_mensuel` et `devise` ont quitté la table pour `tarif`, tout en restant
+ * de la charge utile — `enregistrer_cours` les y route. Une interface explicite
+ * dit mieux ce qui part au serveur qu'une soustraction de colonnes.
+ *
+ * Ce qui n'y figure PAS relève de l'enseignant, par ses propres RPC : le lien
+ * visio, le jeton de partage, le logo et les six surcharges de notation.
+ *
+ * `enseignant_id` : `null` signifie « inchangé », jamais « désaffecter ».
  */
-export type CoursInput = Omit<
-  TableCours['Insert'],
-  | 'id'
-  | 'centre_id'
-  | 'created_at'
-  | 'updated_at'
-  | 'jeton_partage'
-  // Les surcharges de notation et le logo (migration 0011) ne passent pas non
-  // plus par le formulaire : ils ont leur propre section et leur propre
-  // écriture, et `enregistrer_cours` n'écrit pas ces colonnes.
-  | 'logo'
-  | 'assiduite_active'
-  | 'base_academique'
-  | 'bareme_assiduite'
-  | 'penalite_absence'
-  | 'penalite_retard'
-  | 'penaliser_absences_excusees'
->
+export interface CoursInput {
+  libelle: string
+  type_cours_id: string
+  format: string
+  date_debut: string
+  date_fin?: string | null
+  statut?: string
+  enseignant_id?: string | null
+  /** Routé vers `tarif`, que seul un responsable lit et écrit. */
+  prix_mensuel?: number | null
+  devise?: string
+}
 
 /** Créneau tel que saisi dans le formulaire (sans identité ni propriétaire). */
 export interface CreneauInput {
@@ -56,9 +54,28 @@ export type CoursAvecDetails = Cours & {
   creneau: Creneau[]
   /** Agrégat PostgREST : évite une requête de comptage par cours. */
   inscription: { count: number }[]
+  /**
+   * Tarif du cours (migration 0017), en **tableau** : la clé étrangère de
+   * `tarif` est composite `(cours_id, centre_id)`, et PostgREST n'y reconnaît
+   * donc pas une relation un-à-un — alors que `cours_id` en est bien la clé
+   * primaire. Passer par `tarifDuCours()` plutôt que d'éparpiller des `[0]`.
+   *
+   * **Vide pour un enseignant** : la table est gardée `est_responsable()` en
+   * lecture, et un embed que la RLS filtre revient vide plutôt qu'en erreur.
+   * Ce n'est pas un cas d'exception à traiter — c'est le comportement voulu.
+   */
+  tarif: { prix_mensuel: number | null; devise: string }[]
 }
 
-const SELECT_DETAILS = '*, type_cours(libelle), creneau(*), inscription(count)'
+/** Le tarif du cours, ou `null` — ce que voit un enseignant. */
+export function tarifDuCours(
+  cours: CoursAvecDetails
+): { prix_mensuel: number | null; devise: string } | null {
+  return cours.tarif[0] ?? null
+}
+
+const SELECT_DETAILS =
+  '*, type_cours(libelle), creneau(*), inscription(count), tarif(prix_mensuel, devise)'
 
 /** Nombre d'apprenants inscrits, extrait de l'agrégat. */
 export function nombreInscrits(cours: Pick<CoursAvecDetails, 'inscription'>): number {
@@ -138,23 +155,36 @@ export function update(
 
 /**
  * Réglages propres à un cours (migration 0011) : notation et logo.
+ * `null` sur un champ signifie « hériter du centre ».
  *
- * `null` sur un champ signifie « hériter du centre ». Un simple `update` suffit
- * — la policy `cours_update_own` fait le contrôle d'accès, et ces colonnes sont
- * hors du périmètre de `enregistrer_cours`, qui reste consacrée au cours et à
- * ses créneaux.
+ * Passe par une RPC depuis la migration 0017, et il ne peut plus en être
+ * autrement : ces colonnes sont sorties des `grant` de `cours`, parce qu'un
+ * privilège de colonne ne sait pas distinguer le responsable de l'enseignant —
+ * les deux sont le même rôle Postgres. La RPC, elle, vérifie que l'appelant
+ * enseigne ce cours.
  */
-export async function definirReglages(id: string, surcharges: SurchargesCours): Promise<Cours> {
-  const { data, error } = await getSupabaseClient()
-    .from('cours')
-    .update(surcharges)
-    .eq('id', id)
-    .select('*')
-    .single()
+export async function definirReglages(id: string, surcharges: SurchargesCours): Promise<void> {
+  const { error } = await getSupabaseClient().rpc('definir_reglages_cours', {
+    p_cours_id: id,
+    p_reglages: surcharges as unknown as Json,
+  })
 
   lancerSiErreur(error, 'Enregistrement des réglages du cours')
+}
 
-  return data
+/**
+ * Lien de visioconférence — l'enseignant du cours, et lui seul (migration 0017).
+ *
+ * Il a quitté le formulaire de structure pour la même raison que les réglages :
+ * la colonne est hors des `grant`, la RPC porte la garde.
+ */
+export async function definirLienMeet(id: string, lien: string | null): Promise<void> {
+  const { error } = await getSupabaseClient().rpc('definir_lien_meet', {
+    p_cours_id: id,
+    p_lien: lien ?? '',
+  })
+
+  lancerSiErreur(error, 'Enregistrement du lien de visioconférence')
 }
 
 /**
@@ -162,8 +192,10 @@ export async function definirReglages(id: string, surcharges: SurchargesCours): 
  *
  * Les trois opérations passent par une RPC plutôt que par un `update` : le
  * jeton est ainsi tiré par le CSPRNG **du serveur** — le navigateur ne choisit
- * jamais le secret — et l'écriture reste atomique. Les fonctions sont en
- * `security invoker` : c'est la policy `cours_update_own` qui autorise, ou non.
+ * jamais le secret — et l'écriture reste atomique. Depuis la migration 0017
+ * elles sont `security definer` et vérifient elles-mêmes que l'appelant
+ * **enseigne** le cours : `jeton_partage` est sorti des `grant`, une fonction
+ * `invoker` ne pourrait plus l'écrire.
  */
 
 /** Active le partage et renvoie le jeton. N'écrase pas un lien déjà actif. */

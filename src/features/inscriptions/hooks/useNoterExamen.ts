@@ -2,7 +2,7 @@ import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/r
 
 import { inscriptionKeys } from '@/features/inscriptions/hooks/inscriptionKeys'
 import * as inscriptionRepo from '@/shared/supabase/inscriptionRepo'
-import type { ExamenInput, Inscription } from '@/shared/supabase/inscriptionRepo'
+import type { ExamenInput } from '@/shared/supabase/inscriptionRepo'
 
 export interface NotationExamen {
   inscriptionId: string
@@ -13,13 +13,13 @@ export interface NotationExamen {
 }
 
 /** Note d'examen de fin de session d'un apprenant pour un cours. */
-export function useNoterExamen(): UseMutationResult<Inscription, Error, NotationExamen> {
+export function useNoterExamen(): UseMutationResult<void, Error, NotationExamen> {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: ({ inscriptionId, examen }: NotationExamen) =>
       inscriptionRepo.noterExamen(inscriptionId, examen),
-    onSuccess: (_inscription, { apprenantId, coursId }) => {
+    onSuccess: (_resultat, { apprenantId, coursId }) => {
       void queryClient.invalidateQueries({ queryKey: inscriptionKeys.parCours(coursId) })
       // La fiche de l'apprenant liste ses cours : elle doit suivre.
       void queryClient.invalidateQueries({

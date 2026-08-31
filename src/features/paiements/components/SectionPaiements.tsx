@@ -14,7 +14,7 @@ import {
   libelleMois,
   moisCourant,
 } from '@/shared/lib/paiements'
-import type { CoursAvecDetails } from '@/shared/supabase/coursRepo'
+import { tarifDuCours, type CoursAvecDetails } from '@/shared/supabase/coursRepo'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
 
@@ -34,10 +34,20 @@ export function SectionPaiements({ cours, limite = 6 }: SectionPaiementsProps) {
 
   const courant = moisCourant()
 
+  /*
+   * Le tarif vit dans sa propre table depuis la migration 0017, gardée
+   * `est_responsable()` en lecture. `null` ici n'est donc pas une anomalie :
+   * c'est ce que voit un enseignant. Cette section ne lui est de toute façon
+   * pas montrée.
+   */
+  const tarif = tarifDuCours(cours)
+  const prixMensuel = tarif?.prix_mensuel ?? null
+  const devise = tarif?.devise ?? 'XOF'
+
   const dus = genererMoisDus(
     {
       id: cours.id,
-      prix_mensuel: cours.prix_mensuel,
+      prix_mensuel: prixMensuel,
       date_debut: cours.date_debut,
       date_fin: cours.date_fin,
     },
@@ -77,7 +87,7 @@ export function SectionPaiements({ cours, limite = 6 }: SectionPaiementsProps) {
 
       {!isPending && !isError && lignes.length === 0 && (
         <p className="rounded-lg border border-dashed px-4 py-4 text-center text-sm text-muted-foreground">
-          {cours.prix_mensuel === null
+          {prixMensuel === null
             ? 'Aucun prix mensuel renseigné pour ce cours.'
             : 'Aucun mois à facturer pour le moment.'}
         </p>
@@ -91,8 +101,8 @@ export function SectionPaiements({ cours, limite = 6 }: SectionPaiementsProps) {
                 {libelleMois(ligne.mois)}
               </span>
               <span className="min-w-0 flex-1 text-xs text-muted-foreground tabular-nums">
-                {formaterMontant(ligne.montant_recu, cours.devise)} /{' '}
-                {formaterMontant(ligne.montant_du, cours.devise)}
+                {formaterMontant(ligne.montant_recu, devise)} /{' '}
+                {formaterMontant(ligne.montant_du, devise)}
               </span>
               <StatutPaiementBadge statut={ligne.statut} />
               <Button
@@ -105,7 +115,7 @@ export function SectionPaiements({ cours, limite = 6 }: SectionPaiementsProps) {
                     mois: ligne.mois,
                     montant_du: ligne.montant_du,
                     montant_recu: ligne.montant_recu,
-                    devise: cours.devise,
+                    devise,
                   })
                 }
                 aria-label={`Enregistrer un règlement pour ${libelleMois(ligne.mois)}`}

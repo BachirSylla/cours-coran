@@ -67,8 +67,6 @@ function inscription(id: string, libelleCours: string): InscriptionAvecCours {
       penalite_absence: null,
       penalite_retard: null,
       penaliser_absences_excusees: null,
-      prix_mensuel: null,
-      devise: 'XOF',
       statut: 'actif',
       created_at: '2026-07-27T10:00:00Z',
       updated_at: '2026-07-27T10:00:00Z',

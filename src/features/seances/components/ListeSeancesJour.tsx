@@ -9,6 +9,8 @@ export interface ListeSeancesJourProps {
   /** Met en évidence la journée en cours. */
   estAujourdhui: boolean
   onOuvrir: (vue: SeanceVueEnrichie) => void
+  /** Compte connecté : seul l'enseignant affecté saisit une séance (0017). */
+  userId: string | null
 }
 
 function formaterDate(date: string): string {
@@ -17,7 +19,12 @@ function formaterDate(date: string): string {
 }
 
 /** Séances d'une journée — composant présentational pur. */
-export function ListeSeancesJour({ groupe, estAujourdhui, onOuvrir }: ListeSeancesJourProps) {
+export function ListeSeancesJour({
+  groupe,
+  estAujourdhui,
+  onOuvrir,
+  userId,
+}: ListeSeancesJourProps) {
   return (
     <section className="space-y-2">
       <h2
@@ -38,6 +45,7 @@ export function ListeSeancesJour({ groupe, estAujourdhui, onOuvrir }: ListeSeanc
           <li key={`${vue.cours_id}-${vue.date}-${vue.heure_debut}`}>
             <button
               type="button"
+              disabled={vue.enseignant_id !== userId}
               onClick={() => onOuvrir(vue)}
               className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-muted/50"
             >

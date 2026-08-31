@@ -84,23 +84,25 @@ export interface ExamenInput {
  * Le barème accompagne la note, comme pour les récitations : changer de réglage
  * plus tard ne doit pas réinterpréter une note déjà donnée. La base refuse
  * d'ailleurs une note sans son barème (`inscription_note_examen_coherente`).
- *
  * Effacer une note se fait en passant les deux champs à `null`.
+ *
+ * Passe par une RPC depuis la migration 0017 : l'examen relève de **l'enseignant
+ * du cours**, et les deux colonnes sont sorties des `grant` d'`inscription` —
+ * ni lui ni le responsable ne les écrivent directement. La fonction remonte
+ * elle-même de l'inscription à son cours pour vérifier qui appelle : le client
+ * ne nomme jamais le cours, donc ne peut pas le forcer.
  */
-export async function noterExamen(
-  inscriptionId: string,
-  examen: ExamenInput
-): Promise<Inscription> {
-  const { data, error } = await getSupabaseClient()
-    .from('inscription')
-    .update(examen)
-    .eq('id', inscriptionId)
-    .select('*')
-    .single()
+export async function noterExamen(inscriptionId: string, examen: ExamenInput): Promise<void> {
+  // Les arguments d'une fonction Postgres ne portent pas de nullabilité : les
+  // types générés les déclarent `number`, alors que `null` est précisément la
+  // façon d'effacer une note. La conversion est ici, à un seul endroit.
+  const { error } = await getSupabaseClient().rpc('noter_examen', {
+    p_inscription_id: inscriptionId,
+    p_note: examen.note_examen as number,
+    p_bareme: examen.examen_bareme as number,
+  })
 
   lancerSiErreur(error, "Enregistrement de la note d'examen")
-
-  return data
 }
 
 /** Retire l'apprenant du cours — **et supprime sa note d'examen avec la ligne**. */
