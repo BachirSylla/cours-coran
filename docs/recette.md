@@ -707,3 +707,82 @@ liste exacte des clés publiées, et `anon` toujours sans aucun droit table :
 ```bash
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/suivi_apprenant.sql
 ```
+
+---
+
+## Présence réservée aux séances tenues (migration 0020)
+
+Deux correctifs sur le formulaire de séance. Le premier ferme une porte, le
+second répare un oubli d'affichage.
+
+### 49. Une séance qui n'a pas eu lieu n'a rien à pointer
+
+1. Ouvrir une séance, passer son statut à **Annulée** (ou Reportée, ou Absence).
+
+**Attendu** : le formulaire se réduit au **statut** et à un champ **Motif**.
+Disparaissent : la section « Présence et évaluation », mais aussi Contenu
+abordé, Détails Coran, Exercices et Observations — tous décrivent ce qui s'est
+passé, et une séance qui n'a pas eu lieu n'a rien à en dire. Le rappel des
+exercices de la fois d'avant disparaît aussi.
+
+⚠️ **Rien n'est effacé.** Si la séance portait déjà un contenu, il est conservé
+et réapparaît si vous repassez en « Faite ». Vérifiez-le : c'est le genre de
+détail qui se casse en silence.
+
+2. Repasser le statut à **Faite**.
+
+**Attendu** : la présence revient, et le champ Motif disparaît. Le motif
+enregistré est **effacé** : une raison d'annulation ne survit pas à ce qu'elle
+explique.
+
+### 50. Le refus tient aussi côté base
+
+Ce n'est pas qu'un masquage d'écran. La preuve automatisée pose l'invariant dans
+les deux sens — écrire une présence sur une séance non tenue, et faire sortir de
+« faite » une séance qui en porte déjà :
+
+```bash
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/presence_seance_faite.sql
+```
+
+⚠️ **Onze pointages ont été supprimés** à l'application de la migration : des
+apprenants marqués « absents » à des séances annulées, produits par le défaut
+corrigé ici. Aucun ne portait de note ni de commentaire — la migration s'arrête
+d'elle-même si ce n'est pas le cas, plutôt que de détruire du travail.
+
+### 51. Annuler une séance déjà pointée
+
+1. Sur une séance **faite** où des présences sont saisies, passer le statut à
+   **Annulée**, puis enregistrer.
+
+**Attendu** : l'enregistrement est **refusé**, avec le nombre de pointages en
+cause. C'est voulu : supprimer du travail saisi n'est pas une décision qu'un
+trigger doit prendre à votre place.
+
+2. Cliquer **Retirer les pointages**, confirmer, puis enregistrer.
+
+**Attendu** : la confirmation annonce combien de notes partent avec. Une fois les
+pointages retirés, le changement de statut passe.
+
+### 52. Une séance à venir ne propose pas de pointage
+
+1. Ouvrir une séance dont la date est **dans le futur** (la grille en propose à
+   chaque semaine à venir).
+
+**Attendu** : « Cette séance n'a pas encore eu lieu. » Aucun champ Motif — elle
+n'a rien à expliquer, elle n'a simplement pas encore eu lieu.
+
+Cette garde-ci vit dans l'application, pas dans la base, et c'est délibéré :
+« aujourd'hui » est celui de votre appareil, pas celui du serveur — qui est en
+UTC et refuserait à tort une saisie faite en soirée.
+
+### 53. Les notes déjà saisies se réaffichent, toujours
+
+1. Noter un ou plusieurs apprenants sur une séance, fermer le dialogue.
+2. **Recharger la page** (pour vider le cache), puis rouvrir cette séance.
+
+**Attendu** : les notes, commentaires et passages récités sont là. C'est le
+second correctif : le formulaire se remplissait au montage, avant l'arrivée des
+notes, et les affichait donc **une fois sur deux** — quand elles étaient déjà en
+cache. Il attend désormais la donnée avant de se monter, et une brève ligne
+« Chargement des apprenants… » le signale.

@@ -120,6 +120,79 @@ describe('SectionPresence', () => {
     } as unknown as ReturnType<typeof useDefinirPresence>)
   })
 
+  /*
+   * ⚠️ LA RÉGRESSION QUI SE REPRODUIT « PARFOIS ».
+   *
+   * `LigneEvaluation` initialise son formulaire depuis `defaultValues`, que
+   * React Hook Form ne lit qu'AU MONTAGE. Les inscrits et les présences sont
+   * deux requêtes distinctes : monter dès que la première répond figeait le
+   * formulaire sur « pas d'évaluation », et la note arrivée ensuite n'était
+   * jamais affichée.
+   *
+   * Le « parfois » venait du cache : rouvrir une séance déjà consultée
+   * fonctionnait, l'ouvrir à froid non. Les deux cas sont donc testés — le
+   * second est celui qui échouait.
+   */
+  describe('rapatriement des notes déjà enregistrées', () => {
+    const NOTEE: PresenceAvecApprenant = {
+      ...presence('a1', true),
+      etat: 'present',
+      note: 17,
+      note_bareme: 20,
+      commentaire: 'Belle fluidité.',
+      passage_evalue: 'Al-Fatiha',
+    }
+
+    it('affiche la note quand les présences sont déjà en cache', () => {
+      usePresencesMock.mockReturnValue(requete([NOTEE]))
+
+      render(<SectionPresence coursId="cours-1" seanceId="seance-1" />)
+
+      expect(screen.getByLabelText('Note de Aïcha Diallo')).toHaveValue('17')
+      expect(screen.getByLabelText('Commentaire sur Aïcha Diallo')).toHaveValue(
+        'Belle fluidité.'
+      )
+    })
+
+    it('affiche la note quand les présences arrivent APRÈS le montage', () => {
+      // Requête encore en vol : c'est l'ouverture à froid d'une séance notée.
+      usePresencesMock.mockReturnValue(
+        requete(undefined as unknown as PresenceAvecApprenant[], { isPending: true })
+      )
+      const { rerender } = render(<SectionPresence coursId="cours-1" seanceId="seance-1" />)
+
+      // Rien n'est monté tant que la donnée manque : un formulaire vide serait
+      // un mensonge, et surtout il resterait vide.
+      expect(screen.queryByLabelText('Note de Aïcha Diallo')).not.toBeInTheDocument()
+      expect(screen.getByRole('status')).toHaveTextContent('Chargement des apprenants…')
+
+      usePresencesMock.mockReturnValue(requete([NOTEE]))
+      rerender(<SectionPresence coursId="cours-1" seanceId="seance-1" />)
+
+      expect(screen.getByLabelText('Note de Aïcha Diallo')).toHaveValue('17')
+      expect(screen.getByLabelText('Passage évalué pour Aïcha Diallo')).toHaveValue('Al-Fatiha')
+    })
+
+    /*
+     * `isPending` vaut `true` pour une requête DÉSACTIVÉE (TanStack v5). Sans le
+     * `!seanceId`, l'attente ne se terminerait jamais tant que la séance n'est
+     * pas enregistrée — et les cases, que l'on veut visibles mais inactives,
+     * auraient disparu.
+     */
+    it('n’attend pas une requête désactivée quand la séance n’existe pas', () => {
+      usePresencesMock.mockReturnValue(
+        requete(undefined as unknown as PresenceAvecApprenant[], { isPending: true })
+      )
+
+      render(<SectionPresence coursId="cours-1" seanceId={undefined} />)
+
+      expect(screen.getAllByRole('checkbox')).toHaveLength(2)
+      expect(
+        screen.getByText('Enregistrez la séance pour noter les présences.')
+      ).toBeInTheDocument()
+    })
+  })
+
   it('désactive les cases tant que la séance n’est pas enregistrée, en l’expliquant', () => {
     render(<SectionPresence coursId="cours-1" seanceId={undefined} />)
 

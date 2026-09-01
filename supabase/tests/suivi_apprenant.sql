@@ -191,6 +191,26 @@ union all select 's_a3', id from public.seance where cours_id = public.__id('cou
 union all select 's_b1', id from public.seance where cours_id = public.__id('cours_b');
 
 /*
+ * ⚠️ LES GARDES DE 0020 SONT SUSPENDUES LE TEMPS DU DÉCOR.
+ *
+ * Ce fichier construit délibérément des états que la migration 0020 interdit
+ * désormais : une présence sur une séance annulée, une note sur une séance qui
+ * n'a pas encore eu lieu. C'est exactement ce que `suivi_apprenant` doit ne pas
+ * publier, et on ne peut l'éprouver qu'en le fabriquant.
+ *
+ * Ce n'est pas un contournement de confort. Les filtres `statut = 'faite'` et
+ * `date <= current_date` de `suivi_apprenant` restent nécessaires pour les
+ * lignes ANTÉRIEURES à 0020 — la base en contenait onze — et pour tout chemin
+ * qui ne passe pas par les triggers (`service_role`, SQL d'administration). Les
+ * retirer sous prétexte que « la base l'empêche » ferait reposer la
+ * confidentialité sur une barrière unique.
+ *
+ * L'`alter table` est annulé avec la transaction, comme le reste du décor.
+ */
+alter table public.presence disable trigger presence_exige_seance_faite;
+alter table public.seance disable trigger seance_refuser_sortie_de_faite;
+
+/*
  * Le travail d'Aïcha chez A : deux notes, dont une séance en retard, plus une
  * séance annulée où elle est marquée absente — elle ne doit compter nulle part.
  * Chez B : une note de 4, qui ne doit JAMAIS apparaître dans le suivi du cours A.
@@ -243,6 +263,11 @@ insert into public.seance (centre_id, cours_id, date, heure_debut, heure_fin, st
 insert into public.presence (centre_id, seance_id, apprenant_id, present, etat)
 select public.__id('centre'), s.id, public.__id('aicha'), true, 'present'
 from public.seance as s where s.cours_id = public.__id('cours_a') and s.date = '2026-01-26';
+
+-- Décor terminé : les gardes reprennent, et tout ce qui suit s'exécute sous
+-- leur régime normal.
+alter table public.presence enable trigger presence_exige_seance_faite;
+alter table public.seance enable trigger seance_refuser_sortie_de_faite;
 
 /*
  * Un centre voisin, complet et sans aucun lien avec le premier. Le fichier

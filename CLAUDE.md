@@ -118,6 +118,16 @@ Les types de cours sont dans une **table de référence** (extensible), pas en d
 - `sourate`, `versets_de`, `versets_a` (optionnels — pour Lecture / Mémorisation)
 - `type_travail` (nouvelle_memorisation | revision | lecture)
 - `exercices_a_faire`, `observations`
+- `motif` **(migration 0020)** : raison du statut, quand la séance n'a pas eu lieu. Une colonne à
+  elle, et surtout pas `observations` détourné — celles-ci sont une remarque **pédagogique** sur
+  une séance tenue. Le schéma Zod remet `motif` à `null` dès que le statut repasse à `faite` : une
+  raison d'annulation ne survit pas à ce qu'elle explique.
+- présence par apprenant (table `presence` : `seance_id`, `apprenant_id`, `present`, plus
+  l'évaluation de récitation `note` / `note_bareme` / `commentaire` / `passage_evalue`)
+- `presence.etat` (nullable) nuance le booléen : `present | retard | absent | excuse | partiel`.
+  **`null` = non renseigné** → le calcul retombe sur `present`, ce qui garde toutes les séances
+  d'avant la migration 0008 correctement comptées. Les deux colonnes s'écrivent **toujours
+  ensemble** (`presenceRepo`), pour qu'elles ne puissent jamais se contredire.
 
 ### `paiement`
 
@@ -410,7 +420,60 @@ L'étanchéité est **structurelle**, pas seulement déclarative.
     effectifs, les séances, les présences et l'examen de tout ce que `cours_lisibles()` leur
     ouvre. Le rapport en dépend.
 
-14. **Retrait d'un membre** (migration 0018). `retirer_membre(user_id, reaffecter_a)`,
+14. **Une présence n'existe que sur une séance tenue** (migration 0020) :
+
+    > une ligne `presence` n'existe QUE si sa séance est `statut = 'faite'`.
+
+    Le formulaire proposait le pointage quel que soit le statut. La base en portait le résultat :
+    onze apprenants « absents » à des séances qui n'avaient jamais eu lieu — une donnée que le
+    rapport de session (`rapportSession.ts`) comme la page de suivi (§5.11) **écartent déjà**,
+    tous deux filtrant `statut = 'faite'`. L'interface produisait ce que le reste de
+    l'application refuse de lire.
+
+    Ce ne peut pas être un `check` — il porterait sur une autre table — d'où **deux triggers**,
+    un par sens de la violation : écrire une présence sur une séance non tenue (P0050), et faire
+    sortir de « faite » une séance qui en porte déjà (P0051). Une garde à sens unique ne
+    protégerait rien.
+
+    ⚠️ **`for update` sur la ligne `seance`** dans la garde des présences. Sans lui, deux
+    transactions concurrentes franchissent chacune la sienne : A insère une présence pendant que
+    B annule la séance, et en READ COMMITTED aucune ne voit le travail non validé de l'autre.
+    C'est la leçon de 0018, appliquée telle quelle. Le trigger de `seance` n'a pas besoin du sien,
+    l'UPDATE verrouillant déjà la ligne — et comme il ne verrouille jamais de `presence`, il
+    n'existe aucun cycle d'attente.
+
+    Les deux triggers sont `security definer` : en `invoker`, le `select … for update`
+    déclencherait en plus la policy d'UPDATE de `seance`, et le décompte des présences pourrait
+    sous-compter ce que l'appelant n'a pas le droit de lire. **Une garde qui ne voit qu'une partie
+    de la vérité n'est pas une garde.**
+
+    Côté écran, une séance non tenue ne garde **que** son statut et son motif : contenu abordé,
+    détails Coran, exercices et observations décrivent ce qui s'est passé, et les demander sur une
+    séance qui n'a pas eu lieu serait demander de décrire le néant. ⚠️ **Masquer n'efface pas** :
+    React Hook Form conserve la valeur des champs démontés (`shouldUnregister: false`, son
+    défaut), donc ce qui avait été saisi avant l'annulation est préservé et réapparaît au retour
+    en « faite ». C'est un comportement de bibliothèque, pas une propriété de notre code — un test
+    le fige, pour que le passer à `true` ne vide pas silencieusement quatre colonnes.
+
+    P0051 **refuse** plutôt que de supprimer en silence : ce pointage est du travail saisi, et
+    aucun trigger n'a à en décider. La sortie est explicite, à l'écran — « Retirer les pointages »,
+    derrière une confirmation qui dit ce qu'elle détruit.
+
+    ⚠️ **La garde de DATE n'est pas en base, et c'est délibéré.** `seance.statut` naît `'faite'`
+    (0003), donc une séance générée pour la semaine prochaine est « tenue » sans que personne
+    l'ait décidé. Mais `current_date` est en **UTC** côté serveur, alors que « aujourd'hui » pour
+    l'enseignant est celui de son navigateur : en base, la garde refuserait à tort une saisie
+    faite en soirée depuis un fuseau en avance. Elle vit donc dans `refusSaisiePresence`
+    (`features/seances/seanceSchema.ts`), module pur. **La base sait le statut, le client sait le
+    jour.** Rien ne fuit pour autant : `suivi_apprenant` ne publie déjà rien dont la date est à
+    venir.
+
+    Corollaire pour les épreuves SQL : `supabase/tests/suivi_apprenant.sql` construit
+    délibérément des états que 0020 interdit, et suspend donc les deux triggers le temps de son
+    décor. Les filtres de `suivi_apprenant` restent nécessaires — pour les lignes antérieures à
+    0020, et pour tout chemin qui ne passe pas par les triggers.
+
+15. **Retrait d'un membre** (migration 0018). `retirer_membre(user_id, reaffecter_a)`,
     `security definer` — `membre` n'accorde ni `delete` ni policy de suppression à personne, cette
     RPC est donc le seul chemin, comme `racheter_invitation` l'est pour l'insertion.
 
@@ -506,6 +569,7 @@ psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/conflit_enseignant.
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/invitation.sql
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/retrait_membre.sql
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/suivi_apprenant.sql
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/presence_seance_faite.sql
 ```
 
 ⚠️ Ces scripts se plantent un décor dans une base qui contient de **vraies** données. Repérer une
@@ -581,6 +645,14 @@ dont dépend le typage de `createClient`.
   sans cela, le message rédigé côté base s'affiche préfixé du contexte.
 - Ne pas se fier à un `select` de trigger pour arbitrer une concurrence : en READ COMMITTED il ne
   voit pas la transaction voisine. Il faut un `for update`.
+- Ne pas écrire un trigger de garde en `security invoker` : il ne verrait que ce que l'appelant a
+  le droit de lire, et un décompte incomplet laisse passer ce qu'il devait bloquer (voir §5.14).
+- Ne pas poser une garde d'invariant dans un seul sens : interdire d'écrire l'enfant ne sert à
+  rien si le parent peut encore changer sous lui.
+- Ne pas passer `defaultValues` à React Hook Form depuis une donnée encore en vol : ils ne sont
+  lus qu'au montage, et le champ reste vide pour toujours — de façon intermittente, selon que le
+  cache est chaud. Attendre la première résolution de la requête ; un `reset()` dans un effet
+  écraserait ce que l'utilisateur est en train de taper.
 - Ne pas écrire `cours.enseignant_id` par un UPDATE sans revérifier les chevauchements : le
   garde-fou §5.1 vit dans `enregistrer_cours`, pas en contrainte.
 - Ne jamais donner à un paramètre de fonction SQL le nom d'une colonne de sa propre requête : la
@@ -589,7 +661,7 @@ dont dépend le typage de `createClient`.
   colonne ne peut masquer : c'est ce que fait `cours_public`, dont le paramètre public s'appelle
   `jeton` et ne peut pas être renommé sans casser la page publique entre deux déploiements.
 - Ne rien publier à `anon` sans filtrer sur `date <= current_date` : `seance.statut` naît `'faite'`,
-  donc « tenue » ne veut pas dire « passée » (voir §5.11).
+  donc « tenue » ne veut pas dire « passée » (voir §5.11 et §5.14).
 - Ne pas juger une garde éprouvée parce que le test est vert : la retirer doit faire **tomber** le
   test. Les trois gardes de date de 0019 et le sens du `coalesce` du logo ont été vérifiés ainsi,
   en remplaçant la fonction dans une transaction annulée.

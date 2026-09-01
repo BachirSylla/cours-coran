@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   LIBELLES_STATUT_SEANCE,
   LIBELLES_TYPE_TRAVAIL,
+  refusSaisiePresence,
   seanceSchema,
   STATUTS_SEANCE,
   TYPES_TRAVAIL,
@@ -159,5 +160,107 @@ describe('seanceSchema — numéro de sourate', () => {
   it('refuse un non-entier', () => {
     expect(messagePour({ sourate_numero: '2.5' }, 'sourate_numero')).toMatch(/entre 1 et 114/)
     expect(messagePour({ sourate_numero: 'deux' }, 'sourate_numero')).toMatch(/entre 1 et 114/)
+  })
+})
+
+/**
+ * Le motif explique un STATUT. La règle vit dans le schéma, et non dans le
+ * formulaire, pour qu'aucun appelant ne puisse enregistrer une séance « faite »
+ * en gardant sa raison d'annulation — ce qui, au fil des bascules, transformerait
+ * la colonne en dépotoir dont plus personne ne saurait lire le sens.
+ */
+describe('seanceSchema — le motif et son statut', () => {
+  const base = {
+    contenu_aborde: '',
+    sourate_numero: '',
+    sourate: '',
+    versets_de: '',
+    versets_a: '',
+    type_travail: '' as const,
+    exercices_a_faire: '',
+    observations: '',
+  }
+
+  it('conserve le motif quand la séance n’a pas eu lieu', () => {
+    const resultat = seanceSchema.parse({
+      ...base,
+      statut: 'annulee',
+      motif: 'Enseignant souffrant.',
+    })
+
+    expect(resultat.motif).toBe('Enseignant souffrant.')
+  })
+
+  it('efface le motif dès que la séance repasse en « faite »', () => {
+    const resultat = seanceSchema.parse({
+      ...base,
+      statut: 'faite',
+      motif: 'Enseignant souffrant.',
+    })
+
+    expect(resultat.motif).toBeNull()
+  })
+
+  it('accepte une séance sans motif', () => {
+    expect(seanceSchema.parse({ ...base, statut: 'annulee' }).motif).toBeNull()
+  })
+
+  it('refuse un motif interminable', () => {
+    const resultat = seanceSchema.safeParse({
+      ...base,
+      statut: 'annulee',
+      motif: 'x'.repeat(2001),
+    })
+
+    expect(resultat.success).toBe(false)
+  })
+})
+
+/**
+ * Deux raisons de ne pas proposer la présence, et une seule des deux est un
+ * invariant de base. La distinction est expliquée dans `refusSaisiePresence`
+ * lui-même ; ces tests la figent.
+ */
+describe('refusSaisiePresence', () => {
+  const AUJOURDHUI = new Date(2026, 6, 27, 12, 0) // lundi 27 juillet 2026
+
+  it('laisse saisir une séance faite dont le jour est arrivé', () => {
+    expect(refusSaisiePresence('faite', '2026-07-27', AUJOURDHUI)).toBeNull()
+    expect(refusSaisiePresence('faite', '2026-07-20', AUJOURDHUI)).toBeNull()
+  })
+
+  it.each(['annulee', 'reportee', 'absence'])('refuse sur le statut « %s »', (statut) => {
+    expect(refusSaisiePresence(statut, '2026-07-20', AUJOURDHUI)).toBe('statut')
+  })
+
+  /*
+   * Le piège : `statut` naît « faite », en base comme dans le formulaire. Une
+   * séance générée pour la semaine prochaine est donc « faite » sans que
+   * personne l'ait décidé.
+   */
+  it('refuse une séance qui n’a pas encore eu lieu', () => {
+    expect(refusSaisiePresence('faite', '2026-07-28', AUJOURDHUI)).toBe('date')
+  })
+
+  it('le jour même est saisissable — on remplit pendant ou juste après le cours', () => {
+    expect(refusSaisiePresence('faite', '2026-07-27', new Date(2026, 6, 27, 0, 1))).toBeNull()
+    expect(refusSaisiePresence('faite', '2026-07-27', new Date(2026, 6, 27, 23, 59))).toBeNull()
+  })
+
+  it('le statut prime sur la date', () => {
+    expect(refusSaisiePresence('annulee', '2026-07-28', AUJOURDHUI)).toBe('statut')
+  })
+
+  /*
+   * Comparaison lexicographique de chaînes `AAAA-MM-JJ`, jamais de `Date` :
+   * passer par UTC ferait basculer le verdict d'un jour selon l'heure locale.
+   */
+  it('ne bascule pas d’un jour selon l’heure locale', () => {
+    for (const heure of [0, 6, 12, 18, 23]) {
+      expect(refusSaisiePresence('faite', '2026-07-27', new Date(2026, 6, 27, heure))).toBeNull()
+      expect(refusSaisiePresence('faite', '2026-07-28', new Date(2026, 6, 27, heure))).toBe(
+        'date'
+      )
+    }
   })
 })

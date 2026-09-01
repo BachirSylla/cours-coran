@@ -43,6 +43,8 @@ function messageLisible(erreur: PostgrestError, contexte: string): string {
     case 'P0032': // retrait : dernier responsable
     case 'P0033': // retrait : la réaffectation créerait un chevauchement
     case 'P0040': // suivi apprenant : ce n'est pas votre cours (0019)
+    case 'P0050': // présence sur une séance non tenue (0020)
+    case 'P0051': // séance quittant « faite » alors qu'elle porte des présences
       return erreur.message
     case '23505':
       return `${contexte} : cet enregistrement existe déjà.`

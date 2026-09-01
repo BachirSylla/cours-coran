@@ -561,6 +561,7 @@ export type Database = {
           heure_debut: string
           heure_fin: string
           id: string
+          motif: string | null
           observations: string | null
           sourate: string | null
           sourate_numero: number | null
@@ -580,6 +581,7 @@ export type Database = {
           heure_debut: string
           heure_fin: string
           id?: string
+          motif?: string | null
           observations?: string | null
           sourate?: string | null
           sourate_numero?: number | null
@@ -599,6 +601,7 @@ export type Database = {
           heure_debut?: string
           heure_fin?: string
           id?: string
+          motif?: string | null
           observations?: string | null
           sourate?: string | null
           sourate_numero?: number | null

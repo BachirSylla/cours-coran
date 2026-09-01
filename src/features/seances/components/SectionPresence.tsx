@@ -33,7 +33,7 @@ export function SectionPresence({
   passageSuggere = null,
 }: SectionPresenceProps) {
   const { data: inscriptions, isPending: chargementInscrits } = useInscriptionsCours(coursId)
-  const { data: presences } = usePresences(seanceId)
+  const { data: presences, isPending: chargementPresences } = usePresences(seanceId)
   const { data: parametres } = useParametres()
   const definir = useDefinirPresence()
 
@@ -45,6 +45,27 @@ export function SectionPresence({
   )
 
   const seanceEnregistree = Boolean(seanceId)
+
+  /*
+   * ⚠️ Ne pas monter les lignes avant que les présences soient là.
+   *
+   * `LigneEvaluation` initialise son formulaire depuis `defaultValues`, que
+   * React Hook Form ne lit **qu'au montage**. Les inscrits et les présences sont
+   * deux requêtes distinctes : monter dès que la première répond fige le
+   * formulaire sur `evaluation = null`, et la note arrivée ensuite ne s'affiche
+   * jamais. D'où le « parfois » du bug — rouvrir une séance déjà consultée
+   * fonctionnait, parce que le cache était chaud.
+   *
+   * Attendre le premier chargement est préféré à un `reset()` dans un effet :
+   * un `reset` se redéclencherait à chaque rafraîchissement en arrière-plan et
+   * écraserait ce que l'enseignant est en train de taper.
+   *
+   * `isPending` vaut `true` pour une requête DÉSACTIVÉE (TanStack v5) : sans le
+   * `!seanceId`, la section resterait en chargement perpétuel tant que la séance
+   * n'est pas enregistrée. Un rafraîchissement ultérieur passe par
+   * `isFetching`, pas par `isPending` : la liste ne clignote pas.
+   */
+  const presencesPretes = !seanceId || !chargementPresences
 
   function changerEtat(apprenantId: string, etat: EtatPresence) {
     if (!seanceId) return
@@ -75,7 +96,7 @@ export function SectionPresence({
         </Alert>
       )}
 
-      {chargementInscrits && (
+      {(chargementInscrits || !presencesPretes) && (
         <p
           role="status"
           aria-live="polite"
@@ -88,14 +109,14 @@ export function SectionPresence({
 
       {/* Une note sans apprenant n'a pas de sens : on dit quoi faire plutôt que
           de laisser un constat sec. */}
-      {!chargementInscrits && inscrits.length === 0 && (
+      {!chargementInscrits && presencesPretes && inscrits.length === 0 && (
         <p className="rounded-lg border border-dashed px-4 py-4 text-center text-sm text-muted-foreground">
           Aucun apprenant inscrit à ce cours. Inscrivez-en un depuis le détail du cours pour
           noter sa présence et sa récitation.
         </p>
       )}
 
-      {inscrits.length > 0 && (
+      {presencesPretes && inscrits.length > 0 && (
         <ul className="divide-y rounded-lg border">
           {inscrits.map((inscription) => {
             const evaluation = parApprenant.get(inscription.apprenant_id) ?? null

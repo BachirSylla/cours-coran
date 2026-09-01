@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { chaineDepuisDate } from '@/shared/lib/seances'
+
 /**
  * Validation de la saisie d'une séance — schéma unique partagé par le
  * formulaire et la logique (CLAUDE.md §9).
@@ -87,6 +89,15 @@ export const seanceSchema = z
       2000,
       'Les observations ne peuvent pas dépasser 2000 caractères.'
     ),
+    /*
+     * Raison du statut, quand la séance n'a pas eu lieu.
+     *
+     * Une colonne à elle, et surtout pas `observations` détourné : celles-ci
+     * sont une remarque PÉDAGOGIQUE sur une séance tenue. Les mélanger
+     * laisserait, au retour en « faite », un motif d'annulation en guise
+     * d'observation — sans que rien ne signale la bascule.
+     */
+    motif: texteFacultatif(2000, 'Le motif ne peut pas dépasser 2000 caractères.'),
   })
   .superRefine((seance, ctx) => {
     // Ce refinement s'exécute même si un champ a déjà échoué : on ne compare que
@@ -101,6 +112,13 @@ export const seanceSchema = z
       })
     }
   })
+  .transform((seance) => ({
+    ...seance,
+    // Le motif explique un statut : il ne survit pas à ce qu'il explique. La
+    // règle vit ici plutôt que dans le formulaire, pour qu'aucun appelant ne
+    // puisse enregistrer une séance faite en gardant sa raison d'annulation.
+    motif: seance.statut === 'faite' ? null : seance.motif,
+  }))
 
 export type SeanceFormValues = z.input<typeof seanceSchema>
 export type SeanceValues = z.output<typeof seanceSchema>
@@ -108,6 +126,7 @@ export type SeanceValues = z.output<typeof seanceSchema>
 export function valeursParDefaut(): SeanceFormValues {
   return {
     statut: 'faite',
+    motif: '',
     contenu_aborde: '',
     sourate_numero: '',
     sourate: '',
@@ -117,6 +136,40 @@ export function valeursParDefaut(): SeanceFormValues {
     exercices_a_faire: '',
     observations: '',
   }
+}
+
+/**
+ * Pourquoi la présence n'est pas saisissable — ou `null` si elle l'est.
+ *
+ * Deux motifs, et ils ne se traitent pas au même endroit :
+ *
+ *   * `statut` — une présence sur une séance qui n'a pas eu lieu ne veut rien
+ *     dire, et le rapport de session comme la page de suivi l'écartent déjà.
+ *     C'est un INVARIANT : la base le fait respecter par trigger (migration
+ *     0020), l'écran ne fait que ne pas tendre un formulaire qui échouerait ;
+ *   * `date` — une séance à venir n'a rien à pointer. Cette garde-ci vit
+ *     **uniquement** côté client, et c'est délibéré : `current_date` est en UTC
+ *     côté serveur, alors que « aujourd'hui » pour l'enseignant est celui de son
+ *     navigateur. En base, elle refuserait à tort une saisie faite en soirée
+ *     depuis un fuseau en avance.
+ *
+ * Le statut passe avant la date : une séance annulée reste annulée, à venir ou
+ * non, et c'est la raison la plus utile à afficher.
+ *
+ * Comparaison de chaînes `AAAA-MM-JJ` : elle est lexicographique, donc exacte,
+ * et évite le passage par UTC qu'un `Date` imposerait.
+ */
+export type RefusSaisiePresence = 'statut' | 'date'
+
+export function refusSaisiePresence(
+  statut: string,
+  date: string,
+  maintenant: Date
+): RefusSaisiePresence | null {
+  if (statut !== 'faite') return 'statut'
+  if (date > chaineDepuisDate(maintenant)) return 'date'
+
+  return null
 }
 
 /**

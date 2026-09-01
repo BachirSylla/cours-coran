@@ -30,6 +30,7 @@ function seance(date: string, options: Partial<Seance> = {}): Seance {
     type_travail: null,
     exercices_a_faire: null,
     observations: null,
+    motif: null,
     created_at: '2026-07-27T10:00:00Z',
     updated_at: '2026-07-27T10:00:00Z',
     ...options,

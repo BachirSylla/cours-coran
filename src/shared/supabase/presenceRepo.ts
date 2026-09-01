@@ -134,6 +134,23 @@ export async function listByApprenant(apprenantId: string): Promise<PresenceAvec
   return (data ?? []).sort((a, b) => (b.seance?.date ?? '').localeCompare(a.seance?.date ?? ''))
 }
 
+/**
+ * Retire tous les pointages d'une séance — **et les notes avec eux**.
+ *
+ * C'est la sortie du refus P0051 (migration 0020) : une séance qui porte des
+ * présences ne peut pas quitter le statut « faite ». La base refuse plutôt que
+ * de supprimer en silence, précisément pour que ce geste-ci reste un choix
+ * explicite de l'enseignant — d'où la confirmation qui l'accompagne à l'écran.
+ */
+export async function removeBySeance(seanceId: string): Promise<void> {
+  const { error } = await getSupabaseClient()
+    .from('presence')
+    .delete()
+    .eq('seance_id', seanceId)
+
+  lancerSiErreur(error, 'Suppression des présences de la séance')
+}
+
 export async function remove(id: string): Promise<void> {
   const { error } = await getSupabaseClient().from('presence').delete().eq('id', id)
 
