@@ -24,7 +24,7 @@ export function urlSuivi(origine: string, jeton: string): string {
  * besoin d'aucun numéro de téléphone.
  *
  * Le message nomme l'apprenant — c'est ce qui évite d'envoyer le lien d'Aïcha à
- * la famille d'Omar — et rappelle qu'il est personnel : qui l'a, voit.
+ * Omar — et rappelle qu'il est personnel : qui l'a, voit.
  */
 export function lienWhatsAppSuivi(url: string, apprenant: string, cours: string): string {
   const texte =

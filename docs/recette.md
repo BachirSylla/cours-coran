@@ -587,22 +587,22 @@ psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/retrait_membre.sql
 
 ---
 
-## Suivi des familles : un lien privé par apprenant (migration 0019)
+## Suivi de l'apprenant : un lien privé par inscription (migration 0019)
 
-Les familles ne voyaient rien entre deux rapports de fin de session. Elles ont
-désormais une page privée, **sans compte**, où elles suivent au fil de l'eau les
-notes de récitation de leur enfant pour un cours donné.
+Un apprenant ne voyait rien entre deux rapports de fin de session. Il a
+désormais une page privée, **sans compte**, où il suit au fil de l'eau ses
+propres notes de récitation pour un cours donné.
 
 C'est la **deuxième** porte ouverte aux visiteurs non connectés après le lien de
-cours — et la première à publier des notes individuelles. Le lien est donc
+cours — et la première à publier des notes **nominatives**. Le lien est donc
 **par inscription** (un apprenant, un cours), jamais par cours.
 
-Il s'active depuis la fiche du cours, section **Suivi des familles**, réservée à
-l'enseignant affecté — comme l'examen et les réglages.
+Il s'active depuis la fiche du cours, section **Suivi de l'apprenant**, réservée
+à l'enseignant affecté — comme l'examen et les réglages.
 
 ### 43. Ouvrir un suivi et le lire sans compte
 
-1. Ouvrir un cours que vous enseignez, dérouler **Suivi des familles**.
+1. Ouvrir un cours que vous enseignez, dérouler **Suivi de l'apprenant**.
 2. Cliquer **Ouvrir le suivi** sur la ligne d'un apprenant.
 3. Copier le lien, l'ouvrir dans une **fenêtre de navigation privée**.
 
@@ -621,7 +621,7 @@ verdict ; la note de session a sa feuille, en fin de session.
 1. Sur un apprenant déjà noté depuis plusieurs semaines, cliquer **Ouvrir le
    suivi**.
 
-**Attendu** : une confirmation qui annonce que la famille verra **toutes** les
+**Attendu** : une confirmation qui annonce que l'apprenant verra **toutes** les
 notes déjà saisies **et les commentaires qui les accompagnent, y compris ceux
 écrits avant aujourd'hui**. Rien n'est publié tant qu'on n'a pas confirmé.
 
@@ -643,7 +643,7 @@ absence dans les compteurs.
 
 **Attendu** : **rien de tout cela n'apparaît**. Une séance à venir est « faite »
 par défaut dans la base — c'est un piège, pas une décision : sans garde de date,
-la famille lirait aujourd'hui le travail préparé pour dans deux semaines. Cela
+l'apprenant lirait aujourd'hui le travail préparé pour dans deux semaines. Cela
 vaut pour les exercices, la note **et** les compteurs d'assiduité.
 
 3. Noter une séance, puis la repasser en **annulée**.
@@ -666,8 +666,8 @@ Prérequis : un cours en groupe avec deux apprenants inscrits, tous deux notés.
 notes, ni les commentaires de l'autre. Si le même apprenant suit **deux** cours,
 son lien pour le cours A ne laisse rien voir de son travail dans le cours B.
 
-⚠️ Le commentaire que vous écrivez sur une récitation **est lu par la famille**.
-C'est un mot à l'élève, pas une note de service.
+⚠️ Le commentaire que vous écrivez sur une récitation **est lu par l'apprenant**.
+C'est un mot qui lui est adressé, pas une note de service.
 
 ### 47. Régénérer et fermer
 
@@ -686,8 +686,8 @@ différent dirait qu'un apprenant existe derrière cette adresse.
 **Attendu** : un message **différent** — « Affichage momentanément impossible…
 Votre lien reste valide ». Ce n'est pas une brèche : une panne survient
 pareillement sur un lien valide et sur un lien révoqué, donc elle n'apprend rien
-sur le jeton. Les confondre, en revanche, envoyait la famille redemander un lien
-qui fonctionnait très bien.
+sur le jeton. Les confondre, en revanche, envoyait l'apprenant redemander un
+lien qui fonctionnait très bien.
 
 ### 48. Ce que le lot ne fait pas
 
@@ -698,8 +698,8 @@ reprise en main.**
 
 ⚠️ Le partage WhatsApp transmet l'URL — donc le secret — à Meta dans la requête,
 et le jeton reste dans l'historique de la conversation. C'est inhérent au canal
-et identique au lien de cours, mais ici le secret est celui d'un enfant :
-préférez copier le lien si cela vous gêne.
+et identique au lien de cours, mais ici le secret ouvre les notes d'une personne
+nommée : préférez copier le lien si cela vous gêne.
 
 La preuve automatisée — le bon apprenant, rien d'un autre, rien du futur, la
 liste exacte des clés publiées, et `anon` toujours sans aucun droit table :

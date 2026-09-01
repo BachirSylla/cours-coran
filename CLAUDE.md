@@ -292,7 +292,7 @@ L'étanchéité est **structurelle**, pas seulement déclarative.
 
 11. **Suivi privé d'un apprenant** (`/suivi/:jeton`, hors `RequireAuth`, migration 0019) : la
     **deuxième** porte de `anon` après `cours_public`, et la première à publier des notes
-    individuelles — donc des données de mineurs. Toute la doctrine du §5.8 s'y applique mot pour
+    nominatives à qui détient une URL. Toute la doctrine du §5.8 s'y applique mot pour
     mot : aucun droit table, une fonction et jamais une vue, la **liste des colonnes de sortie est
     la liste blanche** (onze : `apprenant`, `cours_libelle`, `type_libelle`, `enseignant`,
     `centre_nom`, `logo`, `statut`, `evaluations`, `assiduite`, `examen`, `exercices`), re-vérifiée
@@ -300,7 +300,7 @@ L'étanchéité est **structurelle**, pas seulement déclarative.
 
     ⚠️ **Ne jamais nommer un paramètre comme une colonne de la requête.** Dans une fonction
     `language sql`, `where i.jeton = jeton` se résout en `i.jeton = i.jeton` — vrai pour toute
-    ligne — et **n'importe quelle URL sortirait les notes d'un enfant**. D'où `p_jeton`. La faute
+    ligne — et **n'importe quelle URL sortirait les notes de n'importe qui**. D'où `p_jeton`. La faute
     a été commise et rattrapée par `supabase/tests/suivi_apprenant.sql` : c'est la raison d'être
     de l'assertion « un jeton inventé ne renvoie rien ».
 
@@ -308,7 +308,7 @@ L'étanchéité est **structurelle**, pas seulement déclarative.
     `statut = 'faite'` **ET** `date <= current_date`, comme `cours_public` depuis 0007. Les deux,
     et pas l'une des deux : `seance.statut` vaut `'faite'` **par défaut** (0003) et le formulaire
     le pose aussi en dur, si bien qu'une séance générée pour la semaine prochaine est « faite »
-    sans que personne l'ait décidé — sans la garde de date, la famille lirait aujourd'hui la note
+    sans que personne l'ait décidé — sans la garde de date, l'apprenant lirait aujourd'hui la note
     et le sujet préparés pour plus tard. La garde de statut sert l'autre sens : une note sur une
     séance annulée après coup resterait publiée alors que le rapport de session l'écarte, et la
     note semblerait s'évaporer d'un document à l'autre.
@@ -533,7 +533,7 @@ L'étanchéité est **structurelle**, pas seulement déclarative.
 - **Lien de cours partageable** (`/c/:jeton`) : page publique sans connexion donnant l'horaire, la
   prochaine séance, le lien de visioconférence et le dernier exercice — activable, régénérable et
   révocable depuis la fiche du cours, avec partage WhatsApp (§5.8).
-- **Suivi des familles** (`/suivi/:jeton`) : page privée sans connexion donnant, pour **un**
+- **Suivi de l'apprenant** (`/suivi/:jeton`) : page privée sans connexion donnant, pour **un**
   apprenant et **un** cours, ses récitations notées, sa courbe de progression en pourcentage, son
   assiduité, ses exercices et son examen — un lien par inscription, ouvrable, régénérable et
   révocable par l'enseignant du cours (§5.11).
@@ -647,8 +647,8 @@ dont dépend le typage de `createClient`.
   voit pas la transaction voisine. Il faut un `for update`.
 - Ne pas écrire un trigger de garde en `security invoker` : il ne verrait que ce que l'appelant a
   le droit de lire, et un décompte incomplet laisse passer ce qu'il devait bloquer (voir §5.14).
-- Ne pas poser une garde d'invariant dans un seul sens : interdire d'écrire l'enfant ne sert à
-  rien si le parent peut encore changer sous lui.
+- Ne pas poser une garde d'invariant dans un seul sens : interdire d'écrire la ligne fille ne
+  sert à rien si sa ligne mère peut encore changer sous elle.
 - Ne pas passer `defaultValues` à React Hook Form depuis une donnée encore en vol : ils ne sont
   lus qu'au montage, et le champ reste vide pour toujours — de façon intermittente, selon que le
   cache est chaud. Attendre la première résolution de la requête ; un `reset()` dans un effet

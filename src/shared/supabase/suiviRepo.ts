@@ -16,7 +16,7 @@ import { suiviApprenantSchema, type SuiviApprenant } from '@/shared/supabase/sui
  *    confiance aux types générés.
  *
  * Aucun message d'erreur brut de Postgres ne ressort d'ici : cette page
- * s'adresse à une famille, pas à un développeur.
+ * s'adresse à un apprenant, pas à un développeur.
  */
 
 /** Jeton mal formé : Postgres refuse la conversion en `uuid`. */
@@ -38,8 +38,8 @@ export async function getParJeton(jeton: string): Promise<SuiviApprenant | null>
      * Tout le reste — serveur muet, coupure réseau, 5xx — est une PANNE, pas un
      * lien mort. La distinguer n'ouvre aucun oracle : elle ne dépend pas du
      * jeton, elle survient pareillement sur un lien valide et sur un lien
-     * révoqué. Les confondre, en revanche, annonce à une famille que son lien
-     * est mort parce que le métro est passé sous un tunnel.
+     * révoqué. Les confondre, en revanche, annonce à l'apprenant que son lien
+     * est mort parce que le réseau a hoqueté.
      */
     throw new ErreurSupabase("Ce lien n'a pas pu être ouvert.", error)
   }

@@ -42,7 +42,7 @@ export interface SectionSuiviApprenantProps {
  * Liens de suivi privés, un par apprenant inscrit.
  *
  * Un lien par inscription, jamais un pour le cours : ce qu'il ouvre, ce sont
- * les notes d'**une** personne. Les envoyer à la bonne famille est la
+ * les notes d'**une** personne. L'envoyer au bon destinataire est la
  * responsabilité de l'enseignant — d'où le nom dans le message WhatsApp, et le
  * rappel que le lien est personnel.
  */
@@ -55,7 +55,7 @@ export function SectionSuiviApprenant({ coursId, libelle }: SectionSuiviApprenan
     <section className="space-y-3">
       <h3 className="flex items-center gap-2 text-sm font-medium">
         <UserRoundCheck className="size-4 text-muted-foreground" aria-hidden="true" />
-        Suivi des familles
+        Suivi de l'apprenant
       </h3>
 
       <p className="text-xs text-muted-foreground">
@@ -115,12 +115,12 @@ const TEXTES_CONFIRMATION: Record<Confirmation, { titre: string; description: st
   activer: {
     titre: 'Ouvrir le suivi de cet apprenant ?',
     description:
-      "La famille verra, dès l'ouverture du lien, TOUTES les notes de récitation déjà saisies et les commentaires qui les accompagnent — y compris ceux écrits avant aujourd'hui. Relisez-les si vous les aviez pris pour vous.",
+      "L'apprenant verra, dès l'ouverture du lien, TOUTES les notes de récitation déjà saisies et les commentaires qui les accompagnent — y compris ceux écrits avant aujourd'hui. Relisez-les si vous les aviez pris pour vous.",
   },
   regenerer: {
     titre: 'Régénérer ce lien de suivi ?',
     description:
-      "L'ancien lien cessera immédiatement de fonctionner. La famille devra recevoir le nouveau.",
+      "L'ancien lien cessera immédiatement de fonctionner. L'apprenant devra recevoir le nouveau.",
   },
   revoquer: {
     titre: 'Fermer ce suivi ?',

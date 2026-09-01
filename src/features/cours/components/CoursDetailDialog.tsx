@@ -71,7 +71,7 @@ function Champ({ libelle, children }: { libelle: string; children: React.ReactNo
  *     prix et règlements, composition de la classe ;
  *   * l'**enseignant affecté** anime SON cours — séances, notes, examen,
  *     réglages de notation, logo, lien visio, lien de partage, liens de suivi
- *     des familles.
+ *     de suivi des apprenants.
  *
  * Un responsable qui enseigne le cours voit les deux ; un responsable qui ne
  * l'enseigne pas ne voit que la structure. La RLS refuse de toute façon ce qui

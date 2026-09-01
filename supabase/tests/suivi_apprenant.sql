@@ -1,9 +1,9 @@
 -- =============================================================================
 -- suivi_apprenant.sql — la deuxième porte de `anon`, mise à l'épreuve
 --
--- Cette page publie des NOTES INDIVIDUELLES, souvent d'enfants, à qui détient
--- une URL. Ce qu'il faut prouver n'est donc pas seulement « le bon jeton renvoie
--- la bonne chose », mais surtout :
+-- Cette page publie des NOTES NOMINATIVES à qui détient une URL. Ce qu'il faut
+-- prouver n'est donc pas seulement « le bon jeton renvoie la bonne chose », mais
+-- surtout :
 --
 --   * qu'un jeton ne fait jamais sortir un AUTRE apprenant, ni un autre cours ;
 --   * que la liste des clés est EXACTEMENT celle qu'on a décidée — un ajout par
@@ -243,7 +243,7 @@ where s.cours_id = public.__id('cours_a') and s.date = current_date + 14;
 
 /*
  * Une séance PASSÉE, notée, puis annulée après coup. Le rapport de session
- * l'écarte (`rapportSession.ts`) : si la page publique la gardait, la famille
+ * l'écarte (`rapportSession.ts`) : si la page publique la gardait, l'apprenant
  * verrait une note s'évaporer entre les deux documents.
  */
 insert into public.seance (centre_id, cours_id, date, heure_debut, heure_fin, statut, sourate)
@@ -442,7 +442,7 @@ begin
 
   /*
    * ⚠️ Le FUTUR. Une séance datée de dans deux semaines est « faite » par défaut :
-   * sans `date <= current_date`, la famille lirait aujourd'hui la note et le
+   * sans `date <= current_date`, l'apprenant lirait aujourd'hui la note et le
    * sujet préparés pour plus tard. Trois surfaces, pas une.
    */
   if v_ligne.evaluations::text like '%NOTE FUTURE%' then
@@ -618,7 +618,7 @@ select 'aicha_a_neuf', jeton from public.inscription where id = public.__id('ins
 
 /*
  * ⚠️ Ces vérifications se font sous `anon`, et pas sous `authenticated` : c'est
- * le rôle du scénario réel — une famille qui ouvre une URL. Les faire sous un
+ * le rôle du scénario réel — un apprenant qui ouvre une URL. Les faire sous un
  * rôle plus puissant les rendrait complaisantes.
  */
 set local role anon;

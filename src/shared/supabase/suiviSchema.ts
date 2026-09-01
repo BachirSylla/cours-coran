@@ -10,7 +10,7 @@ import { z } from 'zod'
  * jour la fonction SQL, la donnée n'arrive pas dans l'interface.
  *
  * Le raisonnement est celui de `coursPublicSchema`, en plus exigeant : cette
- * page-ci publie des notes individuelles, souvent d'enfants. Le mode strict
+ * page-ci publie des notes nominatives à qui détient une URL. Le mode strict
  * (échec sur clé inconnue) reste écarté pour la même raison — il transformerait
  * un ajout anodin en panne de la page, alors que la propriété qui compte, rien
  * de sensible ne remonte, est déjà garantie par le strip.

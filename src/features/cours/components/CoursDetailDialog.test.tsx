@@ -28,7 +28,7 @@ vi.mock('@/features/inscriptions/components/SectionExamen', () => ({
   SectionExamen: () => <div>Examen</div>,
 }))
 vi.mock('@/features/inscriptions/components/SectionSuiviApprenant', () => ({
-  SectionSuiviApprenant: () => <div>Suivi des familles</div>,
+  SectionSuiviApprenant: () => <div>Suivi de l'apprenant</div>,
 }))
 vi.mock('@/features/cours/components/SectionReglagesCours', () => ({
   SectionReglagesCours: () => <div>Réglages spécifiques</div>,
@@ -108,7 +108,7 @@ const PEDAGOGIE = [
   'Section visio',
   'Partage',
   'Examen',
-  'Suivi des familles',
+  "Suivi de l'apprenant",
   'Réglages spécifiques',
 ]
 

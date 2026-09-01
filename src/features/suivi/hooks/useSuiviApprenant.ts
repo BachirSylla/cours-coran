@@ -13,7 +13,7 @@ export function useSuiviApprenant(
     queryFn: () => suiviRepo.getParJeton(jeton as string),
     enabled: Boolean(jeton),
     // Un lien révoqué ne redeviendra pas valide en réessayant : une seule
-    // tentative, et la famille a sa réponse tout de suite.
+    // tentative, et l'apprenant a sa réponse tout de suite.
     retry: false,
     // Plus court que la page de cours : ici, une note peut tomber pendant que
     // l'onglet reste ouvert.

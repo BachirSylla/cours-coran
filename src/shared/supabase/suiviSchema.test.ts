@@ -79,7 +79,7 @@ describe('suiviApprenantSchema', () => {
           ...suiviValide.evaluations[0],
           seance_id: 'abc',
           apprenant_id: 'def',
-          observations: "Note interne : la famille n'a pas payé.",
+          observations: "Note interne : relancer pour le règlement.",
         },
       ],
     })

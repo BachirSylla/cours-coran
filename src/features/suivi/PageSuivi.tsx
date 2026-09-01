@@ -28,8 +28,8 @@ import { useSuiviApprenant } from '@/features/suivi/hooks/useSuiviApprenant'
 /**
  * Suivi privé d'un apprenant — le second écran accessible **sans compte**.
  *
- * Ce que la page montre appartient à une seule personne, et souvent à un
- * enfant. Trois partis pris en découlent :
+ * Ce que la page montre appartient à une seule personne et la nomme. Trois
+ * partis pris en découlent :
  *
  *   * **rien qui n'ait été vraiment saisi**. Une séance sans note n'apparaît
  *     pas : une grille trouée se lirait comme un reproche, alors qu'elle ne
@@ -70,7 +70,7 @@ export function PageSuivi() {
 
         {/* Une PANNE n'est pas un lien mort. Les confondre annonçait « votre
             lien n'est plus valide » sur une simple coupure réseau — et envoyait
-            la famille redemander un lien qui fonctionne très bien. La
+            l'apprenant redemander un lien qui fonctionne très bien. La
             distinction n'ouvre aucun oracle : une panne survient pareillement
             sur un jeton valide et sur un jeton révoqué. */}
         {!isPending && isError && <PanneTemporaire />}
@@ -108,7 +108,7 @@ function FicheSuivi({ suivi }: { suivi: SuiviApprenant }) {
 
         <div>
           {/* Le nom d'abord : on vérifie d'un coup d'œil qu'on est sur la bonne
-              page — un parent de plusieurs enfants a plusieurs liens. */}
+              page — qui suit plusieurs cours détient plusieurs liens. */}
           <h1 className="text-2xl leading-tight font-semibold tracking-tight text-balance">
             {suivi.apprenant}
           </h1>

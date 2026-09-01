@@ -211,7 +211,7 @@ describe('PageSuivi', () => {
     expect(screen.queryByText(/n'est plus valide/)).not.toBeInTheDocument()
   })
 
-  it('ne laisse jamais un message technique atteindre la famille', () => {
+  it('ne laisse jamais un message technique atteindre le lecteur', () => {
     simuler({ isError: true, error: new Error('permission denied for table presence') })
     const { container } = rendre()
 

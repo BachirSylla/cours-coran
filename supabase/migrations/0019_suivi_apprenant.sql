@@ -1,20 +1,20 @@
 -- =============================================================================
 -- 0019_suivi_apprenant.sql — un lien privé par inscription, sans compte
 --
--- Les familles ne voyaient rien entre deux rapports de fin de session. Cette
--- migration leur ouvre une page privée où elles suivent EN DIRECT les notes de
--- récitation de leur enfant, pour un cours donné.
+-- Un apprenant ne voyait rien entre deux rapports de fin de session. Cette
+-- migration lui ouvre une page privée où il suit EN DIRECT ses propres notes de
+-- récitation, pour un cours donné.
 --
 -- ⚠️ C'est la DEUXIÈME porte ouverte à `anon` après `cours_public` (0007), et la
--- première à exposer des notes individuelles — donc des données de mineurs. La
--- doctrine de 0007 s'applique mot pour mot :
+-- première à exposer des notes NOMINATIVES à qui détient une URL. La doctrine de
+-- 0007 s'applique mot pour mot :
 --
 --   * `anon` n'a AUCUN droit sur AUCUNE table. Sa seule porte est une fonction
 --     `security definer` dont la LISTE DE COLONNES EST LA LISTE BLANCHE ;
 --   * surtout PAS de vue : une vue s'exécute avec les droits de son
 --     propriétaire et n'oblige pas le client à filtrer. `anon` ferait
---     `GET /rest/v1/la_vue?select=*` et sortirait les notes de tous les enfants
---     du centre. Seule une fonction impose le prédicat côté serveur ;
+--     `GET /rest/v1/la_vue?select=*` et sortirait les notes de tous les
+--     apprenants du centre. Seule une fonction impose le prédicat côté serveur ;
 --   * la fonction lit les tables parce que son propriétaire `postgres` les
 --     possède, et que la RLS ne s'applique pas au propriétaire. Poser un
 --     `force row level security` sur ces tables ferait renvoyer zéro ligne SANS
@@ -39,7 +39,7 @@ comment on column public.seance.exercices_a_faire is
   'ATTENTION : renvoyé PUBLIQUEMENT par cours_public() et par suivi_apprenant(). N''y écrire aucune information personnelle.';
 
 comment on column public.presence.commentaire is
-  'ATTENTION : renvoyé PUBLIQUEMENT par suivi_apprenant() à la famille de l''apprenant concerné. C''est un mot à l''élève, pas une note de service.';
+  'ATTENTION : renvoyé PUBLIQUEMENT par suivi_apprenant() à l''apprenant concerné. C''est un mot qui lui est adressé, pas une note de service.';
 
 -- =============================================================================
 -- 2. La lecture publique — la liste de colonnes EST la liste blanche
@@ -102,7 +102,7 @@ as $$
      * Les ÉVALUATIONS — uniquement les séances réellement notées.
      *
      * `note is not null` : aucune ligne vide, aucun espace réservé. Une séance
-     * sans note n'existe pas pour la famille, et une grille trouée se lirait
+     * sans note n'existe pas pour l'apprenant, et une grille trouée se lirait
      * comme un reproche.
      *
      * ⚠️ `statut = 'faite'` ET `date <= current_date`, comme 0007. Les deux, et
@@ -112,7 +112,7 @@ as $$
      * garde de date, une note pré-remplie sortirait avant que la séance ait eu
      * lieu. Sans la garde de statut, une note resterait publiée sur une séance
      * annulée après coup, alors que le rapport de session, lui, l'écarte
-     * (`rapportSession.ts`) — la famille verrait une note s'évaporer.
+     * (`rapportSession.ts`) — l'apprenant verrait une note s'évaporer.
      *
      * `contenu` suit la même règle que `libelleContenuSeance`
      * (`shared/lib/rapport.ts`) : sourate + versets s'ils sont renseignés,
@@ -192,7 +192,7 @@ as $$
 
     -- Les exercices de la dernière séance tenue. `date <= current_date` reprend
     -- mot pour mot 0007 : une séance pré-remplie dans le futur ne doit pas
-    -- publier son contenu par avance — sinon la famille lit aujourd'hui le
+    -- publier son contenu par avance — sinon l'apprenant lit aujourd'hui le
     -- travail préparé pour dans deux semaines.
     (
       select s.exercices_a_faire
@@ -221,7 +221,7 @@ as $$
    * `language sql`, un nom de paramètre identique à un nom de colonne se
    * résout sur la COLONNE : `where i.jeton = jeton` devient `i.jeton = i.jeton`,
    * vrai pour toute ligne dont le jeton est non nul — et n'importe quelle URL
-   * inventée sortirait alors les notes d'un enfant. Le préfixe n'est pas une
+   * inventée sortirait alors les notes de n'importe qui. Le préfixe n'est pas une
    * convention, c'est la garde.
    */
   where i.jeton = p_jeton;

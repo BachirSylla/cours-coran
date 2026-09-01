@@ -18,7 +18,7 @@ describe('urlSuivi', () => {
 })
 
 describe('lienWhatsAppSuivi', () => {
-  it('nomme l’apprenant — c’est ce qui évite d’envoyer le lien à la mauvaise famille', () => {
+  it('nomme l’apprenant — c’est ce qui évite d’envoyer le lien à la mauvaise personne', () => {
     const lien = lienWhatsAppSuivi('https://exemple.app/suivi/abc', 'Aïcha Diallo', 'Coran 3')
 
     expect(decodeURIComponent(lien)).toContain('Aïcha Diallo')

@@ -91,8 +91,8 @@ const RapportSessionPage = lazy(() =>
  *
  * Trois écrans seulement échappent à `RequireAuth` : `/login`, `/c/:jeton` — la
  * page de cours partagée — et `/suivi/:jeton` — le suivi privé d'un apprenant.
- * Les deux dernières sont destinées à des apprenants et à des familles qui n'ont
- * pas de compte et n'en auront pas. Tout le reste exige une session.
+ * Les deux dernières sont destinées à des apprenants qui n'ont pas de compte et
+ * n'en auront pas. Tout le reste exige une session.
  *
  * Sous `RequireAuth`, `RequireMembre` exige en plus d'appartenir à un centre :
  * l'inscription étant ouverte (migration 0016), un compte peut exister sans
