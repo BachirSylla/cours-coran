@@ -367,9 +367,15 @@ L'étanchéité est **structurelle**, pas seulement déclarative.
     `authenticated` ; et le SHA-256 est nu, toute la marge tenant aux 60 bits d'entropie et à
     l'expiration, pas au coût du calcul.
 
-    **Impasse connue** : rien ne permet de quitter un centre ni d'en retirer un membre depuis
-    l'application — pas de `delete` accordé sur `membre`, pas de fonction. Un rattachement erroné
-    se défait en SQL. À traiter le jour où cela se posera.
+    **Ce qui n'existe toujours pas dans l'application**, et qui reste une opération
+    d'administration en SQL : **ouvrir un nouveau centre** et lui nommer son responsable. Le
+    chemin est `supabase/scripts/creer_centre.sql`, gardé et transactionnel (§8). C'est le
+    corollaire direct du garde-fou ci-dessus — ce que le client ne peut pas nommer, il ne peut pas
+    le forcer, donc il ne peut pas non plus s'en servir légitimement. Le jour où des centres
+    devront s'ouvrir en libre-service, ce sera une décision délibérée, pas un ajustement.
+
+    Retirer un membre, en revanche, se fait désormais depuis l'application (§5.15, migration
+    0018).
 
     **Sécurité par inertie.** L'inscription Supabase est **ouverte** (`disable_signup = false`) et
     **sans confirmation d'e-mail** (`mailer_autoconfirm = true`). Ce n'est pas un relâchement :
@@ -588,6 +594,25 @@ psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/presence_seance_fai
 ⚠️ Ces scripts se plantent un décor dans une base qui contient de **vraies** données. Repérer une
 ligne qu'on vient d'insérer par `where nom = '…'` peut donc en ramener plusieurs : capturer les
 identifiants par `insert … returning`, jamais par une recherche sur un libellé.
+
+Scripts d'administration — hors application, parce que l'application ne doit pas savoir les faire
+(§5.12) :
+
+```bash
+# Ouvrir un nouveau centre et lui nommer son responsable.
+# Le compte doit exister : la personne s'inscrit elle-même sur l'écran de connexion,
+# atterrit sur « Rejoindre un centre », et ce script la rattache.
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 \
+  -v email="responsable@exemple.com" \
+  -v centre="Centre Al-Houda" \
+  -v nom="Ibrahima Fall" \
+  -f supabase/scripts/creer_centre.sql
+```
+
+⚠️ `psql` **n'interpole pas ses variables à l'intérieur d'un bloc `$$ … $$`** : `:'email'` y reste
+littéral et provoque une erreur de syntaxe. Les valeurs passent donc par `set_config(…, true)` puis
+`current_setting()`. C'est le genre de défaut qu'un test de la seule LOGIQUE ne voit pas — il faut
+lancer le fichier.
 
 Les migrations qui verrouillent `cours` prennent un verrou exclusif : les lancer avec
 `-c "set lock_timeout='15s'"`, pour qu'une contention échoue bruyamment plutôt que d'attendre en
