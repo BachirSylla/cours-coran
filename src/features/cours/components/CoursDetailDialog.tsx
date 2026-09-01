@@ -16,6 +16,7 @@ import { SectionVisio } from '@/features/cours/components/SectionVisio'
 import { useMembre } from '@/features/membres/hooks/useMembre'
 import { SectionExamen } from '@/features/inscriptions/components/SectionExamen'
 import { SectionInscriptions } from '@/features/inscriptions/components/SectionInscriptions'
+import { SectionSuiviApprenant } from '@/features/inscriptions/components/SectionSuiviApprenant'
 import { SectionPaiements } from '@/features/paiements/components/SectionPaiements'
 import { SectionPartage } from '@/features/partage/components/SectionPartage'
 import { SeanceFormDialog } from '@/features/seances/components/SeanceFormDialog'
@@ -69,7 +70,8 @@ function Champ({ libelle, children }: { libelle: string; children: React.ReactNo
  *   * le **responsable** tient la STRUCTURE — identité, planning, affectation,
  *     prix et règlements, composition de la classe ;
  *   * l'**enseignant affecté** anime SON cours — séances, notes, examen,
- *     réglages de notation, logo, lien visio, lien de partage.
+ *     réglages de notation, logo, lien visio, lien de partage, liens de suivi
+ *     des familles.
  *
  * Un responsable qui enseigne le cours voit les deux ; un responsable qui ne
  * l'enseigne pas ne voit que la structure. La RLS refuse de toute façon ce qui
@@ -168,6 +170,7 @@ export function CoursDetailDialog({
             {estEnseignantDuCours && (
               <>
                 <SectionExamen coursId={cours.id} />
+                <SectionSuiviApprenant coursId={cours.id} libelle={cours.libelle} />
                 <SectionReglagesCours cours={cours} />
               </>
             )}

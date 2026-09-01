@@ -105,6 +105,48 @@ export async function noterExamen(inscriptionId: string, examen: ExamenInput): P
   lancerSiErreur(error, "Enregistrement de la note d'examen")
 }
 
+/**
+ * Suivi privé d'un apprenant (migration 0019) — trois RPC, jamais d'écriture
+ * directe.
+ *
+ * `inscription.jeton` n'est accordée à personne en écriture : le secret est
+ * tiré par le CSPRNG du serveur, le navigateur ne le choisit jamais. Comme pour
+ * l'examen, chaque fonction remonte elle-même de l'inscription à son cours pour
+ * vérifier que l'appelant l'anime — le client ne nomme jamais le cours, donc ne
+ * peut pas le forcer.
+ */
+
+/** Ouvre le suivi et renvoie le jeton. Idempotent : ne remplace pas un lien actif. */
+export async function activerSuivi(inscriptionId: string): Promise<string> {
+  const { data, error } = await getSupabaseClient().rpc('activer_suivi', {
+    p_inscription_id: inscriptionId,
+  })
+
+  lancerSiErreur(error, 'Ouverture du suivi')
+
+  return data
+}
+
+/** Fait tourner le jeton : le lien déjà distribué cesse de fonctionner. */
+export async function regenererSuivi(inscriptionId: string): Promise<string> {
+  const { data, error } = await getSupabaseClient().rpc('regenerer_suivi', {
+    p_inscription_id: inscriptionId,
+  })
+
+  lancerSiErreur(error, 'Régénération du lien de suivi')
+
+  return data
+}
+
+/** Ferme le suivi : le lien ne renvoie plus rien. */
+export async function revoquerSuivi(inscriptionId: string): Promise<void> {
+  const { error } = await getSupabaseClient().rpc('revoquer_suivi', {
+    p_inscription_id: inscriptionId,
+  })
+
+  lancerSiErreur(error, 'Fermeture du suivi')
+}
+
 /** Retire l'apprenant du cours — **et supprime sa note d'examen avec la ligne**. */
 export async function retirer(inscriptionId: string): Promise<void> {
   const { error } = await getSupabaseClient()

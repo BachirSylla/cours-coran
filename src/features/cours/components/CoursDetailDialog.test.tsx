@@ -27,6 +27,9 @@ vi.mock('@/features/partage/components/SectionPartage', () => ({
 vi.mock('@/features/inscriptions/components/SectionExamen', () => ({
   SectionExamen: () => <div>Examen</div>,
 }))
+vi.mock('@/features/inscriptions/components/SectionSuiviApprenant', () => ({
+  SectionSuiviApprenant: () => <div>Suivi des familles</div>,
+}))
 vi.mock('@/features/cours/components/SectionReglagesCours', () => ({
   SectionReglagesCours: () => <div>Réglages spécifiques</div>,
 }))
@@ -101,7 +104,13 @@ function afficher(enseignantId: string | null) {
   )
 }
 
-const PEDAGOGIE = ['Section visio', 'Partage', 'Examen', 'Réglages spécifiques']
+const PEDAGOGIE = [
+  'Section visio',
+  'Partage',
+  'Examen',
+  'Suivi des familles',
+  'Réglages spécifiques',
+]
 
 describe('CoursDetailDialog — structure contre pédagogie', () => {
   beforeEach(() => {

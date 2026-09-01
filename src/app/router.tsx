@@ -53,6 +53,14 @@ const PageCoursPublic = lazy(() =>
   }))
 )
 
+/**
+ * Suivi privé d'un apprenant. Même régime que la page de cours partagée : sans
+ * compte, sans `AppLayout`, donc avec son propre `Suspense`.
+ */
+const PageSuivi = lazy(() =>
+  import('@/features/suivi/PageSuivi').then((module) => ({ default: module.PageSuivi }))
+)
+
 function EcranAttente() {
   return (
     <div
@@ -81,9 +89,10 @@ const RapportSessionPage = lazy(() =>
 /**
  * Routes de l'application.
  *
- * Deux écrans seulement échappent à `RequireAuth` : `/login`, et `/c/:jeton`,
- * la page de cours partagée — destinée à des apprenants qui n'ont pas de compte
- * et n'en auront pas. Tout le reste exige une session.
+ * Trois écrans seulement échappent à `RequireAuth` : `/login`, `/c/:jeton` — la
+ * page de cours partagée — et `/suivi/:jeton` — le suivi privé d'un apprenant.
+ * Les deux dernières sont destinées à des apprenants et à des familles qui n'ont
+ * pas de compte et n'en auront pas. Tout le reste exige une session.
  *
  * Sous `RequireAuth`, `RequireMembre` exige en plus d'appartenir à un centre :
  * l'inscription étant ouverte (migration 0016), un compte peut exister sans
@@ -96,6 +105,14 @@ const router = createBrowserRouter([
     element: (
       <Suspense fallback={<EcranAttente />}>
         <PageCoursPublic />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/suivi/:jeton',
+    element: (
+      <Suspense fallback={<EcranAttente />}>
+        <PageSuivi />
       </Suspense>
     ),
   },

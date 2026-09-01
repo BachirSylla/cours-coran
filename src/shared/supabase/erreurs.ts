@@ -42,6 +42,7 @@ function messageLisible(erreur: PostgrestError, contexte: string): string {
     case 'P0031': // retrait : cible invalide — hors centre, inexistante, ou le partant
     case 'P0032': // retrait : dernier responsable
     case 'P0033': // retrait : la réaffectation créerait un chevauchement
+    case 'P0040': // suivi apprenant : ce n'est pas votre cours (0019)
       return erreur.message
     case '23505':
       return `${contexte} : cet enregistrement existe déjà.`

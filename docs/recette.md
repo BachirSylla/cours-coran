@@ -584,3 +584,126 @@ donnée n'a disparu :
 ```bash
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/retrait_membre.sql
 ```
+
+---
+
+## Suivi des familles : un lien privé par apprenant (migration 0019)
+
+Les familles ne voyaient rien entre deux rapports de fin de session. Elles ont
+désormais une page privée, **sans compte**, où elles suivent au fil de l'eau les
+notes de récitation de leur enfant pour un cours donné.
+
+C'est la **deuxième** porte ouverte aux visiteurs non connectés après le lien de
+cours — et la première à publier des notes individuelles. Le lien est donc
+**par inscription** (un apprenant, un cours), jamais par cours.
+
+Il s'active depuis la fiche du cours, section **Suivi des familles**, réservée à
+l'enseignant affecté — comme l'examen et les réglages.
+
+### 43. Ouvrir un suivi et le lire sans compte
+
+1. Ouvrir un cours que vous enseignez, dérouler **Suivi des familles**.
+2. Cliquer **Ouvrir le suivi** sur la ligne d'un apprenant.
+3. Copier le lien, l'ouvrir dans une **fenêtre de navigation privée**.
+
+**Attendu** : le nom de l'apprenant en titre, le cours, l'enseignant et le
+centre ; les récitations notées, les plus récentes en haut ; l'assiduité ; les
+exercices de la dernière séance ; l'examen s'il est saisi. Aucune connexion
+n'est demandée.
+
+**Attendu aussi — ce qui ne doit PAS y être** : aucun autre apprenant, aucun
+autre cours du même apprenant, aucun prix, aucun lien de visioconférence,
+**aucune moyenne ni note finale**. Une moyenne à mi-parcours se lit comme un
+verdict ; la note de session a sa feuille, en fin de session.
+
+### 44. Ouvrir un suivi publie le PASSÉ — et le dit
+
+1. Sur un apprenant déjà noté depuis plusieurs semaines, cliquer **Ouvrir le
+   suivi**.
+
+**Attendu** : une confirmation qui annonce que la famille verra **toutes** les
+notes déjà saisies **et les commentaires qui les accompagnent, y compris ceux
+écrits avant aujourd'hui**. Rien n'est publié tant qu'on n'a pas confirmé.
+
+C'est le seul moment où le relire est possible : il n'existe ni fenêtre de
+publication, ni « à partir de telle date ». Le commentaire de récitation est un
+mot à l'élève, pas une note de service.
+
+### 45. Rien qui n'ait été vraiment saisi — ni rien du futur
+
+1. Sur le même cours, laisser une séance tenue **sans note** pour cet apprenant.
+
+**Attendu** : cette séance **n'apparaît pas**. Aucune ligne vide, aucun tiret :
+une grille trouée se lirait comme un reproche alors qu'elle ne dirait que votre
+façon de travailler. Une séance **annulée** ne compte pas non plus comme une
+absence dans les compteurs.
+
+2. Créer une séance **datée de la semaine prochaine**, y écrire un exercice, et
+   pré-remplir une note.
+
+**Attendu** : **rien de tout cela n'apparaît**. Une séance à venir est « faite »
+par défaut dans la base — c'est un piège, pas une décision : sans garde de date,
+la famille lirait aujourd'hui le travail préparé pour dans deux semaines. Cela
+vaut pour les exercices, la note **et** les compteurs d'assiduité.
+
+3. Noter une séance, puis la repasser en **annulée**.
+
+**Attendu** : sa note disparaît de la page — comme elle disparaît du rapport de
+fin de session. Les deux documents doivent raconter la même chose.
+
+Avec moins de deux notes, la **courbe de progression** ne s'affiche pas — un
+point isolé ne dessine pas une évolution. La courbe est tracée en
+**pourcentage**, sur une échelle fixe de 0 à 100 : c'est ce qui permet de mêler
+des notes /10 et /20 sans mentir.
+
+### 46. Un lien ne montre qu'une seule personne
+
+Prérequis : un cours en groupe avec deux apprenants inscrits, tous deux notés.
+
+1. Ouvrir un suivi pour **chacun**, puis ouvrir les deux liens.
+
+**Attendu** : chaque page ne montre **que** son apprenant — ni le nom, ni les
+notes, ni les commentaires de l'autre. Si le même apprenant suit **deux** cours,
+son lien pour le cours A ne laisse rien voir de son travail dans le cours B.
+
+⚠️ Le commentaire que vous écrivez sur une récitation **est lu par la famille**.
+C'est un mot à l'élève, pas une note de service.
+
+### 47. Régénérer et fermer
+
+1. **Régénérer** sur une ligne, puis rouvrir l'**ancien** lien.
+
+**Attendu** : « Ce lien n'est plus valide ». Le nouveau fonctionne.
+
+2. **Fermer** le suivi, puis rouvrir le lien.
+
+**Attendu** : le même message, mot pour mot. Un lien révoqué, un lien inventé et
+un lien tronqué au copier-coller donnent tous **la même** réponse — un message
+différent dirait qu'un apprenant existe derrière cette adresse.
+
+3. Couper le réseau, puis recharger un lien **valide**.
+
+**Attendu** : un message **différent** — « Affichage momentanément impossible…
+Votre lien reste valide ». Ce n'est pas une brèche : une panne survient
+pareillement sur un lien valide et sur un lien révoqué, donc elle n'apprend rien
+sur le jeton. Les confondre, en revanche, envoyait la famille redemander un lien
+qui fonctionnait très bien.
+
+### 48. Ce que le lot ne fait pas
+
+Le lien reste un **secret partagé** : qui l'a, voit. Il n'y a ni compte, ni mot
+de passe, ni trace de qui l'ouvre — c'est le prix de « sans compte », et c'est
+pourquoi la page rappelle de ne pas le transmettre. **La révocation est la seule
+reprise en main.**
+
+⚠️ Le partage WhatsApp transmet l'URL — donc le secret — à Meta dans la requête,
+et le jeton reste dans l'historique de la conversation. C'est inhérent au canal
+et identique au lien de cours, mais ici le secret est celui d'un enfant :
+préférez copier le lien si cela vous gêne.
+
+La preuve automatisée — le bon apprenant, rien d'un autre, rien du futur, la
+liste exacte des clés publiées, et `anon` toujours sans aucun droit table :
+
+```bash
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/suivi_apprenant.sql
+```

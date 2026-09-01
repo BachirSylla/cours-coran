@@ -105,6 +105,11 @@ Les types de cours sont dans une **table de référence** (extensible), pas en d
 - `note_examen`, `examen_bareme` (nullables) : note d'examen de **fin de session** de cet
   apprenant **pour ce cours**. Comme partout, la note ne va jamais sans son barème — la base
   refuse l'une sans l'autre. Corollaire : désinscrire un apprenant **supprime sa note**.
+- `jeton` **(uuid nullable + index unique partiel — `null` = suivi fermé)** : secret de l'URL
+  privée `/suivi/<jeton>` (§5.11). Même régime que `cours.jeton_partage` — tiré **côté serveur**
+  (`activer_suivi` / `regenerer_suivi` / `revoquer_suivi`), jamais par le navigateur, sorti des
+  `grant` d'écriture. Il vit sur l'**inscription**, pas sur le cours : ce qu'il ouvre, ce sont les
+  notes d'**une** personne.
 
 ### `seance` (occurrence réelle d'un cours)
 
@@ -113,12 +118,6 @@ Les types de cours sont dans une **table de référence** (extensible), pas en d
 - `sourate`, `versets_de`, `versets_a` (optionnels — pour Lecture / Mémorisation)
 - `type_travail` (nouvelle_memorisation | revision | lecture)
 - `exercices_a_faire`, `observations`
-- présence par apprenant (table `presence` : `seance_id`, `apprenant_id`, `present`, plus
-  l'évaluation de récitation `note` / `note_bareme` / `commentaire` / `passage_evalue`)
-- `presence.etat` (nullable) nuance le booléen : `present | retard | absent | excuse | partiel`.
-  **`null` = non renseigné** → le calcul retombe sur `present`, ce qui garde toutes les séances
-  d'avant la migration 0008 correctement comptées. Les deux colonnes s'écrivent **toujours
-  ensemble** (`presenceRepo`), pour qu'elles ne puissent jamais se contredire.
 
 ### `paiement`
 
@@ -281,7 +280,41 @@ L'étanchéité est **structurelle**, pas seulement déclarative.
     colonnes de la ligne. Éprouvé par `supabase/tests/rls_etancheite.sql`, qui teste le refus
     **et** l'acceptation.
 
-11. **Invitation d'enseignants** (migration 0016). Le responsable génère un code, le transmet hors
+11. **Suivi privé d'un apprenant** (`/suivi/:jeton`, hors `RequireAuth`, migration 0019) : la
+    **deuxième** porte de `anon` après `cours_public`, et la première à publier des notes
+    individuelles — donc des données de mineurs. Toute la doctrine du §5.8 s'y applique mot pour
+    mot : aucun droit table, une fonction et jamais une vue, la **liste des colonnes de sortie est
+    la liste blanche** (onze : `apprenant`, `cours_libelle`, `type_libelle`, `enseignant`,
+    `centre_nom`, `logo`, `statut`, `evaluations`, `assiduite`, `examen`, `exercices`), re-vérifiée
+    côté client par `shared/supabase/suiviSchema.ts` en mode strip.
+
+    ⚠️ **Ne jamais nommer un paramètre comme une colonne de la requête.** Dans une fonction
+    `language sql`, `where i.jeton = jeton` se résout en `i.jeton = i.jeton` — vrai pour toute
+    ligne — et **n'importe quelle URL sortirait les notes d'un enfant**. D'où `p_jeton`. La faute
+    a été commise et rattrapée par `supabase/tests/suivi_apprenant.sql` : c'est la raison d'être
+    de l'assertion « un jeton inventé ne renvoie rien ».
+
+    ⚠️ **Ne rien publier avant que cela ait eu lieu.** Les trois sous-requêtes portent
+    `statut = 'faite'` **ET** `date <= current_date`, comme `cours_public` depuis 0007. Les deux,
+    et pas l'une des deux : `seance.statut` vaut `'faite'` **par défaut** (0003) et le formulaire
+    le pose aussi en dur, si bien qu'une séance générée pour la semaine prochaine est « faite »
+    sans que personne l'ait décidé — sans la garde de date, la famille lirait aujourd'hui la note
+    et le sujet préparés pour plus tard. La garde de statut sert l'autre sens : une note sur une
+    séance annulée après coup resterait publiée alors que le rapport de session l'écarte, et la
+    note semblerait s'évaporer d'un document à l'autre.
+
+    Trois partis pris de contenu, à ne pas défaire par confort : **rien qui n'ait été saisi** (une
+    séance sans note n'apparaît pas — une grille trouée se lit comme un reproche) ; **aucune
+    moyenne ni note finale** (un verdict à mi-parcours) ; les résultats restent lisibles **après**
+    la fin du cours, contrairement au lien Meet — ils sont l'objet même de la page, et la
+    révocation du jeton est la seule fermeture.
+
+    L'activation est gardée par `cours_animables()`, comme l'examen : elle relève de l'enseignant
+    affecté, pas du responsable. Le commentaire de récitation (`presence.commentaire`) et les
+    exercices (`seance.exercices_a_faire`) sont **publiés** : ce sont des mots à l'élève, pas des
+    notes de service — les colonnes portent le `comment` qui le dit.
+
+12. **Invitation d'enseignants** (migration 0016). Le responsable génère un code, le transmet hors
     bande, l'enseignant crée son compte puis l'échange. Trois fonctions, toutes `security definer`
     et possédées par `postgres` :
     - `creer_invitation(jours)` → le code en clair, **une seule fois**. Gardée par
@@ -324,7 +357,7 @@ L'étanchéité est **structurelle**, pas seulement déclarative.
     vers `site_url`. `RequireMembre` accueille ces comptes inertes plutôt que de leur montrer une
     application vide, qui se lirait comme une panne.
 
-12. **Structure contre pédagogie** (migration 0017) — le renversement de 0011 et de la place que
+13. **Structure contre pédagogie** (migration 0017) — le renversement de 0011 et de la place que
     0012 donnait à l'examen. La frontière ne passe plus entre « gestion » et « pédagogie » mais
     entre ce qu'on **structure** et ce qu'on **anime**, et l'autorité pédagogique tient à
     l'**affectation**, jamais au rôle :
@@ -352,7 +385,7 @@ L'étanchéité est **structurelle**, pas seulement déclarative.
 
     Chaque RPC **résout elle-même sa cible jusqu'au cours** — `noter_examen` remonte de
     l'inscription — et vérifie que l'appelant l'enseigne. Le client ne nomme jamais le cours, donc
-    ne peut pas le forcer ; c'est l'analogue du code d'invitation qui porte son rôle (§5.11).
+    ne peut pas le forcer ; c'est l'analogue du code d'invitation qui porte son rôle (§5.12).
 
     ⚠️ `definir_reglages_cours` **remplace** les sept réglages d'un bloc : une clé absente vaut
     `null`, c'est-à-dire « hériter du centre », et non « inchangé ».
@@ -377,7 +410,7 @@ L'étanchéité est **structurelle**, pas seulement déclarative.
     effectifs, les séances, les présences et l'examen de tout ce que `cours_lisibles()` leur
     ouvre. Le rapport en dépend.
 
-13. **Retrait d'un membre** (migration 0018). `retirer_membre(user_id, reaffecter_a)`,
+14. **Retrait d'un membre** (migration 0018). `retirer_membre(user_id, reaffecter_a)`,
     `security definer` — `membre` n'accorde ni `delete` ni policy de suppression à personne, cette
     RPC est donc le seul chemin, comme `racheter_invitation` l'est pour l'insertion.
 
@@ -437,6 +470,10 @@ L'étanchéité est **structurelle**, pas seulement déclarative.
 - **Lien de cours partageable** (`/c/:jeton`) : page publique sans connexion donnant l'horaire, la
   prochaine séance, le lien de visioconférence et le dernier exercice — activable, régénérable et
   révocable depuis la fiche du cours, avec partage WhatsApp (§5.8).
+- **Suivi des familles** (`/suivi/:jeton`) : page privée sans connexion donnant, pour **un**
+  apprenant et **un** cours, ses récitations notées, sa courbe de progression en pourcentage, son
+  assiduité, ses exercices et son examen — un lien par inscription, ouvrable, régénérable et
+  révocable par l'enseignant du cours (§5.11).
 - Rappels de cours (plus tard).
 
 ## 7. Roadmap (construire par étapes, ne pas tout faire d'un coup)
@@ -468,7 +505,12 @@ psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls_etancheite.sql
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/conflit_enseignant.sql
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/invitation.sql
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/retrait_membre.sql
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/suivi_apprenant.sql
 ```
+
+⚠️ Ces scripts se plantent un décor dans une base qui contient de **vraies** données. Repérer une
+ligne qu'on vient d'insérer par `where nom = '…'` peut donc en ramener plusieurs : capturer les
+identifiants par `insert … returning`, jamais par une recherche sur un libellé.
 
 Les migrations qui verrouillent `cours` prennent un verrou exclusif : les lancer avec
 `-c "set lock_timeout='15s'"`, pour qu'une contention échoue bruyamment plutôt que d'attendre en
@@ -481,8 +523,14 @@ vérifie en rejouant une migration juste après elle-même, jamais dans le déso
 Variante sans `supabase login`, avec la chaîne de connexion de `.env.local` :
 
 ```bash
-npx supabase gen types typescript --db-url "$SUPABASE_DB_URL" > src/shared/supabase/types.ts
+npx supabase gen types typescript --db-url "$SUPABASE_DB_URL" > "$TMPDIR/types.new.ts"
 ```
+
+Deux précautions : cette commande lance un conteneur `postgres-meta`, donc **Docker doit tourner** ;
+et elle doit écrire dans un fichier **temporaire**, jamais directement dans `types.ts` — une
+redirection sur la cible le vide avant même que la commande échoue. Comparer, puis reporter les
+ajouts. Une CLI plus ancienne que le fichier en place supprimerait le bloc `__InternalSupabase`
+dont dépend le typage de `createClient`.
 
 ## 9. Conventions
 
@@ -535,5 +583,15 @@ npx supabase gen types typescript --db-url "$SUPABASE_DB_URL" > src/shared/supab
   voit pas la transaction voisine. Il faut un `for update`.
 - Ne pas écrire `cours.enseignant_id` par un UPDATE sans revérifier les chevauchements : le
   garde-fou §5.1 vit dans `enregistrer_cours`, pas en contrainte.
+- Ne jamais donner à un paramètre de fonction SQL le nom d'une colonne de sa propre requête : la
+  colonne l'emporte, le prédicat devient tautologique, et une fonction publique se met à tout
+  renvoyer (voir §5.11). Préfixer `p_` — ou référencer le paramètre par sa position, `$1`, qu'aucune
+  colonne ne peut masquer : c'est ce que fait `cours_public`, dont le paramètre public s'appelle
+  `jeton` et ne peut pas être renommé sans casser la page publique entre deux déploiements.
+- Ne rien publier à `anon` sans filtrer sur `date <= current_date` : `seance.statut` naît `'faite'`,
+  donc « tenue » ne veut pas dire « passée » (voir §5.11).
+- Ne pas juger une garde éprouvée parce que le test est vert : la retirer doit faire **tomber** le
+  test. Les trois gardes de date de 0019 et le sens du `coalesce` du logo ont été vérifiés ainsi,
+  en remplaçant la fonction dans une transaction annulée.
 - Ne pas réintroduire de propriétaire par compte : `owner_id` a disparu en 0015, et le tenant est
   le centre. Une isolation par `auth.uid()` rouvrirait tout ce que 0012 a refermé.

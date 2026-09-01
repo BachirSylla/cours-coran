@@ -677,6 +677,7 @@ export type Database = {
     }
     Functions: {
       activer_partage: { Args: { p_cours_id: string }; Returns: string }
+      activer_suivi: { Args: { p_inscription_id: string }; Returns: string }
       apprenants_lisibles: { Args: never; Returns: string[] }
       centre_courant: { Args: never; Returns: string }
       cours_animables: { Args: never; Returns: string[] }
@@ -747,12 +748,30 @@ export type Database = {
         Returns: string
       }
       regenerer_partage: { Args: { p_cours_id: string }; Returns: string }
+      regenerer_suivi: { Args: { p_inscription_id: string }; Returns: string }
       retirer_membre: {
         Args: { p_reaffecter_a: string; p_user_id: string }
         Returns: number
       }
       revoquer_invitation: { Args: { p_id: string }; Returns: undefined }
       revoquer_partage: { Args: { p_cours_id: string }; Returns: undefined }
+      revoquer_suivi: { Args: { p_inscription_id: string }; Returns: undefined }
+      suivi_apprenant: {
+        Args: { p_jeton: string }
+        Returns: {
+          apprenant: string
+          assiduite: Json
+          centre_nom: string
+          cours_libelle: string
+          enseignant: string
+          evaluations: Json
+          examen: Json
+          exercices: string
+          logo: string
+          statut: string
+          type_libelle: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
