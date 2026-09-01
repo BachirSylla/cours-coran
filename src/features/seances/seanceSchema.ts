@@ -173,9 +173,20 @@ export function refusSaisiePresence(
 }
 
 /**
- * Le bloc « Détails Coran » est déplié pour la lecture et la mémorisation,
- * replié pour l'initiation. Simple défaut d'affichage : tous les champs restent
- * accessibles, une heuristique fausse est sans conséquence.
+ * Le bloc « Détails Coran » est déplié pour les matières qui travaillent un
+ * PASSAGE précis — lecture, mémorisation, tadjwîd, tafsîr — et replié pour
+ * celles qui n'en désignent pas : initiation, fiqh, tawhîd, langue arabe.
+ *
+ * Simple défaut d'affichage : tous les champs restent accessibles, et une
+ * heuristique fausse est sans conséquence. C'est aussi pourquoi elle reste une
+ * heuristique sur le libellé plutôt qu'une colonne de `type_cours` — ajouter une
+ * colonne pour piloter l'état initial d'un bloc repliable coûterait une
+ * migration à chaque hésitation.
+ *
+ * ⚠️ Les deux orthographes du tadjwîd sont acceptées (`tadjwîd` / `tajwîd`), et
+ * l'accent circonflexe est facultatif dans la reconnaissance : la migration 0021
+ * fixe une orthographe pour la TABLE, mais un libellé saisi autrement ailleurs
+ * ne doit pas faire échouer le classement en silence.
  */
 export function typeCoursCoranique(libelleType: string | null | undefined): boolean {
   if (!libelleType) return false
@@ -184,5 +195,5 @@ export function typeCoursCoranique(libelleType: string | null | undefined): bool
   // d'abord, sinon le libellé de référence le plus courant serait mal classé.
   if (/initiation/i.test(libelleType)) return false
 
-  return /lecture|m[ée]morisation/i.test(libelleType)
+  return /lecture|m[ée]morisation|tad?jw[iî]d|tafs[iî]r/i.test(libelleType)
 }

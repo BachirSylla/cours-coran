@@ -70,7 +70,20 @@ Les types de cours sont dans une **table de référence** (extensible), pas en d
 
 ### `type_cours`
 
-- `id`, `libelle` (ex. Initiation à la lecture du Coran / Lecture du Coran / Mémorisation)
+- `id`, `libelle` **(unique)**. Huit lignes depuis la migration 0021 : Initiation à la lecture du
+  Coran, Lecture du Coran, Mémorisation, Tadjwîd, Tafsîr, Fiqh, Tawhîd, Initiation à la langue
+  arabe.
+- Référence **globale** : pas de `centre_id`, lecture seule pour `authenticated`, et **aucune
+  policy d'écriture**. L'enrichir passe donc par une migration, et c'est voulu — un libellé de
+  référence se pèse une bonne fois, il ne se saisit pas à la volée dans un formulaire.
+- ⚠️ **Convention d'orthographe** pour toute addition (migration 0021) : translittération
+  française avec voyelles longues en circonflexe (`â`, `î`, `û`), `q` pour ق (« Fiqh », jamais
+  « Fikh »), `dj` pour ج (« Tadjwîd »), majuscule au seul premier mot (« Initiation à la langue
+  arabe »). L'unicité porte sur le libellé : deux graphies d'une même matière coexisteraient sans
+  que rien ne s'en plaigne.
+- ⚠️ Ne **jamais renommer** une ligne déjà utilisée : `cours.type_cours_id` la pointe, et le type
+  de ces cours changerait rétroactivement. `on delete restrict` empêche la suppression, pas le
+  renommage.
 
 ### `apprenant`
 

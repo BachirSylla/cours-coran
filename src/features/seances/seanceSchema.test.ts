@@ -128,6 +128,24 @@ describe('typeCoursCoranique', () => {
     expect(typeCoursCoranique('memorisation')).toBe(true)
   })
 
+  /*
+   * Types ajoutés par la migration 0021. Tadjwîd et tafsîr travaillent un
+   * passage précis : le bloc sourate/versets leur sert.
+   */
+  it('reconnaît le tadjwîd et le tafsîr, dans leurs deux orthographes', () => {
+    expect(typeCoursCoranique('Tadjwîd')).toBe(true)
+    expect(typeCoursCoranique('Tajwîd')).toBe(true)
+    expect(typeCoursCoranique('tadjwid')).toBe(true)
+    expect(typeCoursCoranique('Tafsîr')).toBe(true)
+    expect(typeCoursCoranique('tafsir')).toBe(true)
+  })
+
+  it('ne déplie pas le bloc pour les matières sans passage désigné', () => {
+    expect(typeCoursCoranique('Fiqh')).toBe(false)
+    expect(typeCoursCoranique('Tawhîd')).toBe(false)
+    expect(typeCoursCoranique('Initiation à la langue arabe')).toBe(false)
+  })
+
   it('ne déplie pas le bloc pour l’initiation, malgré le mot « lecture »', () => {
     expect(typeCoursCoranique('Initiation à la lecture du Coran')).toBe(false)
     expect(typeCoursCoranique('Initiation Nourania')).toBe(false)

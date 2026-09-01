@@ -786,3 +786,37 @@ second correctif : le formulaire se remplissait au montage, avant l'arrivée des
 notes, et les affichait donc **une fois sur deux** — quand elles étaient déjà en
 cache. Il attend désormais la donnée avant de se monter, et une brève ligne
 « Chargement des apprenants… » le signale.
+
+---
+
+## Types de cours élargis (migration 0021)
+
+### 54. La liste déroulante « Type de cours »
+
+1. **Cours → Nouveau cours**, dérouler **Type de cours**.
+
+**Attendu** — huit entrées, par ordre alphabétique :
+
+Fiqh · Initiation à la langue arabe · Initiation à la lecture du Coran ·
+Lecture du Coran · Mémorisation · Tadjwîd · Tafsîr · Tawhîd
+
+Ces types viennent de la base, pas du code : ils sont apparus **sans
+déploiement**, dès l'application de la migration.
+
+### 55. Le bloc « Détails Coran » suit la matière
+
+1. Créer une séance sur un cours de **Tadjwîd** ou de **Tafsîr**.
+
+**Attendu** : le bloc **Détails Coran** (sourate, versets) est **déjà déplié** —
+ces matières travaillent un passage précis.
+
+2. Faire de même sur un cours de **Fiqh**, **Tawhîd** ou **langue arabe**.
+
+**Attendu** : le bloc est **replié**. Il reste accessible d'un clic : c'est un
+simple défaut d'affichage, jamais une restriction.
+
+### 56. Reclasser vos cours existants
+
+Vos cours « Cours Fikh » et « Cours tawhiid » pointent encore un type
+approchant. Ouvrez-les et changez leur **Type de cours** — rien d'autre ne
+bouge, et l'historique des séances est conservé.
