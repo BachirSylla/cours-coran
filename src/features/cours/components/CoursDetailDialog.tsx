@@ -206,6 +206,7 @@ export function CoursDetailDialog({
       {cours && (
         <ExportRapportDialog
           coursId={cours.id}
+          cours={cours}
           ouvert={exportOuvert}
           onOuvertChange={setExportOuvert}
         />

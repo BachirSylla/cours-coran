@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SeanceFormDialog } from '@/features/seances/components/SeanceFormDialog'
 import { useEnregistrerSeance } from '@/features/seances/hooks/useEnregistrerSeance'
 import { useSeancesCours } from '@/features/seances/hooks/useSeancesCours'
+import { useSessionActive } from '@/features/sessions/hooks/useSessions'
 import type { SeanceVueEnrichie } from '@/features/seances/regroupement'
 
 /**
@@ -44,9 +45,35 @@ vi.mock('@/features/seances/hooks/useEnregistrerSeance', () => ({
   useEnregistrerSeance: vi.fn(),
 }))
 vi.mock('@/features/seances/hooks/useSeancesCours', () => ({ useSeancesCours: vi.fn() }))
+vi.mock('@/features/sessions/hooks/useSessions', () => ({ useSessionActive: vi.fn() }))
 
 const useEnregistrerMock = vi.mocked(useEnregistrerSeance)
 const useSeancesCoursMock = vi.mocked(useSeancesCours)
+const useSessionActiveMock = vi.mocked(useSessionActive)
+
+/** Sessions du centre. Par défaut une seule, ouverte : le cas ordinaire. */
+function simulerSessions(statut: 'en_cours' | 'terminee' = 'en_cours') {
+  const session = {
+    id: 'session-1',
+    centre_id: 'centre-1',
+    nom: 'Session 17',
+    date_debut: '2026-01-05',
+    date_fin: null,
+    statut,
+    created_at: '2026-01-01T10:00:00Z',
+    updated_at: '2026-01-01T10:00:00Z',
+  }
+
+  useSessionActiveMock.mockReturnValue({
+    session,
+    sessionId: session.id,
+    sessions: [session],
+    chargement: false,
+    erreur: null,
+    choisir: vi.fn(),
+    plusieurs: false,
+  })
+}
 
 function vue(options: Partial<SeanceVueEnrichie> = {}): SeanceVueEnrichie {
   return {
@@ -62,6 +89,7 @@ function vue(options: Partial<SeanceVueEnrichie> = {}): SeanceVueEnrichie {
     type_libelle: 'Mémorisation',
     format: 'groupe',
     enseignant_id: null,
+    session_id: 'session-1',
     ...options,
   }
 }
@@ -93,6 +121,7 @@ function seance(options: Record<string, unknown> = {}) {
 describe('SeanceFormDialog — section d’évaluation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    simulerSessions()
     useEnregistrerMock.mockReturnValue({
       mutateAsync: vi.fn(),
       isPending: false,
@@ -179,6 +208,7 @@ describe('SeanceFormDialog — section d’évaluation', () => {
 describe('SeanceFormDialog — présence réservée aux séances faites', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    simulerSessions()
     vi.useFakeTimers()
     // Mercredi 27 juillet 2026 : la date des fixtures est ce jour-là, donc
     // « aujourd'hui » par défaut. Les tests décalent ce qu'ils veulent tester.
@@ -359,5 +389,57 @@ describe('SeanceFormDialog — présence réservée aux séances faites', () => 
 
     expect(screen.getByTestId('presence-indisponible')).toHaveAttribute('data-refus', 'statut')
     expect(screen.getByLabelText('Motif')).toBeInTheDocument()
+  })
+})
+
+/**
+ * Une session clôturée n'accepte plus ni séance, ni présence, ni note
+ * (migration 0023). La base le refuse par trigger ; l'écran ne fait que ne pas
+ * tendre un formulaire qui échouerait — et dit pourquoi, plutôt que de
+ * disparaître.
+ */
+describe('SeanceFormDialog — session clôturée', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    useEnregistrerMock.mockReturnValue({
+      mutateAsync: vi.fn(),
+      isPending: false,
+      isError: false,
+      isSuccess: false,
+      error: null,
+    } as unknown as ReturnType<typeof useEnregistrerSeance>)
+    useSeancesCoursMock.mockReturnValue({ data: [] } as unknown as ReturnType<
+      typeof useSeancesCours
+    >)
+  })
+
+  it('annonce la clôture et dit ce qui reste possible', () => {
+    simulerSessions('terminee')
+
+    render(<SeanceFormDialog vue={vue()} onOuvertChange={vi.fn()} />)
+
+    expect(screen.getByText('Session clôturée')).toBeInTheDocument()
+    expect(screen.getByText(/Tout reste lisible/)).toBeInTheDocument()
+    expect(screen.getByText(/rapport reste téléchargeable/)).toBeInTheDocument()
+  })
+
+  it('coupe la saisie : champs inertes, présence retirée, bouton désactivé', () => {
+    simulerSessions('terminee')
+
+    render(<SeanceFormDialog vue={vue()} onOuvertChange={vi.fn()} />)
+
+    expect(screen.getByLabelText('Contenu abordé')).toBeDisabled()
+    expect(screen.queryByTestId('section-presence')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled()
+  })
+
+  it('ne gêne rien tant que la session est ouverte', () => {
+    simulerSessions('en_cours')
+
+    render(<SeanceFormDialog vue={vue()} onOuvertChange={vi.fn()} />)
+
+    expect(screen.queryByText('Session clôturée')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Contenu abordé')).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeEnabled()
   })
 })

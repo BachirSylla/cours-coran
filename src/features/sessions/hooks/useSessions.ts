@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
 import type { UseMutationResult } from '@tanstack/react-query'
 
+import { coursKeys } from '@/features/cours/hooks/coursKeys'
 import { useSessionActiveStore } from '@/features/sessions/sessionActiveStore'
 import * as sessionRepo from '@/shared/supabase/sessionRepo'
 import type { Session, SessionInput } from '@/shared/supabase/sessionRepo'
@@ -72,6 +73,32 @@ export function useSessionActive(): SessionActive {
   }
 }
 
+export interface ModificationSession {
+  id: string
+  session: Partial<SessionInput>
+}
+
+/**
+ * Renomme une session, corrige ses dates, la clôture ou la rouvre.
+ *
+ * La clôture n'est pas une RPC : c'est un simple `update` du statut, gardé par
+ * la policy de la table. Une fonction `security definer` n'ajouterait rien —
+ * il n'y a ici ni rôle à masquer au client, ni cible à résoudre.
+ *
+ * Invalide les cours : ce qui est saisissable dépend du statut de la session.
+ */
+export function useModifierSession(): UseMutationResult<Session, Error, ModificationSession> {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, session }: ModificationSession) => sessionRepo.modifier(id, session),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: sessionKeys.tous })
+      void queryClient.invalidateQueries({ queryKey: coursKeys.tous })
+    },
+  })
+}
+
 /** Crée une session. Réservée au responsable — la RLS le fait respecter. */
 export function useCreerSession(): UseMutationResult<Session, Error, SessionInput> {
   const queryClient = useQueryClient()
@@ -81,6 +108,7 @@ export function useCreerSession(): UseMutationResult<Session, Error, SessionInpu
     mutationFn: sessionRepo.creer,
     onSuccess: (session) => {
       void queryClient.invalidateQueries({ queryKey: sessionKeys.tous })
+      void queryClient.invalidateQueries({ queryKey: coursKeys.tous })
       // On bascule dessus : personne ne crée une session pour rester ailleurs.
       choisir(session.id)
     },

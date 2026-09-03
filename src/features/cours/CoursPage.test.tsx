@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider, type UseQueryResult } from '@tanstack/react-query'
@@ -31,6 +31,19 @@ vi.mock('@/features/cours/hooks/useTousLesCreneaux', () => ({ useTousLesCreneaux
 vi.mock('@/features/cours/hooks/useTypesCours', () => ({ useTypesCours: vi.fn() }))
 vi.mock('@/features/membres/hooks/useMembre', () => ({ useMembre: vi.fn() }))
 vi.mock('@/features/membres/hooks/useMembres', () => ({ useMembres: vi.fn() }))
+// La page transmet la session active au formulaire ; ce fichier teste la liste
+// et le filtre, pas la résolution de session.
+vi.mock('@/features/sessions/hooks/useSessions', () => ({
+  useSessionActive: () => ({
+    session: null,
+    sessionId: 'session-1',
+    sessions: [],
+    chargement: false,
+    erreur: null,
+    choisir: vi.fn(),
+    plusieurs: false,
+  }),
+}))
 
 const useMembreMock = vi.mocked(useMembre)
 const useMembresMock = vi.mocked(useMembres)
@@ -280,5 +293,91 @@ describe('CoursPage', () => {
 
     expect(screen.getByText('Suppression impossible')).toBeInTheDocument()
     expect(screen.getByText('Suppression refusée.')).toBeInTheDocument()
+  })
+})
+
+/**
+ * Le filtre par niveau (migration 0022).
+ *
+ * Il ne s'affiche qu'à partir de deux niveaux : filtrer une liste homogène ne
+ * sert à rien, et ajoute une commande à comprendre pour rien.
+ */
+describe('CoursPage — filtre par niveau', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    useMembreMock.mockReturnValue(membre())
+    useMembresMock.mockReturnValue({ data: [] } as unknown as ReturnType<typeof useMembres>)
+    useCreerMock.mockReturnValue(mutationInerte<ReturnType<typeof useCreerCours>>())
+    useModifierMock.mockReturnValue(mutationInerte<ReturnType<typeof useModifierCours>>())
+    useSupprimerMock.mockReturnValue(mutationInerte<ReturnType<typeof useSupprimerCours>>())
+    useCreneauxMock.mockReturnValue(requeteVide([]))
+    useTypesMock.mockReturnValue(requeteVide([]))
+  })
+
+  const AVEC_NIVEAUX = [
+    cours('c1', 'Coran débutants', [], { niveau: 'Niveau 1' }),
+    cours('c2', 'Coran confirmés', [], { niveau: 'Niveau 2' }),
+    cours('c3', 'Tadjwîd', [], { niveau: 'Niveau 1' }),
+    cours('c4', 'Sans niveau', [], { niveau: null }),
+  ]
+
+  it('ne propose pas de filtre quand tous les cours ont le même niveau', () => {
+    simulerListe({ data: [cours('c1', 'A', [], { niveau: 'Niveau 1' })] })
+
+    rendreAvecQuery(<CoursPage />)
+
+    expect(screen.queryByLabelText('Filtrer par niveau')).not.toBeInTheDocument()
+  })
+
+  it('propose les niveaux existants, triés, dès qu’il y en a plusieurs', () => {
+    simulerListe({ data: AVEC_NIVEAUX })
+
+    rendreAvecQuery(<CoursPage />)
+
+    const filtre = screen.getByLabelText('Filtrer par niveau')
+    expect(within(filtre).getByRole('option', { name: 'Tous les niveaux' })).toBeInTheDocument()
+    expect(within(filtre).getByRole('option', { name: 'Niveau 1' })).toBeInTheDocument()
+    expect(within(filtre).getByRole('option', { name: 'Niveau 2' })).toBeInTheDocument()
+  })
+
+  it('ne garde que les cours du niveau choisi', async () => {
+    const utilisateur = userEvent.setup()
+    simulerListe({ data: AVEC_NIVEAUX })
+
+    rendreAvecQuery(<CoursPage />)
+    await utilisateur.selectOptions(screen.getByLabelText('Filtrer par niveau'), 'Niveau 2')
+
+    // La liste se rend en tableau ET en cartes selon la largeur : chaque
+    // libellé apparaît donc deux fois dans le DOM.
+    expect(screen.getAllByText('Coran confirmés').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Coran débutants')).not.toBeInTheDocument()
+    expect(screen.queryByText('Sans niveau')).not.toBeInTheDocument()
+  })
+
+  /*
+   * Un filtre qui ne ramène rien doit le DIRE : une liste vide sans explication
+   * se lit comme une perte de cours.
+   */
+  it('explique un filtre sans résultat au lieu de laisser la page vide', async () => {
+    const utilisateur = userEvent.setup()
+    simulerListe({
+      data: [
+        cours('c1', 'Débutants', [], { niveau: 'Niveau 1' }),
+        cours('c2', 'Confirmés', [], { niveau: 'Niveau 2' }),
+        // Un niveau proposé au filtre, mais qu'aucun cours ne porte plus après
+        // un changement : c'est le cas qui laisse la page vide.
+        cours('c3', 'Autres', [], { niveau: 'Niveau 3' }),
+      ],
+    })
+
+    rendreAvecQuery(<CoursPage />)
+    await utilisateur.selectOptions(screen.getByLabelText('Filtrer par niveau'), 'Niveau 3')
+
+    expect(screen.getAllByText('Autres').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Débutants')).not.toBeInTheDocument()
+
+    // Et « Aucun cours pour le moment » ne doit jamais s'afficher : il y a des
+    // cours, c'est le filtre qui ne ramène rien.
+    expect(screen.queryByText(/Aucun cours pour le moment/)).not.toBeInTheDocument()
   })
 })

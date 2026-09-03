@@ -49,6 +49,7 @@ function vue(
     type_libelle: 'Mémorisation',
     format: 'groupe',
     enseignant_id: null,
+    session_id: 'session-1',
     ...options,
   }
 }

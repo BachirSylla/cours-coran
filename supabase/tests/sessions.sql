@@ -442,6 +442,112 @@ end;
 $$;
 
 -- =============================================================================
+-- C bis. La clôture ferme la SAISIE, jamais la lecture (migration 0023)
+--
+-- 0022 avait fermé la structure (P0061) ; 0023 ferme la pédagogie (P0062). Ce
+-- qui reste ouvert compte autant que ce qui se ferme : tout se lit, le rapport
+-- s'imprime, et un pointage posé par erreur se retire encore.
+-- =============================================================================
+do $$
+declare
+  v_apprenant uuid;
+  v_seance    uuid;
+begin
+  perform public.__devenir(public.__id('u_resp'));
+
+  -- Un apprenant, une séance et un pointage, session OUVERTE.
+  insert into public.apprenant (centre_id, nom, prenom)
+  values (public.__id('centre'), 'Sow', 'Fatou') returning id into v_apprenant;
+
+  insert into public.inscription (centre_id, apprenant_id, cours_id)
+  values (public.__id('centre'), v_apprenant, public.__id('cours_s18'));
+
+  insert into public.seance (centre_id, cours_id, date, heure_debut, heure_fin, statut)
+  values (public.__id('centre'), public.__id('cours_s18'), '2026-06-08', '10:00', '11:00', 'faite')
+  returning id into v_seance;
+
+  insert into public.presence (centre_id, seance_id, apprenant_id, present, etat, note, note_bareme)
+  values (public.__id('centre'), v_seance, v_apprenant, true, 'present', 15, 20);
+
+  insert into public.t_ids (cle, val) values ('apprenant', v_apprenant), ('seance', v_seance);
+end;
+$$;
+
+do $$
+begin
+  perform public.__devenir(public.__id('u_resp'));
+  perform public.__accepte(
+    format($sql$update public.session set statut = 'terminee' where id = %L$sql$,
+           public.__id('s18')),
+    'clôturer une session qui porte des séances et des notes');
+
+  -- --- Ce qui se FERME -----------------------------------------------------
+  perform public.__refus(
+    format($sql$insert into public.seance (centre_id, cours_id, date, heure_debut, heure_fin, statut)
+                values (%L, %L, '2026-06-15', '10:00', '11:00', 'faite')$sql$,
+           public.__id('centre'), public.__id('cours_s18')),
+    'P0062', 'créer une séance dans une session clôturée');
+
+  perform public.__refus(
+    format($sql$update public.seance set contenu_aborde = 'Après coup' where id = %L$sql$,
+           public.__id('seance')),
+    'P0062', 'modifier une séance d''une session clôturée');
+
+  perform public.__refus(
+    format($sql$update public.presence set note = 20
+                where seance_id = %L and apprenant_id = %L$sql$,
+           public.__id('seance'), public.__id('apprenant')),
+    'P0062', 'renoter un apprenant dans une session clôturée');
+
+  perform public.__refus(
+    format($sql$insert into public.presence (seance_id, apprenant_id, present, etat)
+                values (%L, %L, true, 'present')$sql$,
+           public.__id('seance'), public.__id('aicha')),
+    'P0062', 'pointer un apprenant de plus dans une session clôturée');
+
+  -- --- Ce qui reste OUVERT -------------------------------------------------
+  perform public.__attendre(
+    format($sql$select count(*) from public.seance where id = %L$sql$, public.__id('seance')),
+    1::bigint, 'la séance d''une session clôturée n''est plus lisible');
+
+  perform public.__attendre(
+    format($sql$select count(*) from public.presence
+                where seance_id = %L and note = 15$sql$, public.__id('seance')),
+    1::bigint, 'la note d''une session clôturée n''est plus lisible');
+
+  /*
+   * La matière du RAPPORT, qui doit rester téléchargeable indéfiniment — c'est
+   * la raison d'être d'une session close : on la consulte et on l'imprime.
+   */
+  perform public.__attendre(
+    format($sql$select count(*) from public.cours as c
+                join public.seance as s on s.cours_id = c.id
+                join public.presence as p on p.seance_id = s.id
+                where c.id = %L$sql$, public.__id('cours_s18')),
+    1::bigint, 'le rapport d''une session clôturée n''a plus de matière');
+
+  -- Retirer un pointage posé par erreur reste possible : une garde qui empêche
+  -- aussi de réparer force à rouvrir la session pour une faute de frappe.
+  perform public.__accepte(
+    format($sql$delete from public.presence where seance_id = %L and apprenant_id = %L$sql$,
+           public.__id('seance'), public.__id('apprenant')),
+    'retirer un pointage d''une session clôturée');
+
+  -- --- Et la réouverture rend tout ------------------------------------------
+  perform public.__accepte(
+    format($sql$update public.session set statut = 'en_cours' where id = %L$sql$,
+           public.__id('s18')),
+    'rouvrir la session');
+
+  perform public.__accepte(
+    format($sql$insert into public.presence (seance_id, apprenant_id, present, etat, note, note_bareme)
+                values (%L, %L, true, 'present', 15, 20)$sql$,
+           public.__id('seance'), public.__id('apprenant')),
+    'repointer une fois la session rouverte');
+end;
+$$;
+
+-- =============================================================================
 -- E. La FORME du scope — pour que personne ne le retire par « simplification »
 -- =============================================================================
 reset role;

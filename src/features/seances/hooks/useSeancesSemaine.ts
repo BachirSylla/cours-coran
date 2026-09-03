@@ -80,6 +80,7 @@ export function useSeancesSemaine(debut: string, fin: string): ResultatSeancesSe
         type_libelle: unCours?.type_cours?.libelle ?? null,
         format: unCours?.format ?? 'individuel',
         enseignant_id: unCours?.enseignant_id ?? null,
+        session_id: unCours?.session_id ?? '',
       }
     })
   }, [cours, seances, debut, fin])

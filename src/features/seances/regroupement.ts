@@ -21,6 +21,12 @@ export interface SeanceVueEnrichie extends SeanceVue<Seance> {
    * à un responsable dont la RLS refuserait ensuite l'enregistrement.
    */
   enseignant_id: string | null
+  /**
+   * Session du cours (migration 0022). Une session clôturée n'accepte plus de
+   * séance ni de note : sans cette information, l'écran tendrait un formulaire
+   * que la base refuserait (P0062).
+   */
+  session_id: string
 }
 
 export interface GroupeJour {

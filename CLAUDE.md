@@ -108,6 +108,16 @@ Les types de cours sont dans une **table de référence** (extensible), pas en d
 - **Aucune policy de DELETE, pour personne.** Une session se renomme ou se clôture. La supprimer
   poserait la question « et ses cours ? », à laquelle `on delete restrict` répond déjà par un refus
   sec et illisible.
+- **La clôture n'est pas une RPC** : c'est un simple `update` du statut, gardé par la policy de la
+  table. Une fonction `security definer` n'ajouterait rien — il n'y a ici ni rôle à masquer au
+  client, ni cible à résoudre (à comparer avec `racheter_invitation` ou `retirer_membre`, qui ont
+  les deux).
+- Ce qu'elle ferme (migrations 0022 et 0023) : la **structure** — ni création, ni modification, ni
+  déplacement de cours (P0061) — et la **pédagogie** — ni séance, ni présence, ni note (P0062, deux
+  triggers). Ce qu'elle ne ferme **jamais** : la lecture entière, et le **rapport**, qui reste
+  téléchargeable indéfiniment. C'est même la raison d'être d'une session close : on la consulte et
+  on l'imprime. Le verrou porte sur INSERT et UPDATE, **pas sur DELETE** : retirer un pointage posé
+  par erreur reste possible, sinon corriger une faute de frappe obligerait à rouvrir la période.
 
 ### `cours`
 
@@ -629,6 +639,10 @@ psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/presence_seance_fai
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/sessions.sql
 ```
 
+⚠️ `sessions.sql` couvre les migrations 0022 **et** 0023 : le scope de conflit, la clôture, et le
+backfill. À rejouer après toute migration qui touche `enregistrer_cours`, `retirer_membre`, ou les
+triggers de `seance` et `presence`.
+
 ⚠️ Ces scripts se plantent un décor dans une base qui contient de **vraies** données. Repérer une
 ligne qu'on vient d'insérer par `where nom = '…'` peut donc en ramener plusieurs : capturer les
 identifiants par `insert … returning`, jamais par une recherche sur un libellé.
@@ -748,6 +762,10 @@ dont dépend le typage de `createClient`.
 - Ne pas croire qu'un backfill qui parcourt les lignes suffit : ici il fallait parcourir les
   **centres**, sinon un centre sans cours n'aurait jamais eu de session. Et couvrir les centres
   FUTURS demande un trigger, pas un `insert` de migration.
+- Ne pas poser un trigger sur `presence` sans vérifier l'ordre alphabétique de son nom :
+  PostgreSQL déclenche les triggers d'un même événement par ordre de NOM, et
+  `presence_hydrater_cours` doit passer en premier pour poser `cours_id`. Un trigger nommé plus tôt
+  lirait une colonne encore nulle et laisserait tout passer.
 - Ne pas garder une colonne facultative à l'écriture sans se demander ce que son ABSENCE permet :
   `session_id` omis à la modification voulait dire « inchangé », et suffisait donc à contourner le
   verrou de session clôturée. Une garde doit regarder l'état ACTUEL, pas seulement la valeur visée.

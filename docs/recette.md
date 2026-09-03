@@ -905,3 +905,95 @@ La preuve automatisée de tout ce chapitre :
 ```bash
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/sessions.sql
 ```
+
+---
+
+## Sessions — phase 2 : le cycle de vie (migration 0023)
+
+La phase 1 posait l'entité. Celle-ci la rend utilisable : un écran pour créer et
+clôturer, un filtre par niveau, et un rapport qui se rattache à la vraie session.
+
+### 63. L'écran des sessions
+
+1. **Paramètres → Sessions** (réservé au responsable).
+
+**Attendu** : vos sessions, avec pour chacune sa date de début, sa date de fin
+prévisionnelle modifiable, le nombre de cours, et un bouton **Clôturer**.
+
+2. **Nouvelle session** : un nom, une date de début.
+
+**Attendu** : elle est créée, et l'application bascule dessus — personne ne crée
+une session pour rester ailleurs. Le libellé de l'en-tête devient une **liste
+déroulante**.
+
+⚠️ Une session ne se **supprime** pas : elle se renomme ou se clôture. Supprimer
+poserait la question « et ses cours ? ».
+
+### 64. Clôturer, avec l'avertissement qui va bien
+
+1. Sur une session qui contient des cours pas encore marqués « terminé »,
+   cliquer **Clôturer**.
+
+**Attendu** : la confirmation les **liste par leur nom** et dit combien il y en
+a. Elle **avertit sans bloquer** — un cours resté « actif » par oubli ne doit
+pas empêcher de clore une période, mais le voir maintenant évite de s'en
+apercevoir un mois plus tard.
+
+Elle annonce aussi ce qui se ferme et ce qui reste : plus aucune saisie, mais
+tout reste lisible et le rapport reste téléchargeable.
+
+### 65. Ce que la clôture ferme vraiment
+
+Sur un cours de la session clôturée :
+
+1. Ouvrir une séance.
+
+**Attendu** : un bandeau **« Session clôturée »**, tous les champs inertes, la
+section Présence retirée, le bouton Enregistrer désactivé.
+
+2. Tenter de créer ou modifier un cours dans cette session.
+
+**Attendu** : refus — « Cette session est clôturée. Rouvrez-la avant… »
+
+3. Ouvrir le **rapport** de ce cours.
+
+**Attendu** : il se génère normalement. C'est le point important : une session
+close se consulte et s'imprime, c'est même sa raison d'être.
+
+### 66. Rouvrir
+
+1. **Paramètres → Sessions → Rouvrir**.
+
+**Attendu** : tout redevient possible immédiatement, sans confirmation. Une
+clôture n'est pas une destruction.
+
+### 67. Le filtre par niveau
+
+1. Donner un niveau à plusieurs cours (« Niveau 1 », « Niveau 2 »).
+2. Retourner sur **Cours**.
+
+**Attendu** : une liste déroulante **Tous les niveaux** apparaît à côté du
+bouton. Elle ne s'affiche **qu'à partir de deux niveaux distincts** — filtrer une
+liste homogène n'apporte rien.
+
+3. Choisir un niveau qui ne correspond à aucun cours de la session.
+
+**Attendu** : « Aucun cours de niveau « X » dans cette session. » — jamais un
+écran vide, qui se lirait comme une perte de cours.
+
+### 68. Le rapport se rattache à la vraie session
+
+1. Ouvrir un cours, **Exporter le rapport**.
+
+**Attendu** : les mentions d'en-tête sont **pré-remplies** — le nom de la
+session, le niveau du cours. Si la session a une date de fin, la période est
+cochée et calée sur ses deux dates.
+
+⚠️ Si la session n'a **pas** de date de fin (session perpétuelle), la période
+n'est **pas** limitée. Cocher une plage avec une borne vide ne retiendrait rien —
+un rapport vide, découvert à l'impression.
+
+2. Vider un champ pré-rempli, puis en modifier un autre.
+
+**Attendu** : le champ vidé le **reste**. Ce sont des propositions, pas des
+contraintes.

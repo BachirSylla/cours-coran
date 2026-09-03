@@ -17,6 +17,9 @@ vi.mock('@/features/parametres/hooks/useEnregistrerBareme', () => ({
 }))
 vi.mock('@/features/membres/hooks/useMembre', () => ({ useMembre: vi.fn() }))
 // La section « Membres » monte ses propres requêtes ; elle a son propre test.
+vi.mock('@/features/sessions/components/SectionSessions', () => ({
+  SectionSessions: () => <div>Sessions</div>,
+}))
 vi.mock('@/features/membres/components/SectionMembres', () => ({
   SectionMembres: () => <section>Enseignants du centre</section>,
 }))

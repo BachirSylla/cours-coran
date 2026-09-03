@@ -1,6 +1,7 @@
 import { Check, Info, Loader2, Lock, TriangleAlert } from 'lucide-react'
 
 import { SectionMembres } from '@/features/membres/components/SectionMembres'
+import { SectionSessions } from '@/features/sessions/components/SectionSessions'
 import { useMembre } from '@/features/membres/hooks/useMembre'
 import { SectionLogo } from '@/features/parametres/components/SectionLogo'
 import { SectionNotation } from '@/features/parametres/components/SectionNotation'
@@ -127,6 +128,8 @@ export function ParametresPage() {
           </Alert>
         </section>
       )}
+
+      {estResponsable && <SectionSessions />}
 
       {estResponsable && <SectionMembres />}
 

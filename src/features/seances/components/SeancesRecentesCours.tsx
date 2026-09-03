@@ -41,6 +41,7 @@ function versVue(seance: Seance, cours: CoursAvecDetails): SeanceVueEnrichie {
     type_libelle: cours.type_cours?.libelle ?? null,
     format: cours.format,
     enseignant_id: cours.enseignant_id,
+    session_id: cours.session_id,
   }
 }
 

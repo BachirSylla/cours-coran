@@ -17,6 +17,8 @@ import { useTypesCours } from '@/features/cours/hooks/useTypesCours'
 import { nombreInscrits, type CoursAvecDetails } from '@/shared/supabase/coursRepo'
 import { useSessionActive } from '@/features/sessions/hooks/useSessions'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
+import { Label } from '@/shared/ui/label'
+import { SelectNatif } from '@/shared/ui/SelectNatif'
 import { Button } from '@/shared/ui/button'
 
 /** Sépare les champs du cours de ses créneaux avant l'appel au repository. */
@@ -52,6 +54,7 @@ export function CoursPage() {
    * lien, alors qu'il existe bien en base.
    */
   const [idDetaille, setIdDetaille] = useState<string | null>(null)
+  const [niveauFiltre, setNiveauFiltre] = useState('')
   const coursDetaille = (cours ?? []).find((unCours) => unCours.id === idDetaille) ?? null
 
   function ouvrirCreation() {
@@ -98,6 +101,17 @@ export function CoursPage() {
     ...new Set((cours ?? []).map((unCours) => unCours.niveau).filter((n): n is string => !!n)),
   ].sort((a, b) => a.localeCompare(b, 'fr'))
 
+  /*
+   * Le filtre par niveau. `''` = tous, plutôt qu'un `null` : la valeur d'un
+   * `select` est toujours une chaîne, et deux représentations d'un même état
+   * finissent toujours par diverger.
+   *
+   * Il ne s'affiche que s'il y a au moins deux niveaux à distinguer — filtrer
+   * une liste homogène ne sert à rien et ajoute une commande à comprendre.
+   */
+  const coursAffiches =
+    niveauFiltre === '' ? (cours ?? []) : (cours ?? []).filter((c) => c.niveau === niveauFiltre)
+
   const erreurFormulaire = coursEdite ? modifier.error?.message : creer.error?.message
 
   return (
@@ -110,12 +124,35 @@ export function CoursPage() {
           </p>
         </div>
 
-        {estResponsable && (
-          <Button onClick={ouvrirCreation}>
-            <Plus className="size-4" aria-hidden="true" />
-            Nouveau cours
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {niveaux.length > 1 && (
+            <>
+              <Label htmlFor="filtre-niveau" className="sr-only">
+                Filtrer par niveau
+              </Label>
+              <SelectNatif
+                id="filtre-niveau"
+                value={niveauFiltre}
+                onChange={(evenement) => setNiveauFiltre(evenement.currentTarget.value)}
+                className="h-9 max-w-44"
+              >
+                <option value="">Tous les niveaux</option>
+                {niveaux.map((niveau) => (
+                  <option key={niveau} value={niveau}>
+                    {niveau}
+                  </option>
+                ))}
+              </SelectNatif>
+            </>
+          )}
+
+          {estResponsable && (
+            <Button onClick={ouvrirCreation}>
+              <Plus className="size-4" aria-hidden="true" />
+              Nouveau cours
+            </Button>
+          )}
+        </div>
       </div>
 
       {supprimer.isError && (
@@ -167,9 +204,17 @@ export function CoursPage() {
         </div>
       )}
 
-      {!isPending && !isError && cours.length > 0 && (
+      {/* Un filtre qui ne ramène rien doit se dire, sinon la page se lit comme
+          une perte de cours. */}
+      {!isPending && !isError && cours.length > 0 && coursAffiches.length === 0 && (
+        <p className="rounded-lg border border-dashed px-6 py-10 text-center text-sm text-muted-foreground">
+          Aucun cours de niveau « {niveauFiltre} » dans cette session.
+        </p>
+      )}
+
+      {!isPending && !isError && coursAffiches.length > 0 && (
         <CoursListe
-          cours={cours}
+          cours={coursAffiches}
           onOuvrir={(unCours) => setIdDetaille(unCours.id)}
           onModifier={ouvrirEdition}
           onSupprimer={setCoursASupprimer}

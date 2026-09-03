@@ -61,6 +61,7 @@ function vue(options: Partial<SeanceVueEnrichie> = {}): SeanceVueEnrichie {
     // Par défaut, la séance est celle du compte connecté : c'est la situation
     // du centre à un enseignant, et celle de tous les cas historiques.
     enseignant_id: 'moi',
+    session_id: 'session-1',
     ...options,
   }
 }
