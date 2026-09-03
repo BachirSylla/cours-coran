@@ -24,6 +24,10 @@
 --     -v nom="Ibrahima Fall" \
 --     -f supabase/scripts/creer_centre.sql
 --
+-- Le centre naît avec sa session (« Session en cours », perpétuelle), posée par
+-- le trigger `centre_session_par_defaut` de la migration 0022. Rien à faire ici :
+-- le responsable peut créer son premier cours dès sa connexion.
+--
 -- Transactionnel : au moindre refus, rien n'est écrit.
 -- =============================================================================
 

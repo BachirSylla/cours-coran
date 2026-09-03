@@ -25,7 +25,7 @@ export type CreneauInput = Omit<
  * l'enseignant affecté, pas sur le centre (CLAUDE.md §5.1).
  */
 export type CreneauAvecCours = Creneau & {
-  cours: { libelle: string; enseignant_id: string | null } | null
+  cours: { libelle: string; enseignant_id: string | null; session_id: string } | null
 }
 
 export async function listByCours(coursId: string): Promise<Creneau[]> {
@@ -48,7 +48,7 @@ export async function listByCours(coursId: string): Promise<Creneau[]> {
 export async function listAll(): Promise<CreneauAvecCours[]> {
   const { data, error } = await getSupabaseClient()
     .from('creneau')
-    .select('*, cours(libelle, enseignant_id)')
+    .select('*, cours(libelle, enseignant_id, session_id)')
     .order('jour_semaine', { ascending: true })
     .order('heure_debut', { ascending: true })
 

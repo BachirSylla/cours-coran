@@ -27,9 +27,10 @@ function creneau(
   heure_debut: string,
   heure_fin: string,
   cours_id = `cours-${id}`,
-  enseignant_id: string | null = ENSEIGNANT
+  enseignant_id: string | null = ENSEIGNANT,
+  session_id = 'session-1'
 ): CreneauPlanning {
-  return { id, cours_id, enseignant_id, jour_semaine, heure_debut, heure_fin }
+  return { id, cours_id, enseignant_id, session_id, jour_semaine, heure_debut, heure_fin }
 }
 
 function cours(
@@ -48,6 +49,8 @@ function cours(
     date_fin: null,
     lien_meet: null,
     jeton_partage: null,
+    session_id: 'session-1',
+    niveau: null,
     enseignant_id: null,
     logo: null,
     assiduite_active: null,

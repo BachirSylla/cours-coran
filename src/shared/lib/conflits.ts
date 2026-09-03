@@ -6,6 +6,12 @@
  * cours à la même heure. Le conflit se scope donc sur `enseignant_id`, et deux
  * créneaux qui se chevauchent sans partager d'enseignant ne se gênent pas.
  *
+ * Il se scope **aussi sur la session** (migration 0022). Deux sessions sont deux
+ * périodes distinctes : le même créneau en Session 17 et en Session 18 n'est pas
+ * un conflit. Sans cette seconde borne, reconduire un cours aux mêmes heures se
+ * heurterait à son propre modèle resté dans la session précédente — la
+ * reconduction se gênerait elle-même et deviendrait inutilisable.
+ *
  * Le chevauchement **temporel** (`creneauxSeChevauchent`) reste séparé de la
  * règle métier (`creneauxEnConflit`) : le premier ne connaît que des heures, ce
  * qui le garde trivialement testable, et le second ajoute l'enseignant.
@@ -43,6 +49,12 @@ export interface CreneauHoraire {
  */
 export interface CreneauAffecte extends CreneauHoraire {
   enseignant_id: string | null
+  /**
+   * Session à laquelle appartient le cours. Obligatoire, et volontairement non
+   * nullable : `cours.session_id` est `not null` depuis 0022, et un défaut
+   * implicite ici ferait taire le scope sans que rien ne le signale.
+   */
+  session_id: string
 }
 
 /** Options communes à `trouverConflits` et `aDesConflits`. */
@@ -114,13 +126,26 @@ export function memeEnseignant(a: CreneauAffecte, b: CreneauAffecte): boolean {
 }
 
 /**
- * La règle métier complète : **même enseignant ET chevauchement horaire**.
+ * Deux créneaux de la **même période**. Deux sessions ne partagent pas d'agenda :
+ * elles ne se déroulent pas en même temps.
+ */
+export function memeSession(a: CreneauAffecte, b: CreneauAffecte): boolean {
+  return a.session_id === b.session_id
+}
+
+/**
+ * La règle métier complète : **même enseignant, même session, ET chevauchement
+ * horaire**.
  *
  * C'est elle, et non `creneauxSeChevauchent`, que doit appeler tout ce qui
  * signale un conflit à l'utilisateur.
+ *
+ * ⚠️ Cet invariant vit à TROIS endroits qui ne partagent aucun code : ici,
+ * `enregistrer_cours` (la source de vérité, atomique) et le contrôle final de
+ * `retirer_membre`. Les trois doivent bouger ensemble.
  */
 export function creneauxEnConflit(a: CreneauAffecte, b: CreneauAffecte): boolean {
-  return memeEnseignant(a, b) && creneauxSeChevauchent(a, b)
+  return memeEnseignant(a, b) && memeSession(a, b) && creneauxSeChevauchent(a, b)
 }
 
 function estIgnore<T extends CreneauHoraire>(creneau: T, options?: OptionsConflit<T>): boolean {
@@ -168,9 +193,9 @@ export function aDesConflits<T extends CreneauAffecte>(
  * Toutes les paires en conflit à l'intérieur d'un ensemble de créneaux —
  * pour valider ou colorer la grille hebdomadaire d'un coup.
  *
- * Les créneaux sont **regroupés par enseignant** avant d'être comparés : deux
- * agendas différents ne se croisent jamais, ce qui supprime le faux conflit
- * autant que la comparaison inutile.
+ * Les créneaux sont regroupés par **enseignant ET session** avant d'être
+ * comparés : deux agendas différents ne se croisent jamais, ni deux périodes,
+ * ce qui supprime le faux conflit autant que la comparaison inutile.
  *
  * Chaque paire n'apparaît qu'une fois : `(A, B)` est renvoyée, jamais `(B, A)`,
  * et l'ordre d'entrée est préservé **à l'intérieur** de chaque agenda.
@@ -178,17 +203,20 @@ export function aDesConflits<T extends CreneauAffecte>(
 export function detecterTousLesConflits<T extends CreneauAffecte>(
   creneaux: readonly T[]
 ): [T, T][] {
-  const parEnseignant = new Map<string | null, T[]>()
+  // Clé composite. `|` ne peut apparaître ni dans un uuid ni dans `null` rendu
+  // vide : aucune collision possible entre deux agendas distincts.
+  const parAgenda = new Map<string, T[]>()
 
   for (const creneau of creneaux) {
-    const agenda = parEnseignant.get(creneau.enseignant_id)
+    const cle = `${creneau.enseignant_id ?? ''}|${creneau.session_id}`
+    const agenda = parAgenda.get(cle)
     if (agenda) agenda.push(creneau)
-    else parEnseignant.set(creneau.enseignant_id, [creneau])
+    else parAgenda.set(cle, [creneau])
   }
 
   const paires: [T, T][] = []
 
-  for (const agenda of parEnseignant.values()) {
+  for (const agenda of parAgenda.values()) {
     for (let i = 0; i < agenda.length; i++) {
       for (let j = i + 1; j < agenda.length; j++) {
         const a = agenda[i]

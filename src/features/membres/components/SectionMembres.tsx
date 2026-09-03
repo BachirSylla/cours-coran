@@ -11,7 +11,7 @@ import {
   Users,
 } from 'lucide-react'
 
-import { useCours } from '@/features/cours/hooks/useCours'
+import { useCoursToutesSessions } from '@/features/cours/hooks/useCours'
 import { useCreerInvitation } from '@/features/membres/hooks/useCreerInvitation'
 import { useInvitations } from '@/features/membres/hooks/useInvitations'
 import { useMembre } from '@/features/membres/hooks/useMembre'
@@ -66,7 +66,15 @@ export function SectionMembres() {
   const creer = useCreerInvitation()
   const revoquer = useRevoquerInvitation()
   const retirer = useRetirerMembre()
-  const { data: cours } = useCours()
+  /*
+   * ⚠️ TOUTES les sessions, pas seulement celle qui est affichée.
+   * `retirer_membre` réaffecte les cours du partant sans regarder la session :
+   * compter autrement ferait disparaître des cours de l'annonce, et parfois le
+   * sélecteur de repreneur tout entier — le responsable récupérerait alors des
+   * cours qu'il n'a jamais vus, ou se heurterait à un refus P0033 nommant deux
+   * cours invisibles à l'écran.
+   */
+  const { data: cours } = useCoursToutesSessions()
 
   const [code, setCode] = useState<string | null>(null)
   const [copie, setCopie] = useState(false)
@@ -104,7 +112,7 @@ export function SectionMembres() {
     return membre.role !== 'responsable' || nombreResponsables > 1
   }
 
-  // Le responsable voit tous les cours de son centre : aucune requête de plus.
+  // Toutes sessions confondues : c'est le périmètre exact de `retirer_membre`.
   const coursDuPartant = aRetirer
     ? (cours ?? []).filter((unCours) => unCours.enseignant_id === aRetirer.user_id)
     : []

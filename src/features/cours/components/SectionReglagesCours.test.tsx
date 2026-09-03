@@ -40,6 +40,8 @@ function cours(extra: Partial<CoursAvecDetails> = {}): CoursAvecDetails {
     date_fin: null,
     lien_meet: null,
     jeton_partage: null,
+    session_id: 'session-1',
+    niveau: null,
     enseignant_id: null,
     logo: null,
     assiduite_active: null,

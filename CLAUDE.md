@@ -90,9 +90,35 @@ Les types de cours sont dans une **table de référence** (extensible), pas en d
 - `id`, `nom`, `prenom`, `contact` (WhatsApp/téléphone/email), `niveau`,
   `date_inscription`, `statut` (actif | pause | parti), `notes`
 
+### `session` (période qui regroupe les cours d'un centre, migration 0022)
+
+- `id`, `centre_id`, `nom`, `date_debut`, `date_fin` **(nullable)**, `statut` (en_cours | terminee).
+- `unique (id, centre_id)` porte la clé étrangère composite de `cours` ;
+  `unique (centre_id, nom)` empêche « Session 17 » deux fois.
+- **Optionnelle**. Un centre qui n'en veut pas ne voit rien : le backfill lui en a posé une,
+  perpétuelle (`date_fin` nulle, jamais clôturée), et le sélecteur s'affiche alors comme un simple
+  libellé — pas une liste à un seul choix, qui donnerait l'impression d'un réglage à faire.
+- `date_fin` est **prévisionnelle** : elle n'interdit rien, peut être dépassée, et reste modifiable.
+  Le seul verrou est la clôture manuelle — une date saisie à la louche en septembre ne doit pas
+  couper la saisie en décembre.
+- ⚠️ **Tout centre naît avec sa session**, par le trigger `centre_session_par_defaut`. Le backfill
+  ne couvre que les centres existants : sans ce trigger, un centre créé ensuite n'aurait aucune
+  session, et `cours.session_id not null` interdirait à son responsable de créer son premier
+  cours — une application morte à l'ouverture.
+- **Aucune policy de DELETE, pour personne.** Une session se renomme ou se clôture. La supprimer
+  poserait la question « et ses cours ? », à laquelle `on delete restrict` répond déjà par un refus
+  sec et illisible.
+
 ### `cours`
 
 - `id`, `libelle`, `type_cours_id` (FK), `format` (individuel | groupe)
+- `session_id` **(not null, FK composite vers `session (id, centre_id)`, `on delete restrict`)**. Le
+  filtrage par session traverse toute l'application : planning, cours, séances **et règlements**.
+  Pour un centre multi-session, les totaux d'un mois ne comptent donc que les cours de la session
+  affichée — c'est voulu, une session est une période comptable comme une autre.
+- `niveau` (texte libre, migration 0022) : proposé à la saisie parmi ceux déjà employés dans le
+  centre. Volontairement **pas** une table de référence — un niveau se crée en le tapant, pas dans
+  un écran d'administration.
 - `date_debut` **(obligatoire, souvent = date d'inscription)**
 - `date_fin` **(nullable — renseignée seulement quand le cours se termine ; vide = en cours)**
 - `lien_meet` **(un seul lien pour tout le cours, réutilisé par toutes les séances)**
@@ -209,9 +235,20 @@ L'étanchéité est **structurelle**, pas seulement déclarative.
 
 ## 5. Règles métier (critiques)
 
-1. **Détection de conflit** (périmètre : l'**enseignant**, migration 0013) : deux **créneaux**
-   entrent en conflit s'ils relèvent du **même enseignant affecté** (`cours.enseignant_id`) ET
-   que `même jour_semaine ET heure_debut_A < heure_fin_B ET heure_debut_B < heure_fin_A`.
+1. **Détection de conflit** (périmètre : l'**enseignant** ET la **session**, migrations 0013 et 0022) : deux **créneaux** entrent en conflit s'ils relèvent du **même enseignant affecté**
+   (`cours.enseignant_id`), de la **même session** (`cours.session_id`), ET que
+   `même jour_semaine ET heure_debut_A < heure_fin_B ET heure_debut_B < heure_fin_A`.
+
+   ⚠️ **Le scope de session n'est pas un confort, il rend la reconduction possible.** Sans lui,
+   reconduire un cours aux mêmes heures dans la session suivante se heurterait à son propre modèle
+   resté dans la précédente : la reconduction se gênerait elle-même et serait inutilisable. Même
+   raison pour `retirer_membre` — sans le scope, transférer les cours d'un partant serait refusé
+   dès que deux sessions emploient le même créneau.
+
+   ⚠️ **Cet invariant vit à TROIS endroits qui ne partagent aucun code** : `enregistrer_cours` (la
+   source de vérité, atomique), le contrôle final de `retirer_membre`, et `shared/lib/conflits.ts`
+   (l'aperçu client). Les trois doivent bouger ensemble ; `supabase/tests/sessions.sql` vérifie la
+   FORME des deux premiers, et des tests Vitest le troisième.
    La ressource rare est la personne, pas le centre : deux enseignants tiennent très bien cours
    à la même heure. **Pas de marge** (début/fin fixes ; le débordement est hors système) :
    deux créneaux adjacents ne se chevauchent pas. Couverte par des tests Vitest.
@@ -589,6 +626,7 @@ psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/invitation.sql
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/retrait_membre.sql
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/suivi_apprenant.sql
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/presence_seance_faite.sql
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/sessions.sql
 ```
 
 ⚠️ Ces scripts se plantent un décor dans une base qui contient de **vraies** données. Repérer une
@@ -618,7 +656,7 @@ Les migrations qui verrouillent `cours` prennent un verrou exclusif : les lancer
 `-c "set lock_timeout='15s'"`, pour qu'une contention échoue bruyamment plutôt que d'attendre en
 silence derrière une connexion PostgREST restée ouverte.
 
-⚠️ Les migrations qui remplacent `enregistrer_cours` se succèdent (0002, 0012, 0013, 0014) :
+⚠️ Les migrations qui remplacent `enregistrer_cours` se succèdent (0002, 0012, 0013, 0014, 0022) :
 rejouer une ancienne après une plus récente **restaure son comportement**. L'idempotence se
 vérifie en rejouant une migration juste après elle-même, jamais dans le désordre.
 
@@ -703,5 +741,27 @@ dont dépend le typage de `createClient`.
 - Ne pas juger une garde éprouvée parce que le test est vert : la retirer doit faire **tomber** le
   test. Les trois gardes de date de 0019 et le sens du `coalesce` du logo ont été vérifiés ainsi,
   en remplaçant la fonction dans une transaction annulée.
+- Ne pas ajouter une colonne à `cours` sans l'ajouter aux `grant` de COLONNE, en INSERT **et** en
+  UPDATE : la table n'a aucun privilège d'écriture global, et `enregistrer_cours` est
+  `security invoker`. Une colonne oubliée casse toute création et toute édition de cours, en
+  silence côté client. Seul le chemin HTTP réel l'attrape.
+- Ne pas croire qu'un backfill qui parcourt les lignes suffit : ici il fallait parcourir les
+  **centres**, sinon un centre sans cours n'aurait jamais eu de session. Et couvrir les centres
+  FUTURS demande un trigger, pas un `insert` de migration.
+- Ne pas garder une colonne facultative à l'écriture sans se demander ce que son ABSENCE permet :
+  `session_id` omis à la modification voulait dire « inchangé », et suffisait donc à contourner le
+  verrou de session clôturée. Une garde doit regarder l'état ACTUEL, pas seulement la valeur visée.
+- Ne pas filtrer sur la session active un écran dont le périmètre ne l'est pas : `retirer_membre`
+  réaffecte les cours **toutes sessions**, donc l'écran qui les annonce doit compter pareil
+  (`useCoursToutesSessions`). Sinon le sélecteur de repreneur disparaît, et le responsable récupère
+  des cours qu'il n'a jamais vus.
+- Ne pas laisser une requête `enabled: Boolean(x)` sans traiter l'ÉCHEC de ce qui produit `x` :
+  l'écran reste en chargement pour toujours, sans jamais passer en erreur. Un sablier éternel est
+  pire qu'un message d'échec.
+- Ne pas éprouver un refus de RLS en UPDATE avec un test d'exception : une policy qui écarte la
+  ligne ne LÈVE PAS, elle touche zéro ligne. Il faut compter les lignes affectées.
+- Ne pas terminer un `pg_get_functiondef()` recopié dans une migration sans ajouter le `;` : la
+  sortie n'en porte pas, et le `CREATE` suivant part dans la même instruction — erreur de syntaxe
+  à la fin du fichier, très loin de sa cause.
 - Ne pas réintroduire de propriétaire par compte : `owner_id` a disparu en 0015, et le tenant est
   le centre. Une isolation par `auth.uid()` rouvrirait tout ce que 0012 a refermé.

@@ -90,14 +90,39 @@ insert into public.t_ids (cle, val) select 'centre', id from cree;
 create function public.__id(p_cle text) returns uuid
 language sql stable as $$ select val from public.t_ids where cle = p_cle $$;
 
+/*
+ * La session du centre, créée au premier appel (migration 0022).
+ *
+ * `cours.session_id` est `not null` : chaque décor doit donc en avoir une. Un
+ * helper plutôt qu'une insertion en dur dans chaque fichier — il y a plusieurs
+ * centres dans certains décors, et en oublier un donnerait une erreur de
+ * contrainte bien loin de sa cause.
+ */
+create function public.__session(p_centre uuid) returns uuid
+language plpgsql as $__s$
+declare v_id uuid;
+begin
+  select id into v_id from public.session where centre_id = p_centre;
+
+  if v_id is null then
+    insert into public.session (centre_id, nom, date_debut, statut)
+    values (p_centre, 'Session du décor', '2026-01-01', 'en_cours')
+    returning id into v_id;
+  end if;
+
+  return v_id;
+end;
+$__s$;
+
 -- Responsable ET enseignant : il a donc tous les droits, et ce qui sera refusé
 -- plus bas le sera par l'INVARIANT, jamais par une question de permission.
 insert into public.membre (centre_id, user_id, role, nom_affiche)
 values (public.__id('centre'), public.__id('u_ens'), 'responsable', 'Ens');
 
 with cree as (
-  insert into public.cours (centre_id, enseignant_id, libelle, type_cours_id, format, date_debut)
-  select public.__id('centre'), public.__id('u_ens'), 'Cours Présence', id, 'groupe', '2026-01-05'
+  insert into public.cours
+  (centre_id, session_id, enseignant_id, libelle, type_cours_id, format, date_debut)
+  select public.__id('centre'), public.__session(public.__id('centre')), public.__id('u_ens'), 'Cours Présence', id, 'groupe', '2026-01-05'
   from public.type_cours limit 1
   returning id
 )

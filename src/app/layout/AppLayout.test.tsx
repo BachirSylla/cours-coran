@@ -16,6 +16,11 @@ import { useMembre } from '@/features/membres/hooks/useMembre'
 vi.mock('@/features/auth/useAuth', () => ({ useAuth: vi.fn() }))
 vi.mock('@/features/membres/hooks/useMembre', () => ({ useMembre: vi.fn() }))
 vi.mock('@/shared/ui/PwaInstallPrompt', () => ({ PwaInstallPrompt: () => null }))
+// Le sélecteur de session interroge le serveur : ce fichier teste la
+// navigation, pas lui. Il a son propre test.
+vi.mock('@/features/sessions/components/SelecteurSession', () => ({
+  SelecteurSession: () => null,
+}))
 
 const useAuthMock = vi.mocked(useAuth)
 const useMembreMock = vi.mocked(useMembre)

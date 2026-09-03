@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { UseQueryResult } from '@tanstack/react-query'
 
 import { SectionMembres } from '@/features/membres/components/SectionMembres'
-import { useCours } from '@/features/cours/hooks/useCours'
+import { useCours, useCoursToutesSessions } from '@/features/cours/hooks/useCours'
 import { useCreerInvitation } from '@/features/membres/hooks/useCreerInvitation'
 import { useInvitations } from '@/features/membres/hooks/useInvitations'
 import { useMembre } from '@/features/membres/hooks/useMembre'
@@ -23,7 +23,12 @@ vi.mock('@/features/membres/hooks/useRevoquerInvitation', () => ({
   useRevoquerInvitation: vi.fn(),
 }))
 vi.mock('@/features/membres/hooks/useRetirerMembre', () => ({ useRetirerMembre: vi.fn() }))
-vi.mock('@/features/cours/hooks/useCours', () => ({ useCours: vi.fn() }))
+vi.mock('@/features/cours/hooks/useCours', () => ({
+  useCoursToutesSessions: vi.fn(),
+  // Volontairement mocké alors que le composant ne doit PAS l'employer : un
+  // test plus bas vérifie qu'il reste muet.
+  useCours: vi.fn(),
+}))
 
 const useMembreMock = vi.mocked(useMembre)
 const useMembresMock = vi.mocked(useMembres)
@@ -31,7 +36,9 @@ const useInvitationsMock = vi.mocked(useInvitations)
 const useCreerMock = vi.mocked(useCreerInvitation)
 const useRevoquerMock = vi.mocked(useRevoquerInvitation)
 const useRetirerMock = vi.mocked(useRetirerMembre)
-const useCoursMock = vi.mocked(useCours)
+const useCoursMock = vi.mocked(useCoursToutesSessions)
+/** Celui filtré par session : le composant ne doit jamais l'appeler. */
+const useCoursSessionMock = vi.mocked(useCours)
 
 const creerMutate = vi.fn()
 const revoquerMutate = vi.fn()
@@ -75,11 +82,17 @@ function simulerInvitations(data: Invitation[]) {
 }
 
 /** Cours du centre — le responsable les voit tous, d''où la liste complète. */
-function cours(id: string, libelle: string, enseignant_id: string | null): CoursAvecDetails {
+function cours(
+  id: string,
+  libelle: string,
+  enseignant_id: string | null,
+  session_id = 'session-1'
+): CoursAvecDetails {
   return {
     id,
     centre_id: 'centre-1',
     enseignant_id,
+    session_id,
     libelle,
     type_cours_id: 'type-1',
     format: 'groupe',
@@ -87,6 +100,7 @@ function cours(id: string, libelle: string, enseignant_id: string | null): Cours
     date_fin: null,
     lien_meet: null,
     jeton_partage: null,
+    niveau: null,
     logo: null,
     assiduite_active: null,
     base_academique: null,
@@ -323,6 +337,29 @@ describe('SectionMembres — retrait d’un membre', () => {
 
     expect(screen.queryByLabelText(/cours revient à/)).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/cours reviennent à/)).not.toBeInTheDocument()
+  })
+
+  /*
+   * ⚠️ LE PIÈGE DE LA MIGRATION 0022, trouvé en relecture.
+   *
+   * `retirer_membre` réaffecte les cours du partant **toutes sessions
+   * confondues**. Si cet écran comptait sur la session AFFICHÉE, le décompte
+   * mentirait — et si tous ses cours étaient hors session active, le sélecteur
+   * de repreneur disparaîtrait entièrement alors que la réaffectation aurait
+   * quand même lieu : le responsable récupérerait des cours qu'il n'a jamais vus.
+   */
+  it('compte les cours du partant dans TOUTES les sessions', async () => {
+    simulerCours([
+      cours('c1', 'Niveau 1 — Session 17', 'u2', 'session-17'),
+      cours('c2', 'Niveau 1 — Session 18', 'u2', 'session-18'),
+    ])
+    const utilisateur = userEvent.setup()
+
+    render(<SectionMembres />)
+    await utilisateur.click(screen.getByRole('button', { name: /Retirer Amina/ }))
+
+    expect(screen.getByText('Ses 2 cours reviennent à')).toBeInTheDocument()
+    expect(useCoursSessionMock).not.toHaveBeenCalled()
   })
 
   it('liste les cours du partant et les réaffecte au responsable par défaut', async () => {

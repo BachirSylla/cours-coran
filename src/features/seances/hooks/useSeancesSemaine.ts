@@ -44,6 +44,15 @@ export function useSeancesSemaine(debut: string, fin: string): ResultatSeancesSe
 
     const parCoursId = new Map(cours.map((unCours) => [unCours.id, unCours]))
 
+    /*
+     * ⚠️ Les séances sont chargées par PLAGE DE DATES, sans savoir de quelle
+     * session elles relèvent. Celles d'une autre session tomberaient dans la
+     * fusion comme des séances « hors planning », affichées « Cours supprimé »
+     * puisque leur cours n'est pas dans la liste filtrée. On les écarte ici :
+     * la semaine affichée est celle de la session active, pas de tout l'historique.
+     */
+    const seancesDeLaSession = seances.filter((seance) => parCoursId.has(seance.cours_id))
+
     // genererOccurrences raisonne sur un seul cours (sa plage de vie lui est
     // propre) : on boucle, puis on fusionne l'ensemble en une fois.
     const occurrences = cours
@@ -62,7 +71,7 @@ export function useSeancesSemaine(debut: string, fin: string): ResultatSeancesSe
         )
       )
 
-    return fusionnerAvecSeances(occurrences, seances).map((vue) => {
+    return fusionnerAvecSeances(occurrences, seancesDeLaSession).map((vue) => {
       const unCours = parCoursId.get(vue.cours_id)
 
       return {

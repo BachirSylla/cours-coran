@@ -176,22 +176,49 @@ select 'c_beta', id from public.centre where nom = 'Centre Beta';
 create function public.__id(p_cle text) returns uuid
 language sql stable as $$ select val from public.t_ids where cle = p_cle $$;
 
+/*
+ * La session du centre, créée au premier appel (migration 0022).
+ *
+ * `cours.session_id` est `not null` : chaque décor doit donc en avoir une. Un
+ * helper plutôt qu'une insertion en dur dans chaque fichier — il y a plusieurs
+ * centres dans certains décors, et en oublier un donnerait une erreur de
+ * contrainte bien loin de sa cause.
+ */
+create function public.__session(p_centre uuid) returns uuid
+language plpgsql as $__s$
+declare v_id uuid;
+begin
+  select id into v_id from public.session where centre_id = p_centre;
+
+  if v_id is null then
+    insert into public.session (centre_id, nom, date_debut, statut)
+    values (p_centre, 'Session du décor', '2026-01-01', 'en_cours')
+    returning id into v_id;
+  end if;
+
+  return v_id;
+end;
+$__s$;
+
 insert into public.membre (centre_id, user_id, role, nom_affiche) values
   (public.__id('c_alpha'), public.__id('u_r1'), 'responsable', 'R1'),
   (public.__id('c_alpha'), public.__id('u_a'),  'enseignant',  'A'),
   (public.__id('c_alpha'), public.__id('u_b'),  'enseignant',  'B'),
   (public.__id('c_beta'),  public.__id('u_r2'), 'responsable', 'R2');
 
-insert into public.cours (centre_id, enseignant_id, libelle, type_cours_id, format, date_debut)
-select public.__id('c_alpha'), public.__id('u_a'), 'Alpha-A', t.id, 'groupe', '2026-01-05'
+insert into public.cours
+  (centre_id, session_id, enseignant_id, libelle, type_cours_id, format, date_debut)
+select public.__id('c_alpha'), public.__session(public.__id('c_alpha')), public.__id('u_a'), 'Alpha-A', t.id, 'groupe', '2026-01-05'
 from public.type_cours as t limit 1;
 
-insert into public.cours (centre_id, enseignant_id, libelle, type_cours_id, format, date_debut)
-select public.__id('c_alpha'), public.__id('u_b'), 'Alpha-B', t.id, 'groupe', '2026-01-05'
+insert into public.cours
+  (centre_id, session_id, enseignant_id, libelle, type_cours_id, format, date_debut)
+select public.__id('c_alpha'), public.__session(public.__id('c_alpha')), public.__id('u_b'), 'Alpha-B', t.id, 'groupe', '2026-01-05'
 from public.type_cours as t limit 1;
 
-insert into public.cours (centre_id, enseignant_id, libelle, type_cours_id, format, date_debut)
-select public.__id('c_beta'), public.__id('u_r2'), 'Beta', t.id, 'groupe', '2026-01-05'
+insert into public.cours
+  (centre_id, session_id, enseignant_id, libelle, type_cours_id, format, date_debut)
+select public.__id('c_beta'), public.__session(public.__id('c_beta')), public.__id('u_r2'), 'Beta', t.id, 'groupe', '2026-01-05'
 from public.type_cours as t limit 1;
 
 insert into t_ids (cle, val)
@@ -356,9 +383,9 @@ begin
     'A supprime SON PROPRE cours');
 
   perform public.__refus(
-    format($sql$insert into public.cours (enseignant_id, libelle, type_cours_id, format, date_debut)
-                select %L, 'Créé par A', id, 'groupe', '2026-02-01' from public.type_cours limit 1$sql$,
-           public.__id('u_a')),
+    format($sql$insert into public.cours (enseignant_id, session_id, libelle, type_cours_id, format, date_debut)
+                select %L, %L, 'Créé par A', id, 'groupe', '2026-02-01' from public.type_cours limit 1$sql$,
+           public.__id('u_a'), public.__session(public.__id('c_alpha'))),
     'A crée un cours dans son centre');
 
   -- creneau -------------------------------------------------------------------
@@ -573,11 +600,11 @@ begin
     -- comme le fait `enregistrer_cours`. Le nommer exigerait un privilège de
     -- colonne que le verrou de 0017 ne donne à personne — et l'assertion
     -- passerait alors pour une mauvaise raison.
-    format($sql$insert into public.cours (enseignant_id, libelle, type_cours_id, format, date_debut)
-                select %L, 'Alpha-neuf', id, 'groupe', '2026-03-01'
+    format($sql$insert into public.cours (enseignant_id, session_id, libelle, type_cours_id, format, date_debut)
+                select %L, %L, 'Alpha-neuf', id, 'groupe', '2026-03-01'
                 from public.type_cours limit 1
                 returning id$sql$,
-           public.__id('u_a')),
+           public.__id('u_a'), public.__session(public.__id('c_alpha'))),
     'R1 crée un cours et le relit');
 
   perform public.__accepte(
@@ -613,7 +640,8 @@ begin
     format($sql$select public.enregistrer_cours(
              jsonb_build_object('libelle', 'Par la RPC',
                                 'type_cours_id', (select id from public.type_cours limit 1),
-                                'format', 'individuel', 'date_debut', '2026-03-01'),
+                                'format', 'individuel', 'date_debut', '2026-03-01',
+                                'session_id', public.__session(public.__id('c_alpha'))),
              jsonb_build_array(jsonb_build_object('jour_semaine', 6,
                                                   'heure_debut', '20:00',
                                                   'heure_fin', '21:00'))) $sql$),
@@ -665,6 +693,7 @@ begin
              jsonb_build_object('libelle', 'Affecté à A',
                                 'type_cours_id', (select id from public.type_cours limit 1),
                                 'format', 'individuel', 'date_debut', '2026-03-01',
+                                'session_id', public.__session(public.__id('c_alpha')),
                                 'enseignant_id', %L),
              jsonb_build_array(jsonb_build_object('jour_semaine', 7,
                                                   'heure_debut', '08:00',
@@ -690,6 +719,7 @@ begin
              jsonb_build_object('libelle', 'Affecté hors centre',
                                 'type_cours_id', (select id from public.type_cours limit 1),
                                 'format', 'individuel', 'date_debut', '2026-03-01',
+                                'session_id', public.__session(public.__id('c_alpha')),
                                 'enseignant_id', %L),
              jsonb_build_array(jsonb_build_object('jour_semaine', 7,
                                                   'heure_debut', '21:00',

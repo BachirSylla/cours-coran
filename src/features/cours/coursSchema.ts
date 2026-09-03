@@ -115,6 +115,30 @@ export const coursSchema = z
       .pipe(z.uuid({ message: 'Type de cours invalide.' })),
     format: z.enum(FORMATS_COURS, { message: 'Format invalide.' }),
     /**
+     * Session à laquelle appartient le cours (migration 0022).
+     *
+     * Obligatoire, et validée ici plutôt que laissée à la base : sans elle,
+     * `enregistrer_cours` lève P0060 et l'utilisateur reçoit un message
+     * technique après avoir rempli tout le formulaire. Le champ n'est pas
+     * saisi — il vient de la session active, ou de celle du cours édité.
+     */
+    session_id: z
+      .string()
+      .trim()
+      .min(1, { message: 'Le cours doit appartenir à une session.' })
+      .pipe(z.uuid({ message: 'Session invalide.' })),
+    /**
+     * Niveau, texte libre proposé parmi ceux déjà employés dans le centre.
+     * Vide → `null` : une chaîne vide et « pas de niveau » sont la même chose,
+     * et deux représentations d'un même état finissent toujours par diverger.
+     */
+    niveau: z
+      .string()
+      .trim()
+      .max(60, { message: 'Le niveau ne peut pas dépasser 60 caractères.' })
+      .optional()
+      .transform((valeur) => (valeur === undefined || valeur === '' ? null : valeur)),
+    /**
      * Enseignant affecté (migration 0014). Vide = non fourni : la base garde
      * alors l'affectation en place, et pose le créateur à la création. Ce
      * n'est **pas** une désaffectation.
@@ -180,10 +204,17 @@ export function creneauParDefaut(): CreneauFormValues {
   return { jour_semaine: '1', heure_debut: '10:00', heure_fin: '11:00' }
 }
 
-export function valeursParDefaut(): CoursFormValues {
+/**
+ * `sessionId` n'a pas de défaut : le formulaire le reçoit de la session active,
+ * et l'inventer ici — chaîne vide, ou « la première » — ferait atterrir un cours
+ * dans une session au hasard sans que rien ne le signale.
+ */
+export function valeursParDefaut(sessionId: string): CoursFormValues {
   return {
     libelle: '',
     type_cours_id: '',
+    session_id: sessionId,
+    niveau: '',
     format: 'individuel',
     enseignant_id: '',
     date_debut: aujourdhui(),

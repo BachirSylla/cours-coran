@@ -7,6 +7,7 @@ import {
   detecterTousLesConflits,
   heureEnMinutes,
   memeEnseignant,
+  memeSession,
   trouverConflits,
   type CreneauAffecte,
   type CreneauHoraire,
@@ -34,10 +35,14 @@ function creneau(
   heure_debut: string,
   heure_fin: string,
   cours_id = `cours-${id}`,
-  enseignant_id: string | null = ENSEIGNANT
+  enseignant_id: string | null = ENSEIGNANT,
+  session_id = 'session-1'
 ): CreneauTest {
-  return { id, cours_id, enseignant_id, jour_semaine, heure_debut, heure_fin }
+  return { id, cours_id, enseignant_id, session_id, jour_semaine, heure_debut, heure_fin }
 }
+
+/** Deuxième session : même centre, même enseignant, autre période. */
+const AUTRE_SESSION = 'session-2'
 
 const LUNDI = 1 satisfies JourSemaine
 const MARDI = 2 satisfies JourSemaine
@@ -366,5 +371,62 @@ describe('le conflit se scope sur l’enseignant', () => {
     const b: CreneauHoraire = HORAIRE
 
     expect(creneauxSeChevauchent(a, b)).toBe(true)
+  })
+})
+
+/**
+ * Le scope de session (migration 0022).
+ *
+ * Sans lui, reconduire un cours aux mêmes heures dans la session suivante se
+ * heurterait à son propre modèle resté dans la session précédente : la
+ * reconduction se gênerait elle-même et serait inutilisable.
+ */
+describe('memeSession et le scope de période', () => {
+  it('range deux créneaux de la même session dans le même agenda', () => {
+    const a = creneau('a', LUNDI, '10:00', '11:00')
+    const b = creneau('b', LUNDI, '10:30', '11:30')
+
+    expect(memeSession(a, b)).toBe(true)
+    expect(creneauxEnConflit(a, b)).toBe(true)
+  })
+
+  it('ne voit AUCUN conflit entre deux sessions, même heure et même enseignant', () => {
+    const a = creneau('a', LUNDI, '10:00', '11:00')
+    const b = creneau('b', LUNDI, '10:00', '11:00', 'cours-b', ENSEIGNANT, AUTRE_SESSION)
+
+    expect(creneauxSeChevauchent(a, b)).toBe(true)
+    expect(memeEnseignant(a, b)).toBe(true)
+    expect(memeSession(a, b)).toBe(false)
+    expect(creneauxEnConflit(a, b)).toBe(false)
+  })
+
+  it('ne regroupe pas deux sessions dans detecterTousLesConflits', () => {
+    const paires = detecterTousLesConflits([
+      creneau('a', LUNDI, '10:00', '11:00'),
+      creneau('b', LUNDI, '10:00', '11:00', 'cours-b', ENSEIGNANT, AUTRE_SESSION),
+    ])
+
+    expect(paires).toHaveLength(0)
+  })
+
+  it('signale toujours le conflit à l’intérieur d’une session', () => {
+    const paires = detecterTousLesConflits([
+      creneau('a', LUNDI, '10:00', '11:00'),
+      creneau('b', LUNDI, '10:30', '11:30'),
+    ])
+
+    expect(paires).toHaveLength(1)
+  })
+
+  /*
+   * La clé de regroupement est composite. Un enseignant nul rendu par une chaîne
+   * vide ne doit pas se confondre avec une autre combinaison.
+   */
+  it('ne confond pas un cours sans enseignant avec un autre agenda', () => {
+    const orphelinS1 = creneau('a', LUNDI, '10:00', '11:00', 'cours-a', null)
+    const orphelinS2 = creneau('b', LUNDI, '10:00', '11:00', 'cours-b', null, AUTRE_SESSION)
+
+    expect(creneauxEnConflit(orphelinS1, orphelinS2)).toBe(false)
+    expect(detecterTousLesConflits([orphelinS1, orphelinS2])).toHaveLength(0)
   })
 })

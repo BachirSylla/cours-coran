@@ -44,6 +44,9 @@ function membre(user_id: string, nom_affiche: string, role = 'enseignant'): Memb
 
 const MEMBRES = [membre(MOI, 'Moi', 'responsable'), membre(AUTRE, 'Bilal')]
 
+/** Un vrai UUID : le schéma valide la session, une étiquette ne passerait pas. */
+const SESSION_ID = '9a2d1b4c-6e8f-4a0b-9c3d-5e7f1a2b3c4d'
+
 /** Lundi 10:00–11:00 est déjà pris — par `enseignant_id`. */
 function occupe(enseignant_id: string | null): CreneauExistant {
   return {
@@ -51,6 +54,7 @@ function occupe(enseignant_id: string | null): CreneauExistant {
     cours_id: 'cours-existant',
     cours_libelle: 'Groupe Hifz',
     enseignant_id,
+    session_id: SESSION_ID,
     jour_semaine: 1,
     heure_debut: '10:00:00',
     heure_fin: '11:00:00',
@@ -69,6 +73,8 @@ function cours(extra: Partial<CoursAvecDetails> = {}): CoursAvecDetails {
     date_fin: null,
     lien_meet: null,
     jeton_partage: null,
+    session_id: 'session-1',
+    niveau: null,
     logo: null,
     assiduite_active: null,
     base_academique: null,
@@ -108,6 +114,7 @@ function afficher(props: Partial<Parameters<typeof CoursFormDialog>[0]> = {}) {
       typesCours={TYPES}
       creneauxExistants={[]}
       enseignantId={MOI}
+      sessionId={SESSION_ID}
       membres={MEMBRES}
       onEnregistrer={onEnregistrer}
       enCours={false}

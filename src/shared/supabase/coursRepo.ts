@@ -32,6 +32,13 @@ export interface CoursInput {
   libelle: string
   type_cours_id: string
   format: string
+  /**
+   * Session du cours (0022). Obligatoire à la création — `enregistrer_cours`
+   * lève P0060 sinon. À la modification, l'omettre laisse le cours en place :
+   * le silence n'est pas un déplacement.
+   */
+  session_id: string
+  niveau?: string | null
   date_debut: string
   date_fin?: string | null
   statut?: string
@@ -92,7 +99,40 @@ function trierCreneaux(cours: CoursAvecDetails): CoursAvecDetails {
   }
 }
 
-export async function list(): Promise<CoursAvecDetails[]> {
+/**
+ * Les cours d'une session.
+ *
+ * `sessionId` est **obligatoire** : un centre qui n'a jamais créé de session en
+ * a tout de même une, posée par le backfill de 0022. Rendre le paramètre
+ * facultatif rouvrirait la porte à une liste « tous cours, toutes sessions
+ * confondues » — visuellement identique à aujourd'hui pour un centre à session
+ * unique, et fausse dès la deuxième.
+ */
+export async function list(sessionId: string): Promise<CoursAvecDetails[]> {
+  const { data, error } = await getSupabaseClient()
+    .from('cours')
+    .select(SELECT_DETAILS)
+    .eq('session_id', sessionId)
+    .order('libelle', { ascending: true })
+
+  lancerSiErreur(error, 'Chargement des cours')
+
+  return (data ?? []).map(trierCreneaux)
+}
+
+/**
+ * **Tous** les cours du centre, toutes sessions confondues.
+ *
+ * À n'employer que là où la session n'a pas de sens — le retrait d'un membre,
+ * par exemple : `retirer_membre` réaffecte ses cours **toutes sessions**, donc
+ * l'écran qui annonce ce qui va être transféré doit compter la même chose que
+ * la base. Filtrer sur la session affichée y ferait disparaître des cours du
+ * décompte, et parfois le sélecteur de repreneur tout entier — le responsable
+ * récupérerait alors des cours qu'il n'a jamais vus.
+ *
+ * Partout ailleurs, c'est `list(sessionId)` qu'il faut.
+ */
+export async function listToutesSessions(): Promise<CoursAvecDetails[]> {
   const { data, error } = await getSupabaseClient()
     .from('cours')
     .select(SELECT_DETAILS)

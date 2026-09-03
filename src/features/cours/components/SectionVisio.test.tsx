@@ -36,6 +36,8 @@ function cours(lien_meet: string | null): CoursAvecDetails {
     date_fin: null,
     lien_meet,
     jeton_partage: null,
+    session_id: 'session-1',
+    niveau: null,
     logo: null,
     assiduite_active: null,
     base_academique: null,

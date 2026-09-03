@@ -820,3 +820,88 @@ simple défaut d'affichage, jamais une restriction.
 Vos cours « Cours Fikh » et « Cours tawhiid » pointent encore un type
 approchant. Ouvrez-les et changez leur **Type de cours** — rien d'autre ne
 bouge, et l'historique des séances est conservé.
+
+---
+
+## Sessions — phase 1 : le socle (migration 0022)
+
+Un centre travaille souvent par session : « Session 17 », « Session 18 »…
+Chacune porte ses cours et son planning. Cette première phase pose l'entité, la
+rattache aux cours, et **change le périmètre de la détection de conflits**.
+
+⚠️ **L'exigence principale n'est pas une fonctionnalité, c'est une absence.** Si
+vous n'utilisez pas les sessions, rien ne doit changer pour vous. Commencez par
+le vérifier.
+
+### 57. Non-régression : tout est exactement comme avant
+
+1. Ouvrir **Planning**, **Cours**, **Séances**, **Paiements**.
+
+**Attendu** : vos 9 cours, vos 19 apprenants, vos séances et vos règlements, à
+l'identique. Dans l'en-tête, à gauche de votre adresse, un petit libellé
+**« Session en cours »** — pas une liste déroulante.
+
+C'est la session perpétuelle que la migration vous a posée : elle contient tout,
+ne se ferme jamais, et il n'y a rien à décider.
+
+### 58. Créer un cours — la vérification qui compte
+
+1. **Cours → Nouveau cours**, remplir et enregistrer.
+
+**Attendu** : le cours se crée normalement. Un nouveau champ **Niveau** est
+apparu sous le type ; il propose les niveaux déjà employés dans le centre et
+accepte n'importe quel texte.
+
+Cette étape n'est pas anodine : la table `cours` n'accorde l'écriture que
+colonne par colonne, et deux colonnes viennent d'y être ajoutées. Si l'une avait
+été oubliée dans les droits, **toute création de cours échouerait** — c'est le
+premier chemin que j'ai éprouvé.
+
+2. **Modifier** ce cours sans toucher au niveau, puis enregistrer.
+
+**Attendu** : le niveau est conservé. Le silence n'efface pas.
+
+### 59. Ouvrir une seconde session
+
+Il n'y a pas encore d'écran pour cela — il arrive en phase 2. Demandez-le-moi,
+ou faites-le en SQL. Dès qu'un centre a deux sessions, le libellé de l'en-tête
+devient une **liste déroulante**, et tout ce qui s'affiche en dessous suit :
+planning, cours, séances, règlements.
+
+### 60. Le même créneau dans deux sessions n'est PAS un conflit
+
+1. Dans la session A, créer un cours le lundi 10:00–11:00 pour un enseignant.
+2. Basculer sur la session B, créer un autre cours **au même créneau, pour le
+   même enseignant**.
+
+**Attendu** : **aucun conflit**. C'est le changement de fond de cette phase.
+Deux sessions sont deux périodes distinctes — sans cela, reconduire un cours aux
+mêmes heures se heurterait à son propre modèle de la session précédente, et la
+reconduction serait impossible.
+
+3. Dans la même session, tenter deux fois le même créneau.
+
+**Attendu** : le conflit est signalé, comme avant.
+
+### 61. Une session clôturée se ferme à la structure
+
+1. Passer une session en `terminee` (en SQL pour l'instant).
+2. Tenter d'y créer ou d'y modifier un cours.
+
+**Attendu** : refus explicite — « Cette session est clôturée. Rouvrez-la avant
+d'y créer ou d'y modifier un cours. » La réouverture rend tout possible à
+nouveau. La lecture n'est jamais fermée.
+
+### 62. Un centre neuf naît avec sa session
+
+1. Ouvrir un nouveau centre (voir le script `creer_centre.sql`).
+
+**Attendu** : son responsable peut créer un cours immédiatement. La session est
+posée automatiquement à la création du centre — sans cela, l'application serait
+morte à l'ouverture pour lui.
+
+La preuve automatisée de tout ce chapitre :
+
+```bash
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/sessions.sql
+```

@@ -45,6 +45,8 @@ function messageLisible(erreur: PostgrestError, contexte: string): string {
     case 'P0040': // suivi apprenant : ce n'est pas votre cours (0019)
     case 'P0050': // présence sur une séance non tenue (0020)
     case 'P0051': // séance quittant « faite » alors qu'elle porte des présences
+    case 'P0060': // cours sans session (0022)
+    case 'P0061': // session clôturée : ni création, ni modification, ni déplacement
       return erreur.message
     case '23505':
       return `${contexte} : cet enregistrement existe déjà.`

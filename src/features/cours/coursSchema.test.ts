@@ -11,10 +11,12 @@ import {
 
 // UUID v4 réel : zod contrôle les bits de version et de variante.
 const TYPE_ID = '3f1c0e2a-9d4b-4f7e-8a12-2b6c9d0e4f55'
+const SESSION_ID = '9a2d1b4c-6e8f-4a0b-9c3d-5e7f1a2b3c4d'
 
 const minimal = {
   libelle: 'Groupe Hifz',
   type_cours_id: TYPE_ID,
+  session_id: SESSION_ID,
   format: 'groupe',
   date_debut: '2026-07-27',
   creneaux: [{ jour_semaine: '1', heure_debut: '10:00', heure_fin: '11:00' }],
@@ -206,7 +208,7 @@ describe('coursSchema — créneaux', () => {
 
 describe('valeurs par défaut et libellés', () => {
   it('propose un formulaire avec un créneau prêt à remplir', () => {
-    const defauts = valeursParDefaut()
+    const defauts = valeursParDefaut(SESSION_ID)
 
     expect(defauts.creneaux).toHaveLength(1)
     expect(defauts.devise).toBe('XOF')
@@ -230,5 +232,34 @@ describe('valeurs par défaut et libellés', () => {
     expect(libelleJour(1)).toBe('Lundi')
     expect(libelleJour(7)).toBe('Dimanche')
     expect(abregeJour(3)).toBe('Mer')
+  })
+})
+
+/**
+ * La session (migration 0022). Elle n'est pas saisie — elle vient de la session
+ * active — mais elle est validée ici pour que l'utilisateur ne découvre pas son
+ * absence sous la forme d'un P0060 après avoir rempli tout le formulaire.
+ */
+describe('coursSchema — session et niveau', () => {
+  it('exige une session', () => {
+    const { session_id: _ignore, ...sans } = minimal
+
+    expect(messagePour(sans, 'session_id')).toBeTruthy()
+  })
+
+  it("refuse une session qui n'est pas un identifiant", () => {
+    expect(messagePour({ ...minimal, session_id: 'pas-un-uuid' }, 'session_id')).toBe(
+      'Session invalide.'
+    )
+  })
+
+  it('taille le niveau et ramène le vide à null', () => {
+    expect(coursSchema.parse({ ...minimal, niveau: '  Niveau 1  ' }).niveau).toBe('Niveau 1')
+    expect(coursSchema.parse({ ...minimal, niveau: '   ' }).niveau).toBeNull()
+    expect(coursSchema.parse(minimal).niveau).toBeNull()
+  })
+
+  it('refuse un niveau interminable', () => {
+    expect(messagePour({ ...minimal, niveau: 'x'.repeat(61) }, 'niveau')).toMatch(/60 caractères/)
   })
 })

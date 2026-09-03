@@ -100,6 +100,30 @@ union all select 'c_beta', id from public.centre where nom = 'Beta';
 create function public.__id(p_cle text) returns uuid
 language sql stable as $$ select val from public.t_ids where cle = p_cle $$;
 
+/*
+ * La session du centre, créée au premier appel (migration 0022).
+ *
+ * `cours.session_id` est `not null` : chaque décor doit donc en avoir une. Un
+ * helper plutôt qu'une insertion en dur dans chaque fichier — il y a plusieurs
+ * centres dans certains décors, et en oublier un donnerait une erreur de
+ * contrainte bien loin de sa cause.
+ */
+create function public.__session(p_centre uuid) returns uuid
+language plpgsql as $__s$
+declare v_id uuid;
+begin
+  select id into v_id from public.session where centre_id = p_centre;
+
+  if v_id is null then
+    insert into public.session (centre_id, nom, date_debut, statut)
+    values (p_centre, 'Session du décor', '2026-01-01', 'en_cours')
+    returning id into v_id;
+  end if;
+
+  return v_id;
+end;
+$__s$;
+
 insert into public.membre (centre_id, user_id, role, nom_affiche) values
   (public.__id('c_alpha'), public.__id('u_r1'), 'responsable', 'R1'),
   (public.__id('c_alpha'), public.__id('u_r2'), 'responsable', 'R2'),
@@ -108,16 +132,19 @@ insert into public.membre (centre_id, user_id, role, nom_affiche) values
   (public.__id('c_beta'),  public.__id('u_r3'), 'responsable', 'R3');
 
 -- Deux cours pour Amina, un pour Bilal.
-insert into public.cours (centre_id, enseignant_id, libelle, type_cours_id, format, date_debut)
-select public.__id('c_alpha'), public.__id('u_a'), 'Amina-1', id, 'groupe', '2026-01-05'
+insert into public.cours
+  (centre_id, session_id, enseignant_id, libelle, type_cours_id, format, date_debut)
+select public.__id('c_alpha'), public.__session(public.__id('c_alpha')), public.__id('u_a'), 'Amina-1', id, 'groupe', '2026-01-05'
 from public.type_cours limit 1;
 
-insert into public.cours (centre_id, enseignant_id, libelle, type_cours_id, format, date_debut)
-select public.__id('c_alpha'), public.__id('u_a'), 'Amina-2', id, 'individuel', '2026-01-05'
+insert into public.cours
+  (centre_id, session_id, enseignant_id, libelle, type_cours_id, format, date_debut)
+select public.__id('c_alpha'), public.__session(public.__id('c_alpha')), public.__id('u_a'), 'Amina-2', id, 'individuel', '2026-01-05'
 from public.type_cours limit 1;
 
-insert into public.cours (centre_id, enseignant_id, libelle, type_cours_id, format, date_debut)
-select public.__id('c_alpha'), public.__id('u_b'), 'Bilal-1', id, 'groupe', '2026-01-05'
+insert into public.cours
+  (centre_id, session_id, enseignant_id, libelle, type_cours_id, format, date_debut)
+select public.__id('c_alpha'), public.__session(public.__id('c_alpha')), public.__id('u_b'), 'Bilal-1', id, 'groupe', '2026-01-05'
 from public.type_cours limit 1;
 
 insert into public.t_ids (cle, val)
@@ -306,8 +333,9 @@ $$;
 reset role;
 
 -- Bilal reprend un cours qui tombe pile sur le sien : jeudi 09:00.
-insert into public.cours (centre_id, enseignant_id, libelle, type_cours_id, format, date_debut)
-select public.__id('c_alpha'), public.__id('u_a'), 'Amina-jeudi', id, 'groupe', '2026-01-05'
+insert into public.cours
+  (centre_id, session_id, enseignant_id, libelle, type_cours_id, format, date_debut)
+select public.__id('c_alpha'), public.__session(public.__id('c_alpha')), public.__id('u_a'), 'Amina-jeudi', id, 'groupe', '2026-01-05'
 from public.type_cours limit 1;
 
 insert into public.t_ids (cle, val)

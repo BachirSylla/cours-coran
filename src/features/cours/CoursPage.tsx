@@ -15,6 +15,7 @@ import { useSupprimerCours } from '@/features/cours/hooks/useSupprimerCours'
 import { useTousLesCreneaux } from '@/features/cours/hooks/useTousLesCreneaux'
 import { useTypesCours } from '@/features/cours/hooks/useTypesCours'
 import { nombreInscrits, type CoursAvecDetails } from '@/shared/supabase/coursRepo'
+import { useSessionActive } from '@/features/sessions/hooks/useSessions'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
 
@@ -26,6 +27,7 @@ function decouper(valeurs: CoursValues) {
 
 export function CoursPage() {
   const { data: cours, isPending, isError, error } = useCours()
+  const { sessionId } = useSessionActive()
   const { data: typesCours } = useTypesCours()
   const { data: creneauxExistants } = useTousLesCreneaux()
 
@@ -86,6 +88,15 @@ export function CoursPage() {
       onSuccess: () => setCoursASupprimer(null),
     })
   }
+
+  /*
+   * Les niveaux proposés à la saisie sont ceux DÉJÀ employés dans le centre.
+   * C'est ce qui tient la cohérence sans table de référence : on retape rarement
+   * ce qu'on peut choisir.
+   */
+  const niveaux = [
+    ...new Set((cours ?? []).map((unCours) => unCours.niveau).filter((n): n is string => !!n)),
+  ].sort((a, b) => a.localeCompare(b, 'fr'))
 
   const erreurFormulaire = coursEdite ? modifier.error?.message : creer.error?.message
 
@@ -182,6 +193,8 @@ export function CoursPage() {
         creneauxExistants={creneauxExistants ?? []}
         enseignantId={coursEdite?.enseignant_id ?? userId}
         membres={membres ?? []}
+        sessionId={sessionId ?? ''}
+        niveaux={niveaux}
         onEnregistrer={enregistrer}
         enCours={creer.isPending || modifier.isPending}
         erreur={erreurFormulaire ?? null}

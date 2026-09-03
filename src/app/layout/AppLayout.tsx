@@ -17,6 +17,7 @@ import { useAuth } from '@/features/auth/useAuth'
 import { useMembre } from '@/features/membres/hooks/useMembre'
 import { cn } from '@/shared/lib/utils'
 import { useTheme } from '@/shared/lib/useTheme'
+import { SelecteurSession } from '@/features/sessions/components/SelecteurSession'
 import { Button } from '@/shared/ui/button'
 import { PwaInstallPrompt } from '@/shared/ui/PwaInstallPrompt'
 
@@ -70,6 +71,12 @@ export function AppLayout() {
           </div>
 
           <div className="ml-auto flex items-center gap-1">
+            {/* La session avant l'adresse : c'est le contexte de tout ce qui
+                s'affiche en dessous, et il doit se lire d'un coup d'œil. */}
+            <div className="mr-2">
+              <SelecteurSession />
+            </div>
+
             {user?.email && (
               <span className="mr-1 hidden max-w-[14rem] truncate text-xs text-muted-foreground sm:inline">
                 {user.email}

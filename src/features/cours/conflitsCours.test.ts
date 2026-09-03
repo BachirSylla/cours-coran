@@ -23,9 +23,19 @@ function existant(
   jour_semaine: JourSemaine,
   heure_debut: string,
   heure_fin: string,
-  enseignant_id: string | null = ENSEIGNANT
+  enseignant_id: string | null = ENSEIGNANT,
+  session_id = 'session-1'
 ): CreneauExistant {
-  return { id, cours_id, cours_libelle, enseignant_id, jour_semaine, heure_debut, heure_fin }
+  return {
+    id,
+    cours_id,
+    cours_libelle,
+    enseignant_id,
+    session_id,
+    jour_semaine,
+    heure_debut,
+    heure_fin,
+  }
 }
 
 // Créneaux déjà enregistrés : « Groupe Hifz » lundi 10:00–11:00 et mercredi 15:00–16:00,
@@ -41,9 +51,14 @@ function detecter(
   saisis: Parameters<typeof detecterConflitsFormulaire>[0],
   existants: Parameters<typeof detecterConflitsFormulaire>[1] = EXISTANTS,
   coursIdEdite?: string,
-  enseignantId: string | null = ENSEIGNANT
+  enseignantId: string | null = ENSEIGNANT,
+  sessionId = 'session-1'
 ) {
-  return detecterConflitsFormulaire(saisis, existants, coursIdEdite, enseignantId)
+  return detecterConflitsFormulaire(saisis, existants, {
+    sessionId,
+    coursIdEdite,
+    enseignantId,
+  })
 }
 
 describe('detecterConflitsFormulaire', () => {
@@ -251,5 +266,48 @@ describe('detecterConflitsFormulaire — deux enseignants', () => {
 
     expect(conflits).toHaveLength(1)
     expect(conflits[0]).toMatchObject({ type: 'interne', index: 1, autreIndex: 0 })
+  })
+})
+
+describe('detecterConflitsFormulaire — deux sessions', () => {
+  /*
+   * Le cas qui rend la reconduction possible : on ouvre la session suivante et
+   * on y repose les mêmes horaires. Les cours de la session précédente ne
+   * doivent pas s'y opposer.
+   */
+  it('ne signale rien contre un cours d’une AUTRE session', () => {
+    const conflits = detecter(
+      [{ jour_semaine: 1, heure_debut: '10:00', heure_fin: '11:00' }],
+      EXISTANTS,
+      undefined,
+      ENSEIGNANT,
+      'session-2'
+    )
+
+    expect(conflits).toHaveLength(0)
+  })
+
+  it('signale toujours le conflit à l’intérieur de la session', () => {
+    const conflits = detecter([{ jour_semaine: 1, heure_debut: '10:00', heure_fin: '11:00' }])
+
+    expect(conflits).toHaveLength(1)
+    expect(conflits[0]).toMatchObject({ type: 'externe', coursLibelle: 'Groupe Hifz' })
+  })
+
+  it('signale les chevauchements internes quelle que soit la session', () => {
+    // Les lignes d'un même formulaire partagent forcément la même session : le
+    // scope ne doit pas les dispenser du contrôle entre elles.
+    const conflits = detecter(
+      [
+        { jour_semaine: 4, heure_debut: '10:00', heure_fin: '11:00' },
+        { jour_semaine: 4, heure_debut: '10:30', heure_fin: '11:30' },
+      ],
+      EXISTANTS,
+      undefined,
+      ENSEIGNANT,
+      'session-2'
+    )
+
+    expect(conflits.filter((c) => c.type === 'interne')).toHaveLength(1)
   })
 })

@@ -77,6 +77,8 @@ function cours(enseignantId: string | null): CoursAvecDetails {
     date_fin: null,
     lien_meet: 'https://meet.google.com/abc-defg-hij',
     jeton_partage: null,
+    session_id: 'session-1',
+    niveau: null,
     logo: null,
     assiduite_active: null,
     base_academique: null,

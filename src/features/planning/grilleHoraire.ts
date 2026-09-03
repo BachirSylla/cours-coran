@@ -199,6 +199,7 @@ export function extraireCreneaux(cours: readonly CoursAvecDetails[]): CreneauPla
       id: creneau.id,
       cours_id: unCours.id,
       enseignant_id: unCours.enseignant_id,
+      session_id: unCours.session_id,
       jour_semaine: creneau.jour_semaine as JourSemaine,
       heure_debut: creneau.heure_debut,
       heure_fin: creneau.heure_fin,

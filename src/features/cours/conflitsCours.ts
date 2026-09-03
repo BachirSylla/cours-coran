@@ -37,7 +37,11 @@ export type ConflitCreneau =
 const FORMAT_HEURE = /^([01]?\d|2[0-4]):[0-5]\d(:[0-5]\d)?$/
 
 /** Ligne exploitable = jour valide et deux heures bien formées, fin après début. */
-function normaliser(saisi: CreneauSaisi, enseignantId: string | null): CreneauAffecte | null {
+function normaliser(
+  saisi: CreneauSaisi,
+  enseignantId: string | null,
+  sessionId: string
+): CreneauAffecte | null {
   const jour = Number(saisi.jour_semaine)
 
   if (!Number.isInteger(jour) || jour < 1 || jour > 7) return null
@@ -48,6 +52,7 @@ function normaliser(saisi: CreneauSaisi, enseignantId: string | null): CreneauAf
     heure_debut: saisi.heure_debut,
     heure_fin: saisi.heure_fin,
     enseignant_id: enseignantId,
+    session_id: sessionId,
   }
 
   // Un créneau incohérent est signalé par le schéma Zod, pas ici.
@@ -57,32 +62,49 @@ function normaliser(saisi: CreneauSaisi, enseignantId: string | null): CreneauAf
     : null
 }
 
+/** Ce contre quoi le formulaire est confronté. */
+export interface ContexteConflit {
+  /**
+   * Session du cours en cours de saisie. **Obligatoire**, et regroupée ici avec
+   * les deux autres plutôt qu'ajoutée en quatrième paramètre optionnel : un
+   * paramètre facultatif se serait fait oublier par un appelant, et le scope
+   * aurait cessé de s'appliquer sans que rien ne le signale.
+   */
+  sessionId: string
+  /**
+   * En modification, l'identifiant du cours édité : ses propres créneaux
+   * enregistrés sont ignorés, sinon il se détecterait lui-même.
+   */
+  coursIdEdite?: string
+  /**
+   * Enseignant qui **assurera** ce cours — celui déjà affecté en modification,
+   * le créateur en création (`enregistrer_cours` l'y pose). `null` range le
+   * cours dans le groupe des non affectés.
+   */
+  enseignantId?: string | null
+}
+
 /**
  * Détecte les conflits d'un formulaire de cours :
  * (a) entre les créneaux saisis eux-mêmes ;
- * (b) contre les créneaux **du même enseignant**, tous cours confondus.
+ * (b) contre les créneaux du **même enseignant et de la même session**, tous
+ *     cours confondus.
  *
  * Ceci n'est qu'un **aperçu**. La source de vérité reste `enregistrer_cours`,
  * qui refuse le chevauchement de façon atomique au moment d'écrire.
- *
- * @param coursIdEdite en modification, l'identifiant du cours édité : ses propres
- *   créneaux enregistrés sont ignorés, sinon il se détecterait lui-même.
- * @param enseignantId enseignant qui **assurera** ce cours — celui déjà affecté
- *   en modification, le créateur en création (`enregistrer_cours` l'y pose).
- *   `null` range le cours dans le groupe des non affectés.
  */
 export function detecterConflitsFormulaire(
   creneauxSaisis: readonly CreneauSaisi[],
   creneauxExistants: readonly CreneauExistant[],
-  coursIdEdite?: string,
-  enseignantId: string | null = null
+  contexte: ContexteConflit
 ): ConflitCreneau[] {
+  const { sessionId, coursIdEdite, enseignantId = null } = contexte
   const conflits: ConflitCreneau[] = []
 
   // Les lignes incomplètes (en cours de frappe) sont ignorées, sans décaler les index.
   const lignes = creneauxSaisis.map((saisi, index) => ({
     index,
-    creneau: normaliser(saisi, enseignantId),
+    creneau: normaliser(saisi, enseignantId, sessionId),
   }))
   const exploitables = lignes.filter(
     (ligne): ligne is { index: number; creneau: CreneauAffecte } => ligne.creneau !== null

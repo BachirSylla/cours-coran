@@ -68,6 +68,16 @@ export interface CoursFormDialogProps {
    * cours : l'enseignant seul n'a pas à choisir entre lui-même et lui-même.
    */
   membres?: Membre[]
+  /**
+   * Session dans laquelle un NOUVEAU cours sera créé — la session active
+   * (migration 0022). Un cours édité garde la sienne, quelle que soit celle-ci.
+   */
+  sessionId: string
+  /**
+   * Niveaux déjà employés dans le centre, proposés à la saisie. Ce ne sont que
+   * des suggestions : le champ reste libre, et un niveau se crée en le tapant.
+   */
+  niveaux?: string[]
   onEnregistrer: (valeurs: CoursValues) => Promise<void>
   enCours: boolean
   erreur?: string | null
@@ -79,6 +89,10 @@ function versFormulaire(cours: CoursAvecDetails): CoursFormValues {
   return {
     libelle: cours.libelle,
     type_cours_id: cours.type_cours_id,
+    // La session d'un cours édité est la SIENNE, jamais la session active : on
+    // ne déplace pas un cours d'un onglet à l'autre par mégarde.
+    session_id: cours.session_id,
+    niveau: cours.niveau ?? '',
     format: (cours.format === 'groupe' ? 'groupe' : 'individuel') as CoursFormValues['format'],
     enseignant_id: cours.enseignant_id ?? '',
     date_debut: cours.date_debut,
@@ -106,6 +120,8 @@ export function CoursFormDialog({
   creneauxExistants,
   enseignantId,
   membres = [],
+  sessionId,
+  niveaux = [],
   onEnregistrer,
   enCours,
   erreur,
@@ -121,7 +137,9 @@ export function CoursFormDialog({
     formState: { errors },
   } = useForm<CoursFormValues, unknown, CoursValues>({
     resolver: zodResolver(coursSchema),
-    defaultValues: valeursParDefaut(),
+    // Le `reset` de l'effet d'ouverture pose les vraies valeurs ; celles-ci ne
+    // servent qu'au premier rendu, avant que le dialogue ne s'ouvre.
+    defaultValues: valeursParDefaut(sessionId),
   })
 
   const champsCreneaux = useFieldArray({ control, name: 'creneaux' })
@@ -131,10 +149,10 @@ export function CoursFormDialog({
       reset(
         cours
           ? versFormulaire(cours)
-          : { ...valeursParDefaut(), enseignant_id: enseignantId ?? '' }
+          : { ...valeursParDefaut(sessionId), enseignant_id: enseignantId ?? '' }
       )
     }
-  }, [ouvert, cours, enseignantId, reset])
+  }, [ouvert, cours, enseignantId, sessionId, reset])
 
   // Recalcul à chaque frappe : le conflit se voit avant même de soumettre.
   // `useWatch` s'abonne proprement au champ, contrairement à `watch()` qui
@@ -146,10 +164,20 @@ export function CoursFormDialog({
   const enseignantSaisi = useWatch({ control, name: 'enseignant_id' })
   const agenda = enseignantSaisi || enseignantId
 
+  /*
+   * Le conflit se compare à l'intérieur d'UNE session (0022). Celle du cours
+   * édité, ou la session active en création — jamais les deux mélangées.
+   */
+  const sessionDuCours = cours?.session_id ?? sessionId
+
   const conflits = useMemo(
     () =>
-      detecterConflitsFormulaire(creneauxSaisis ?? [], creneauxExistants, cours?.id, agenda),
-    [creneauxSaisis, creneauxExistants, cours?.id, agenda]
+      detecterConflitsFormulaire(creneauxSaisis ?? [], creneauxExistants, {
+        sessionId: sessionDuCours,
+        coursIdEdite: cours?.id,
+        enseignantId: agenda,
+      }),
+    [creneauxSaisis, creneauxExistants, cours?.id, agenda, sessionDuCours]
   )
 
   const lignesEnConflit = useMemo(() => calculerIndexEnConflit(conflits), [conflits])
@@ -281,6 +309,28 @@ export function CoursFormDialog({
                 )}
               </div>
             )}
+
+            <div className="space-y-2">
+              <Label htmlFor="niveau">Niveau</Label>
+              <Input
+                id="niveau"
+                list="niveaux-du-centre"
+                placeholder="Niveau 1, Débutant…"
+                aria-invalid={Boolean(errors.niveau)}
+                {...register('niveau')}
+              />
+              {/* Suggestions, jamais contrainte : un niveau se crée en le tapant.
+                  `datalist` laisse le champ libre, là où un `select` obligerait
+                  à passer par un écran d'administration pour un simple libellé. */}
+              <datalist id="niveaux-du-centre">
+                {niveaux.map((niveau) => (
+                  <option key={niveau} value={niveau} />
+                ))}
+              </datalist>
+              {errors.niveau && (
+                <p className="text-sm text-destructive">{errors.niveau.message}</p>
+              )}
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="format">Format</Label>

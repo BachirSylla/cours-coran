@@ -126,9 +126,11 @@ export type Database = {
           libelle: string
           lien_meet: string | null
           logo: string | null
+          niveau: string | null
           penaliser_absences_excusees: boolean | null
           penalite_absence: number | null
           penalite_retard: number | null
+          session_id: string
           statut: string
           type_cours_id: string
           updated_at: string
@@ -148,9 +150,11 @@ export type Database = {
           libelle: string
           lien_meet?: string | null
           logo?: string | null
+          niveau?: string | null
           penaliser_absences_excusees?: boolean | null
           penalite_absence?: number | null
           penalite_retard?: number | null
+          session_id: string
           statut?: string
           type_cours_id: string
           updated_at?: string
@@ -170,9 +174,11 @@ export type Database = {
           libelle?: string
           lien_meet?: string | null
           logo?: string | null
+          niveau?: string | null
           penaliser_absences_excusees?: boolean | null
           penalite_absence?: number | null
           penalite_retard?: number | null
+          session_id?: string
           statut?: string
           type_cours_id?: string
           updated_at?: string
@@ -191,6 +197,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "membre"
             referencedColumns: ["user_id", "centre_id"]
+          },
+          {
+            foreignKeyName: "cours_session_du_centre_fkey"
+            columns: ["session_id", "centre_id"]
+            isOneToOne: false
+            referencedRelation: "session"
+            referencedColumns: ["id", "centre_id"]
           },
           {
             foreignKeyName: "cours_type_cours_id_fkey"
@@ -621,6 +634,47 @@ export type Database = {
           },
         ]
       }
+      session: {
+        Row: {
+          centre_id: string
+          created_at: string
+          date_debut: string
+          date_fin: string | null
+          id: string
+          nom: string
+          statut: string
+          updated_at: string
+        }
+        Insert: {
+          centre_id?: string
+          created_at?: string
+          date_debut: string
+          date_fin?: string | null
+          id?: string
+          nom: string
+          statut?: string
+          updated_at?: string
+        }
+        Update: {
+          centre_id?: string
+          created_at?: string
+          date_debut?: string
+          date_fin?: string | null
+          id?: string
+          nom?: string
+          statut?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_centre_id_fkey"
+            columns: ["centre_id"]
+            isOneToOne: false
+            referencedRelation: "centre"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tarif: {
         Row: {
           centre_id: string
@@ -726,9 +780,11 @@ export type Database = {
           libelle: string
           lien_meet: string | null
           logo: string | null
+          niveau: string | null
           penaliser_absences_excusees: boolean | null
           penalite_absence: number | null
           penalite_retard: number | null
+          session_id: string
           statut: string
           type_cours_id: string
           updated_at: string

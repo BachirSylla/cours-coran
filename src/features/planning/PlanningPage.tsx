@@ -9,6 +9,7 @@ import { useMembre } from '@/features/membres/hooks/useMembre'
 import { useMembres } from '@/features/membres/hooks/useMembres'
 import type { CoursValues } from '@/features/cours/coursSchema'
 import { useCours } from '@/features/cours/hooks/useCours'
+import { useSessionActive } from '@/features/sessions/hooks/useSessions'
 import { useModifierCours } from '@/features/cours/hooks/useModifierCours'
 import { useTousLesCreneaux } from '@/features/cours/hooks/useTousLesCreneaux'
 import { useTypesCours } from '@/features/cours/hooks/useTypesCours'
@@ -33,6 +34,7 @@ function jourCourant(): JourSemaine {
 
 export function PlanningPage() {
   const { data: cours, isPending, isError, error } = useCours()
+  const { sessionId } = useSessionActive()
   const { data: typesCours } = useTypesCours()
   const { data: creneauxExistants } = useTousLesCreneaux()
   const modifier = useModifierCours()
@@ -175,6 +177,7 @@ export function PlanningPage() {
       />
 
       <CoursFormDialog
+        sessionId={sessionId ?? ''}
         ouvert={Boolean(coursEdite)}
         onOuvertChange={(ouvert) => {
           if (!ouvert) setCoursEdite(null)
