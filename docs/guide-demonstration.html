@@ -1,0 +1,1470 @@
+<title>Démonstration Cours Coran</title>
+<meta name="description" content="Parcours complet de démonstration : chaque étape, le profil concerné, l'emplacement exact." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@450;600&family=IBM+Plex+Sans:wght@400;500;600&family=Spectral:wght@500;600&display=swap"
+/>
+
+<style>
+  /* ---------------------------------------------------------------------
+     Palette : neutres à biais vert, pour rester dans le monde de
+     l'application sans en recopier l'interface. Les trois teintes de rôle
+     forment un jeu — même clarté, trois familles — pour que le lecteur
+     distingue « qui agit » d'un coup d'œil.
+     --------------------------------------------------------------------- */
+  :root {
+    --ground: #f4f6f2;
+    --surface: #ffffff;
+    --surface-sunk: #eef2ec;
+    --ink: #12211b;
+    --ink-soft: #56655c;
+    --ink-faint: #8b978f;
+    --rule: #dde4dc;
+    --rule-strong: #c3cec5;
+    --accent: #0d6b47;
+    --accent-soft: #dcece3;
+    --responsable: #2c4b86;
+    --responsable-soft: #e0e7f3;
+    --enseignant: #0d6b47;
+    --enseignant-soft: #dcece3;
+    --visiteur: #8a5512;
+    --visiteur-soft: #f4e8d8;
+    --alerte: #a32020;
+    --alerte-soft: #f7e2e2;
+
+    --pas: 0.25rem;
+    --colonne: 46rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      --ground: #0d1411;
+      --surface: #141d19;
+      --surface-sunk: #101815;
+      --ink: #e7eee9;
+      --ink-soft: #9daba3;
+      --ink-faint: #6f7d75;
+      --rule: #24302a;
+      --rule-strong: #33413a;
+      --accent: #56bd8f;
+      --accent-soft: #173024;
+      --responsable: #8fb0e6;
+      --responsable-soft: #1a2438;
+      --enseignant: #56bd8f;
+      --enseignant-soft: #173024;
+      --visiteur: #d5a463;
+      --visiteur-soft: #302416;
+      --alerte: #e78f8f;
+      --alerte-soft: #331b1b;
+    }
+  }
+
+  :root[data-theme='dark'] {
+    --ground: #0d1411;
+    --surface: #141d19;
+    --surface-sunk: #101815;
+    --ink: #e7eee9;
+    --ink-soft: #9daba3;
+    --ink-faint: #6f7d75;
+    --rule: #24302a;
+    --rule-strong: #33413a;
+    --accent: #56bd8f;
+    --accent-soft: #173024;
+    --responsable: #8fb0e6;
+    --responsable-soft: #1a2438;
+    --enseignant: #56bd8f;
+    --enseignant-soft: #173024;
+    --visiteur: #d5a463;
+    --visiteur-soft: #302416;
+    --alerte: #e78f8f;
+    --alerte-soft: #331b1b;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-size: 16px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: var(--colonne);
+    margin: 0 auto;
+    padding: calc(var(--pas) * 14) calc(var(--pas) * 6) calc(var(--pas) * 24);
+  }
+
+  /* ------------------------------------------------------------------ tête */
+  .tete {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--pas) * 4);
+    padding-bottom: calc(var(--pas) * 8);
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .surtitre {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  h1 {
+    font-family: 'Spectral', Georgia, 'Times New Roman', serif;
+    font-weight: 600;
+    font-size: clamp(2.1rem, 6vw, 3rem);
+    line-height: 1.08;
+    letter-spacing: -0.015em;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .chapo {
+    margin: 0;
+    max-width: 40ch;
+    font-size: 1.0625rem;
+    color: var(--ink-soft);
+  }
+
+  /* --------------------------------------------------------------- sommaire */
+  .sommaire {
+    margin: calc(var(--pas) * 10) 0 calc(var(--pas) * 14);
+  }
+
+  .sommaire h2 {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 calc(var(--pas) * 4);
+  }
+
+  .sommaire ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .sommaire a {
+    display: flex;
+    align-items: baseline;
+    gap: calc(var(--pas) * 3);
+    padding: calc(var(--pas) * 2.5) calc(var(--pas) * 3);
+    background: var(--surface);
+    color: var(--ink);
+    text-decoration: none;
+    font-size: 0.9375rem;
+  }
+
+  .sommaire a:hover,
+  .sommaire a:focus-visible {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+
+  .sommaire .plage {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-faint);
+    min-width: 3.5rem;
+  }
+
+  /* ----------------------------------------------------------------- phases */
+  .phase {
+    margin-top: calc(var(--pas) * 16);
+    scroll-margin-top: calc(var(--pas) * 6);
+  }
+
+  .phase > h2 {
+    font-family: 'Spectral', Georgia, serif;
+    font-weight: 600;
+    font-size: 1.75rem;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .phase > .intro {
+    margin: calc(var(--pas) * 2) 0 0;
+    color: var(--ink-soft);
+    max-width: 58ch;
+  }
+
+  .etapes {
+    list-style: none;
+    margin: calc(var(--pas) * 6) 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--pas) * 4);
+  }
+
+  /* ----------------------------------------------------------------- étapes */
+  .etape {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: calc(var(--pas) * 5);
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--pas) * 3);
+  }
+
+  .etape-tete {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: calc(var(--pas) * 3);
+  }
+
+  .numero {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: calc(var(--pas) * 0.5) calc(var(--pas) * 1.75);
+    border-radius: 2px;
+  }
+
+  .etape-titre {
+    font-weight: 600;
+    font-size: 1.0625rem;
+    flex: 1 1 14rem;
+    margin: 0;
+    line-height: 1.35;
+  }
+
+  .role {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: calc(var(--pas) * 0.75) calc(var(--pas) * 2);
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+
+  .role.r {
+    color: var(--responsable);
+    background: var(--responsable-soft);
+  }
+  .role.e {
+    color: var(--enseignant);
+    background: var(--enseignant-soft);
+  }
+  .role.v {
+    color: var(--visiteur);
+    background: var(--visiteur-soft);
+  }
+
+  /* Le chemin est une donnée, pas de la décoration : il se lit en mono. */
+  .ou {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    background: var(--surface-sunk);
+    border-left: 2px solid var(--rule-strong);
+    padding: calc(var(--pas) * 2) calc(var(--pas) * 3);
+    overflow-x: auto;
+  }
+
+  .ou b {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .bloc {
+    display: grid;
+    grid-template-columns: 5.5rem 1fr;
+    gap: calc(var(--pas) * 3);
+    align-items: baseline;
+  }
+
+  @media (max-width: 34rem) {
+    .bloc {
+      grid-template-columns: 1fr;
+      gap: calc(var(--pas) * 1);
+    }
+  }
+
+  .etiquette {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    padding-top: 0.2em;
+  }
+
+  .bloc p {
+    margin: 0;
+  }
+
+  .bloc ul {
+    margin: 0;
+    padding-left: 1.1em;
+  }
+
+  .bloc li + li {
+    margin-top: calc(var(--pas) * 1);
+  }
+
+  .dire {
+    color: var(--ink-soft);
+    font-style: italic;
+  }
+
+  .dire::before {
+    content: '« ';
+  }
+  .dire::after {
+    content: ' »';
+  }
+
+  /* ------------------------------------------------------------ avertissement */
+  .note {
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    background: var(--surface);
+    padding: calc(var(--pas) * 4);
+    border-radius: 3px;
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--pas) * 2);
+  }
+
+  .note.attention {
+    border-left-color: var(--alerte);
+  }
+
+  .note h3 {
+    margin: 0;
+    font-size: 0.9375rem;
+    font-weight: 600;
+  }
+
+  .note p {
+    margin: 0;
+    color: var(--ink-soft);
+  }
+
+  .note.attention h3 {
+    color: var(--alerte);
+  }
+
+  /* -------------------------------------------------------------- tableaux */
+  .cadre {
+    overflow-x: auto;
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    background: var(--surface);
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.9375rem;
+  }
+
+  th,
+  td {
+    text-align: left;
+    padding: calc(var(--pas) * 2.5) calc(var(--pas) * 3);
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+
+  thead th {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    white-space: nowrap;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  code {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 0.875em;
+    background: var(--surface-sunk);
+    padding: 0.1em 0.35em;
+    border-radius: 2px;
+  }
+
+  a {
+    color: var(--accent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .pied {
+    margin-top: calc(var(--pas) * 16);
+    padding-top: calc(var(--pas) * 6);
+    border-top: 1px solid var(--rule);
+    color: var(--ink-faint);
+    font-size: 0.875rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+</style>
+
+<div class="page">
+  <header class="tete">
+    <span class="surtitre">Guide de démonstration</span>
+    <h1>Faire visiter un centre en 40 minutes</h1>
+    <p class="chapo">
+      Le parcours complet, dans l'ordre. À chaque étape : qui agit, où cela se trouve, ce que
+      votre interlocuteur doit voir.
+    </p>
+  </header>
+
+  <nav class="sommaire" aria-label="Sommaire">
+    <h2>Les huit temps</h2>
+    <ol>
+      <li>
+        <a href="#preparer"><span class="plage">avant</span><span>Préparer la salle</span></a>
+      </li>
+      <li>
+        <a href="#personnes"><span class="plage">1 – 6</span><span>Le centre et ses enseignants</span></a>
+      </li>
+      <li>
+        <a href="#apprenants"><span class="plage">7 – 9</span><span>Les apprenants</span></a>
+      </li>
+      <li>
+        <a href="#cours"><span class="plage">10 – 14</span><span>Les cours et le conflit d'horaire</span></a>
+      </li>
+      <li>
+        <a href="#semaine"><span class="plage">15 – 17</span><span>La semaine qui se remplit</span></a>
+      </li>
+      <li>
+        <a href="#animer"><span class="plage">18 – 24</span><span>Animer une séance</span></a>
+      </li>
+      <li>
+        <a href="#suivi"><span class="plage">25 – 28</span><span>Ce que voit l'apprenant</span></a>
+      </li>
+      <li>
+        <a href="#argent"><span class="plage">29 – 32</span><span>Les règlements</span></a>
+      </li>
+      <li>
+        <a href="#session"><span class="plage">33 – 36</span><span>Clore la session</span></a>
+      </li>
+      <li>
+        <a href="#court"><span class="plage">court</span><span>La version 10 minutes</span></a>
+      </li>
+      <li>
+        <a href="#questions"><span class="plage">après</span><span>Les questions qui viendront</span></a>
+      </li>
+    </ol>
+  </nav>
+
+  <!-- ================================================================= -->
+  <section class="phase" id="preparer">
+    <h2>Préparer la salle</h2>
+    <p class="intro">
+      La démonstration repose sur une idée : <strong>deux personnes, deux vues différentes</strong>.
+      Il faut donc deux sessions ouvertes en même temps.
+    </p>
+
+    <div class="note">
+      <h3>Avant que votre interlocuteur n'arrive</h3>
+      <p>
+        Ouvrez votre navigateur habituel connecté en <strong>responsable</strong>, et une fenêtre de
+        navigation privée connectée en <strong>enseignant</strong>. Gardez un troisième onglet privé
+        vide : il servira à ouvrir les liens publics, pour prouver qu'ils fonctionnent sans compte.
+      </p>
+      <p>
+        Sur téléphone, installez l'application depuis le bandeau proposé par le navigateur : montrer
+        l'icône sur l'écran d'accueil vaut mieux que d'en parler.
+      </p>
+    </div>
+  </section>
+
+  <!-- ================================================================= -->
+  <section class="phase" id="personnes">
+    <h2>Le centre et ses enseignants</h2>
+    <p class="intro">
+      Commencez par ce qui rassure : chaque centre est un monde clos, et personne n'entre sans y
+      être invité.
+    </p>
+
+    <ol class="etapes">
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">01</span>
+          <h3 class="etape-titre">Se connecter et arriver sur le planning</h3>
+          <span class="role r">Responsable</span>
+        </div>
+        <p class="ou"><b>/login</b> › la semaine s'affiche aussitôt</p>
+        <div class="bloc">
+          <span class="etiquette">Faire</span>
+          <p>Se connecter. Ne rien commenter pendant les deux secondes de chargement.</p>
+        </div>
+        <div class="bloc">
+          <span class="etiquette">À dire</span>
+          <p class="dire">
+            La première chose qu'on voit, c'est la semaine. Pas un tableau de bord, pas des chiffres :
+            l'emploi du temps, parce que c'est ce qu'on ouvre vingt fois par jour.
+          </p>
+        </div>
+      </li>
+
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">02</span>
+          <h3 class="etape-titre">Montrer les six onglets, et celui qui manque</h3>
+          <span class="role r">Responsable</span>
+        </div>
+        <p class="ou">
+          Barre de navigation › <b>Planning</b> · <b>Cours</b> · <b>Séances</b> ·
+          <b>Apprenants</b> · <b>Paiements</b> — et l'engrenage <b>Paramètres</b> en haut à droite
+        </p>
+        <div class="bloc">
+          <span class="etiquette">Attendu</span>
+          <p>Cinq onglets pour vous. L'enseignant, lui, n'en verra que quatre.</p>
+        </div>
+        <div class="bloc">
+          <span class="etiquette">À dire</span>
+          <p class="dire">
+            L'onglet Paiements n'existe pas pour un enseignant. Ce n'est pas caché à l'écran : la
+            base de données elle-même refuse de lui répondre.
+          </p>
+        </div>
+      </li>
+
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">03</span>
+          <h3 class="etape-titre">Régler la notation du centre</h3>
+          <span class="role r">Responsable</span>
+        </div>
+        <p class="ou">
+          Engrenage <b>Paramètres</b> › <b>Barème de notation</b>, <b>Notation de fin de session</b>,
+          <b>Logo</b>
+        </p>
+        <div class="bloc">
+          <span class="etiquette">Faire</span>
+          <ul>
+            <li>Basculer le barème entre /10 et /20.</li>
+            <li>Déplacer le poids entre part académique et assiduité — la somme reste sur 20.</li>
+            <li>Déposer un logo.</li>
+          </ul>
+        </div>
+        <div class="bloc">
+          <span class="etiquette">À dire</span>
+          <p class="dire">
+            Le barème est propre à chaque enseignant, la notation de session est celle du centre. Un
+            enseignant qui note sur 10 ne l'impose à personne.
+          </p>
+        </div>
+      </li>
+
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">04</span>
+          <h3 class="etape-titre">Générer un code d'invitation</h3>
+          <span class="role r">Responsable</span>
+        </div>
+        <p class="ou">
+          <b>Paramètres</b> › <b>Enseignants du centre</b> › bouton <b>Inviter un enseignant</b>
+        </p>
+        <div class="bloc">
+          <span class="etiquette">Attendu</span>
+          <p>
+            Un code de la forme <code>XXXX-XXXX-XXXX</code>, affiché <strong>une seule fois</strong>,
+            avec une date d'expiration.
+          </p>
+        </div>
+        <div class="bloc">
+          <span class="etiquette">À dire</span>
+          <p class="dire">
+            Le code n'est pas stocké en clair : la base n'en garde qu'une empreinte. Si vous le
+            perdez, personne ne peut vous le rappeler — vous en générez un autre et vous révoquez
+            l'ancien.
+          </p>
+        </div>
+      </li>
+
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">05</span>
+          <h3 class="etape-titre">Rejoindre le centre avec ce code</h3>
+          <span class="role e">Enseignant</span>
+        </div>
+        <p class="ou">
+          Fenêtre privée › <b>/login</b> › créer un compte › écran <b>Rejoindre un centre</b> ›
+          coller le code + son nom
+        </p>
+        <div class="bloc">
+          <span class="etiquette">Attendu</span>
+          <p>
+            Il entre immédiatement. Son onglet <b>Paiements</b> n'existe pas, et il ne voit que les
+            cours qui lui sont affectés.
+          </p>
+        </div>
+        <div class="bloc">
+          <span class="etiquette">À dire</span>
+          <p class="dire">
+            Un compte créé sans code ne voit rien du tout. Il n'est pas bloqué par un écran : il
+            n'existe pour aucune donnée.
+          </p>
+        </div>
+      </li>
+
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">06</span>
+          <h3 class="etape-titre">Retirer un enseignant sans rien perdre</h3>
+          <span class="role r">Responsable</span>
+        </div>
+        <p class="ou">
+          <b>Paramètres</b> › <b>Enseignants du centre</b> › corbeille en bout de ligne
+        </p>
+        <div class="bloc">
+          <span class="etiquette">Attendu</span>
+          <p>
+            Le dialogue liste ses cours et propose de les transférer, ou de les laisser sans
+            enseignant. Séances, présences et notes restent intactes.
+          </p>
+        </div>
+        <div class="bloc">
+          <span class="etiquette">À dire</span>
+          <p class="dire">
+            Un enseignant qui part ne fait pas disparaître son travail. Ce sont les cours qui portent
+            l'historique, pas les personnes.
+          </p>
+        </div>
+        <div class="note attention">
+          <h3>Ne le faites pas pendant la démonstration</h3>
+          <p>
+            Montrez le dialogue, puis annulez. Vous aurez besoin de cet enseignant pour la suite du
+            parcours.
+          </p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <!-- ================================================================= -->
+  <section class="phase" id="apprenants">
+    <h2>Les apprenants</h2>
+    <p class="intro">
+      Une fiche par personne, réutilisée par tous ses cours. C'est le point où l'on comprend que
+      l'application suit des gens, pas des lignes de tableur.
+    </p>
+
+    <ol class="etapes" start="7">
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">07</span>
+          <h3 class="etape-titre">Créer un apprenant</h3>
+          <span class="role r">Responsable</span>
+        </div>
+        <p class="ou">Onglet <b>Apprenants</b> › bouton <b>Nouvel apprenant</b></p>
+        <div class="bloc">
+          <span class="etiquette">Faire</span>
+          <p>
+            Nom, prénom, contact WhatsApp, niveau, statut. Créez-en un devant votre interlocuteur —
+            c'est court, et cela se voit.
+          </p>
+        </div>
+      </li>
+
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">08</span>
+          <h3 class="etape-titre">Ouvrir une fiche déjà remplie</h3>
+          <span class="role r">Responsable</span>
+        </div>
+        <p class="ou">Onglet <b>Apprenants</b> › cliquer une ligne</p>
+        <div class="bloc">
+          <span class="etiquette">Attendu</span>
+          <ul>
+            <li><b>Progression</b> — la dernière leçon ou le dernier passage travaillé, par cours.</li>
+            <li><b>Évolution de la récitation</b> — la courbe des notes, en pourcentage.</li>
+            <li>Ses cours, ses présences, sa note d'examen.</li>
+          </ul>
+        </div>
+        <div class="bloc">
+          <span class="etiquette">À dire</span>
+          <p class="dire">
+            La courbe est en pourcentage, pas en points. Un 8 sur 10 et un 16 sur 20, c'est la même
+            chose — sur un graphique en points bruts, ça ne l'est pas.
+          </p>
+        </div>
+      </li>
+
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">09</span>
+          <h3 class="etape-titre">Montrer le même apprenant dans deux cours</h3>
+          <span class="role r">Responsable</span>
+        </div>
+        <p class="ou">Fiche apprenant › la liste de ses cours</p>
+        <div class="bloc">
+          <span class="etiquette">À dire</span>
+          <p class="dire">
+            Une seule fiche, plusieurs cours. On ne ressaisit pas quelqu'un parce qu'il s'inscrit à
+            la mémorisation en plus du tadjwîd.
+          </p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <!-- ================================================================= -->
+  <section class="phase" id="cours">
+    <h2>Les cours, et le conflit d'horaire</h2>
+    <p class="intro">
+      C'est le cœur de la démonstration. Le problème que l'application résout en premier, c'est de ne
+      jamais poser deux cours du même enseignant à la même heure.
+    </p>
+
+    <ol class="etapes" start="10">
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">10</span>
+          <h3 class="etape-titre">Créer un cours</h3>
+          <span class="role r">Responsable</span>
+        </div>
+        <p class="ou">Onglet <b>Cours</b> › bouton <b>Nouveau cours</b></p>
+        <div class="bloc">
+          <span class="etiquette">Faire</span>
+          <ul>
+            <li>Libellé, puis <b>Type de cours</b> — dérouler la liste : huit matières.</li>
+            <li><b>Enseignant</b> : celui que vous venez d'inviter.</li>
+            <li><b>Format</b> : groupe.</li>
+            <li><b>Ajouter un créneau</b> : lundi 10:00 – 11:00.</li>
+            <li>Date de début. Laisser la date de fin vide.</li>
+          </ul>
+        </div>
+        <div class="bloc">
+          <span class="etiquette">À dire</span>
+          <p class="dire">
+            Un cours n'a pas une heure, il a des créneaux. Deux fois par semaine, c'est deux lignes —
+            pas un champ « fréquence » qu'il faudrait interpréter.
+          </p>
+        </div>
+      </li>
+
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">11</span>
+          <h3 class="etape-titre">Provoquer le conflit, exprès</h3>
+          <span class="role r">Responsable</span>
+        </div>
+        <p class="ou">
+          Même formulaire › remettre le <b>même enseignant</b> sur le <b>même jour</b> à la
+          <b>même heure</b>
+        </p>
+        <div class="bloc">
+          <span class="etiquette">Attendu</span>
+          <p>
+            Un encadré rouge <strong>avant même d'enregistrer</strong>, nommant le cours qui gêne et
+            son horaire. Le créneau fautif s'entoure de rouge.
+          </p>
+        </div>
+        <div class="bloc">
+          <span class="etiquette">À dire</span>
+          <p class="dire">
+            C'est contrôlé sur l'agenda de <em>cet</em> enseignant, pas du centre. Deux enseignants
+            font très bien cours à la même heure — c'est la personne qui est la ressource rare.
+          </p>
+        </div>
+        <div class="note">
+          <h3>Le point à ne pas manquer</h3>
+          <p>
+            Si on insiste et qu'on enregistre quand même, la base refuse. L'alerte à l'écran n'est
+            qu'un aperçu ; la vraie barrière est côté serveur, et elle ne se contourne pas.
+          </p>
+        </div>
+      </li>
+
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">12</span>
+          <h3 class="etape-titre">Inscrire des apprenants au cours</h3>
+          <span class="role r">Responsable</span>
+        </div>
+        <p class="ou">Onglet <b>Cours</b> › cliquer le cours › section <b>Apprenants</b></p>
+        <div class="bloc">
+          <span class="etiquette">Faire</span>
+          <p>Ajouter deux ou trois apprenants. Puis tenter d'en ajouter un à un cours individuel.</p>
+        </div>
+        <div class="bloc">
+          <span class="etiquette">Attendu</span>
+          <p>Le cours individuel refuse le deuxième inscrit, et dit pourquoi.</p>
+        </div>
+      </li>
+
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">13</span>
+          <h3 class="etape-titre">Montrer le prix, puis le faire disparaître</h3>
+          <span class="role r">Responsable</span>
+        </div>
+        <p class="ou">Fiche du cours › champ <b>Prix mensuel</b> · section <b>Paiements</b></p>
+        <div class="bloc">
+          <span class="etiquette">Faire</span>
+          <p>
+            Passez à la fenêtre de l'enseignant et ouvrez <strong>le même cours</strong>.
+          </p>
+        </div>
+        <div class="bloc">
+          <span class="etiquette">Attendu</span>
+          <p>Ni prix, ni règlements. Pas masqués : absents.</p>
+        </div>
+        <div class="bloc">
+          <span class="etiquette">À dire</span>
+          <p class="dire">
+            Le tarif vit dans une table à part, fermée en lecture à qui n'est pas responsable. Même
+            en interrogeant directement le serveur, il n'obtiendrait rien.
+          </p>
+        </div>
+      </li>
+
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">14</span>
+          <h3 class="etape-titre">Affecter le cours à quelqu'un d'autre</h3>
+          <span class="role r">Responsable</span>
+        </div>
+        <p class="ou">Fiche du cours › <b>Modifier le cours</b> › champ <b>Enseignant</b></p>
+        <div class="bloc">
+          <span class="etiquette">À dire</span>
+          <p class="dire">
+            L'autorité pédagogique suit l'affectation, jamais le titre. Un responsable qui n'enseigne
+            pas ce cours ne peut pas y saisir une note — il doit se l'affecter d'abord.
+          </p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <!-- ================================================================= -->
+  <section class="phase" id="semaine">
+    <h2>La semaine qui se remplit</h2>
+    <p class="intro">
+      Les séances ne sont pas générées d'avance et stockées par milliers : elles sont calculées à
+      partir des créneaux, et une ligne n'existe qu'à la première saisie.
+    </p>
+
+    <ol class="etapes" start="15">
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">15</span>
+          <h3 class="etape-titre">La grille hebdomadaire</h3>
+          <span class="role r">Responsable</span>
+          <span class="role e">Enseignant</span>
+        </div>
+        <p class="ou">Onglet <b>Planning</b></p>
+        <div class="bloc">
+          <span class="etiquette">Attendu</span>
+          <p>Jours en colonnes, heures en lignes, un bloc coloré par cours. Un conflit se voit.</p>
+        </div>
+      </li>
+
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">16</span>
+          <h3 class="etape-titre">La liste des séances de la semaine</h3>
+          <span class="role e">Enseignant</span>
+        </div>
+        <p class="ou">Onglet <b>Séances</b> › naviguer d'une semaine à l'autre</p>
+        <div class="bloc">
+          <span class="etiquette">Attendu</span>
+          <p>
+            Les occurrences à venir apparaissent sans avoir été créées. Celles déjà saisies portent
+            leur statut.
+          </p>
+        </div>
+      </li>
+
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">17</span>
+          <h3 class="etape-titre">Une séance à venir ne se pointe pas</h3>
+          <span class="role e">Enseignant</span>
+        </div>
+        <p class="ou">Onglet <b>Séances</b> › avancer d'une semaine › ouvrir une séance</p>
+        <div class="bloc">
+          <span class="etiquette">Attendu</span>
+          <p>« Cette séance n'a pas encore eu lieu. » Aucune case de présence.</p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <!-- ================================================================= -->
+  <section class="phase" id="animer">
+    <h2>Animer une séance</h2>
+    <p class="intro">
+      Passez à la fenêtre de l'enseignant et restez-y. C'est la partie que votre interlocuteur fera
+      le plus souvent — elle doit paraître rapide.
+    </p>
+
+    <ol class="etapes" start="18">
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">18</span>
+          <h3 class="etape-titre">Poser le lien de visioconférence</h3>
+          <span class="role e">Enseignant</span>
+        </div>
+        <p class="ou">Fiche du cours › section <b>Visioconférence</b></p>
+        <div class="bloc">
+          <span class="etiquette">À dire</span>
+          <p class="dire">
+            Un seul lien pour tout le cours, réutilisé par toutes les séances. On ne recolle pas un
+            lien chaque semaine.
+          </p>
+        </div>
+      </li>
+
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">19</span>
+          <h3 class="etape-titre">Activer le lien public du cours</h3>
+          <span class="role e">Enseignant</span>
+        </div>
+        <p class="ou">Fiche du cours › section <b>Partage</b> › <b>Activer le partage</b></p>
+        <div class="bloc">
+          <span class="etiquette">Faire</span>
+          <p>Copier le lien, l'ouvrir dans le troisième onglet privé.</p>
+        </div>
+        <div class="bloc">
+          <span class="etiquette">Attendu</span>
+          <p>
+            Horaires, prochaine séance, bouton pour rejoindre, dernier exercice. Aucune connexion
+            demandée.
+          </p>
+        </div>
+        <div class="bloc">
+          <span class="etiquette">À dire</span>
+          <p class="dire">
+            Ni les apprenants, ni les notes, ni les paiements n'y figurent. Et si le cours passe en
+            pause, le lien de visio disparaît de la page tout seul.
+          </p>
+        </div>
+      </li>
+
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">20</span>
+          <h3 class="etape-titre">Saisir le contenu d'une séance</h3>
+          <span class="role e">Enseignant</span>
+        </div>
+        <p class="ou">
+          Onglet <b>Séances</b> › cliquer une séance passée › <b>Contenu abordé</b>,
+          <b>Détails Coran</b>, <b>Exercices à faire</b>
+        </p>
+        <div class="bloc">
+          <span class="etiquette">Attendu</span>
+          <p>
+            Sur un cours de mémorisation, de lecture, de tadjwîd ou de tafsîr, le bloc sourate et
+            versets est <strong>déjà ouvert</strong>. Sur un cours de fiqh, il est replié.
+          </p>
+        </div>
+      </li>
+
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">21</span>
+          <h3 class="etape-titre">Pointer la présence et noter la récitation</h3>
+          <span class="role e">Enseignant</span>
+        </div>
+        <p class="ou">Même dialogue › section <b>Présence et évaluation</b></p>
+        <div class="bloc">
+          <span class="etiquette">Faire</span>
+          <p>
+            Cocher, nuancer avec le sélecteur — présent, en retard, absent, excusé, partiel — puis
+            saisir une note, un passage récité, un commentaire.
+          </p>
+        </div>
+        <div class="bloc">
+          <span class="etiquette">À dire</span>
+          <p class="dire">
+            La case fait le geste rapide, le sélecteur fait la nuance. Une absence excusée ne pénalise
+            pas la note finale — sinon la marquer n'aurait aucun sens.
+          </p>
+        </div>
+      </li>
+
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">22</span>
+          <h3 class="etape-titre">Fermer et rouvrir la séance</h3>
+          <span class="role e">Enseignant</span>
+        </div>
+        <p class="ou">Fermer le dialogue › <strong>recharger la page</strong> › rouvrir la séance</p>
+        <div class="bloc">
+          <span class="etiquette">Attendu</span>
+          <p>Les notes, commentaires et passages sont là. À chaque fois.</p>
+        </div>
+      </li>
+
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">23</span>
+          <h3 class="etape-titre">Annuler une séance</h3>
+          <span class="role e">Enseignant</span>
+        </div>
+        <p class="ou">Dialogue de séance › <b>Statut</b> › <b>Annulée</b></p>
+        <div class="bloc">
+          <span class="etiquette">Attendu</span>
+          <p>
+            Le formulaire se réduit au statut et à un champ <b>Motif</b>. Présence, contenu, versets,
+            exercices : tout disparaît.
+          </p>
+        </div>
+        <div class="bloc">
+          <span class="etiquette">À dire</span>
+          <p class="dire">
+            Une séance qui n'a pas eu lieu n'a rien à décrire. Et si elle portait déjà des pointages,
+            l'application refuse et propose de les retirer d'abord — elle ne supprime rien en silence.
+          </p>
+        </div>
+      </li>
+
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">24</span>
+          <h3 class="etape-titre">Le rappel du travail donné</h3>
+          <span class="role e">Enseignant</span>
+        </div>
+        <p class="ou">Ouvrir la séance <b>suivante</b> du même cours</p>
+        <div class="bloc">
+          <span class="etiquette">Attendu</span>
+          <p>Un encadré rappelle les exercices donnés la fois d'avant, avec leur date.</p>
+        </div>
+        <div class="bloc">
+          <span class="etiquette">À dire</span>
+          <p class="dire">
+            On ne cherche pas dans son cahier ce qu'on avait demandé. C'est proposé au moment où on
+            en a besoin.
+          </p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <!-- ================================================================= -->
+  <section class="phase" id="suivi">
+    <h2>Ce que voit l'apprenant</h2>
+    <p class="intro">
+      L'argument qui fait la différence face à un cahier ou un groupe WhatsApp : chaque apprenant
+      peut suivre son propre travail, sans compte à créer.
+    </p>
+
+    <ol class="etapes" start="25">
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">25</span>
+          <h3 class="etape-titre">Ouvrir un suivi</h3>
+          <span class="role e">Enseignant</span>
+        </div>
+        <p class="ou">
+          Fiche du cours › section <b>Suivi de l'apprenant</b> › <b>Ouvrir le suivi</b> sur une ligne
+        </p>
+        <div class="bloc">
+          <span class="etiquette">Attendu</span>
+          <p>
+            Une confirmation annonce que l'apprenant verra <strong>toutes</strong> les notes déjà
+            saisies et les commentaires qui les accompagnent.
+          </p>
+        </div>
+        <div class="bloc">
+          <span class="etiquette">À dire</span>
+          <p class="dire">
+            Le commentaire que vous écrivez sur une récitation sera lu par l'intéressé. C'est un mot
+            qui lui est adressé, pas une note de service.
+          </p>
+        </div>
+      </li>
+
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">26</span>
+          <h3 class="etape-titre">Ouvrir le lien sans être connecté</h3>
+          <span class="role v">Visiteur</span>
+        </div>
+        <p class="ou">Copier le lien › troisième onglet privé › <b>/suivi/…</b></p>
+        <div class="bloc">
+          <span class="etiquette">Attendu</span>
+          <ul>
+            <li>Son nom, son cours, son enseignant, le centre.</li>
+            <li>Ses récitations notées, les plus récentes en haut.</li>
+            <li>Sa courbe de progression, son assiduité, ses exercices.</li>
+          </ul>
+        </div>
+        <div class="bloc">
+          <span class="etiquette">À dire</span>
+          <p class="dire">
+            Aucun autre apprenant, aucun autre cours, aucun prix. Et aucune moyenne : une moyenne à
+            mi-parcours se lit comme un verdict.
+          </p>
+        </div>
+      </li>
+
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">27</span>
+          <h3 class="etape-titre">Ouvrir deux suivis côte à côte</h3>
+          <span class="role v">Visiteur</span>
+        </div>
+        <p class="ou">Deux liens de deux apprenants du <b>même</b> cours</p>
+        <div class="bloc">
+          <span class="etiquette">Attendu</span>
+          <p>Chaque page ne montre que sa personne. Rien de l'autre, pas même son nom.</p>
+        </div>
+      </li>
+
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">28</span>
+          <h3 class="etape-titre">Couper un lien</h3>
+          <span class="role e">Enseignant</span>
+        </div>
+        <p class="ou">Section <b>Suivi de l'apprenant</b> › <b>Régénérer</b> puis <b>Fermer</b></p>
+        <div class="bloc">
+          <span class="etiquette">Attendu</span>
+          <p>
+            L'ancien lien affiche « Ce lien n'est plus valide ». Un lien fermé, un lien inventé et un
+            lien tronqué donnent exactement le même message.
+          </p>
+        </div>
+        <div class="bloc">
+          <span class="etiquette">À dire</span>
+          <p class="dire">
+            Un message différent dirait qu'un apprenant existe derrière cette adresse. Ici, rien ne
+            se déduit.
+          </p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <!-- ================================================================= -->
+  <section class="phase" id="argent">
+    <h2>Les règlements</h2>
+    <p class="intro">
+      Consultable, jamais harcelant. Aucune relance automatique n'est envoyée — c'est un choix, et il
+      vaut la peine d'être expliqué.
+    </p>
+
+    <ol class="etapes" start="29">
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">29</span>
+          <h3 class="etape-titre">Le mois en cours</h3>
+          <span class="role r">Responsable</span>
+        </div>
+        <p class="ou">Onglet <b>Paiements</b></p>
+        <div class="bloc">
+          <span class="etiquette">Attendu</span>
+          <p>
+            Une ligne par cours dû ce mois-ci, avec son statut : payé, partiel, en attente, en retard.
+          </p>
+        </div>
+        <div class="bloc">
+          <span class="etiquette">À dire</span>
+          <p class="dire">
+            Le statut n'est pas stocké, il se calcule. Sinon un « en attente » enregistré en janvier
+            resterait « en attente » en juin, alors qu'il est devenu un retard.
+          </p>
+        </div>
+      </li>
+
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">30</span>
+          <h3 class="etape-titre">Enregistrer un règlement</h3>
+          <span class="role r">Responsable</span>
+        </div>
+        <p class="ou">Fiche du cours › section <b>Paiements</b> › icône sur la ligne du mois</p>
+        <div class="bloc">
+          <span class="etiquette">Faire</span>
+          <p>Montant reçu, date, méthode. Enregistrer un paiement partiel pour montrer le statut.</p>
+        </div>
+      </li>
+
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">31</span>
+          <h3 class="etape-titre">Naviguer d'un mois à l'autre</h3>
+          <span class="role r">Responsable</span>
+        </div>
+        <p class="ou">Onglet <b>Paiements</b> › flèches de navigation du mois</p>
+      </li>
+
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">32</span>
+          <h3 class="etape-titre">Vérifier depuis la fenêtre de l'enseignant</h3>
+          <span class="role e">Enseignant</span>
+        </div>
+        <p class="ou">Sa barre de navigation</p>
+        <div class="bloc">
+          <span class="etiquette">Attendu</span>
+          <p>Pas d'onglet Paiements. Et s'il tape l'adresse à la main : « Réservé au responsable ».</p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <!-- ================================================================= -->
+  <section class="phase" id="session">
+    <h2>Clore la session</h2>
+    <p class="intro">
+      Terminez là-dessus. C'est le livrable que les parents et les apprenants gardent, et celui qui
+      fait dire « c'est exactement ce qu'il nous faut ».
+    </p>
+
+    <ol class="etapes" start="33">
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">33</span>
+          <h3 class="etape-titre">Saisir les notes d'examen</h3>
+          <span class="role e">Enseignant</span>
+        </div>
+        <p class="ou">Fiche du cours › section <b>Examen de fin de session</b></p>
+        <div class="bloc">
+          <span class="etiquette">Faire</span>
+          <p>Une note et son barème, par apprenant.</p>
+        </div>
+        <div class="bloc">
+          <span class="etiquette">À dire</span>
+          <p class="dire">
+            Le barème est figé avec la note. Changer de réglage l'an prochain ne réinterprétera pas
+            un examen déjà passé.
+          </p>
+        </div>
+      </li>
+
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">34</span>
+          <h3 class="etape-titre">Ajuster la notation pour ce cours seulement</h3>
+          <span class="role e">Enseignant</span>
+        </div>
+        <p class="ou">Fiche du cours › <b>Réglages spécifiques</b></p>
+        <div class="bloc">
+          <span class="etiquette">Faire</span>
+          <p>
+            Poids de l'assiduité, pénalité par absence et par retard, base académique — examen seul,
+            ou moyenne des devoirs et de l'examen.
+          </p>
+        </div>
+        <div class="bloc">
+          <span class="etiquette">À dire</span>
+          <p class="dire">
+            Le centre pose un défaut, chaque cours peut s'en écarter. Un cours de mémorisation n'a pas
+            forcément la même exigence d'assiduité qu'un cours d'initiation.
+          </p>
+        </div>
+      </li>
+
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">35</span>
+          <h3 class="etape-titre">Sortir le rapport de session</h3>
+          <span class="role r">Responsable</span>
+          <span class="role e">Enseignant</span>
+        </div>
+        <p class="ou">
+          Fiche du cours › bouton <b>Exporter le rapport</b> › choisir la période › la feuille
+          s'ouvre
+        </p>
+        <div class="bloc">
+          <span class="etiquette">Attendu</span>
+          <p>
+            Une feuille A4 paysage : présence séance par séance, notes de récitation, examen, note
+            finale sur 20.
+          </p>
+        </div>
+        <div class="bloc">
+          <span class="etiquette">Faire</span>
+          <p>
+            Lancer l'impression et choisir « Enregistrer en PDF ». C'est le geste à montrer, pas à
+            décrire.
+          </p>
+        </div>
+      </li>
+
+      <li class="etape">
+        <div class="etape-tete">
+          <span class="numero">36</span>
+          <h3 class="etape-titre">Expliquer la note finale</h3>
+          <span class="role r">Responsable</span>
+        </div>
+        <p class="ou">Sur la feuille imprimée, colonne de droite</p>
+        <div class="bloc">
+          <span class="etiquette">À dire</span>
+          <p class="dire">
+            Toujours sur 20, quel que soit le barème des récitations. Une part académique, une part
+            assiduité, et un apprenant sans examen n'a pas zéro : il n'a pas de note. Ce n'est pas la
+            même chose.
+          </p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <!-- ================================================================= -->
+  <section class="phase" id="court">
+    <h2>La version 10 minutes</h2>
+    <p class="intro">
+      Quand on ne vous accorde qu'un café. L'ordre change : on montre le résultat d'abord, la
+      construction ensuite.
+    </p>
+
+    <div class="cadre">
+      <table>
+        <thead>
+          <tr>
+            <th>Ordre</th>
+            <th>Étape</th>
+            <th>Ce qu'on prouve</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td>Le rapport imprimé <span class="plage">(35)</span></td>
+            <td>Le livrable existe, et il est propre</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>Le planning rempli <span class="plage">(15)</span></td>
+            <td>Toute la semaine tient sur un écran</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>Le conflit d'horaire <span class="plage">(11)</span></td>
+            <td>L'erreur la plus coûteuse est impossible</td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td>Le lien de suivi, en privé <span class="plage">(26)</span></td>
+            <td>L'apprenant suit son travail sans compte</td>
+          </tr>
+          <tr>
+            <td>5</td>
+            <td>Le cours vu par l'enseignant <span class="plage">(13)</span></td>
+            <td>Il ne voit ni prix ni règlements</td>
+          </tr>
+          <tr>
+            <td>6</td>
+            <td>Une séance saisie en direct <span class="plage">(21)</span></td>
+            <td>Trente secondes, pas trois minutes</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================================================================= -->
+  <section class="phase" id="questions">
+    <h2>Les questions qui viendront</h2>
+    <p class="intro">
+      Répondez franchement. Un « pas encore » assumé inspire plus confiance qu'un contournement.
+    </p>
+
+    <div class="cadre">
+      <table>
+        <thead>
+          <tr>
+            <th>La question</th>
+            <th>La réponse</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>« Les apprenants reçoivent-ils un rappel avant le cours ? »</td>
+            <td>Pas encore. C'est prévu, par WhatsApp ou notification. Aucune relance de paiement en revanche : c'est un choix, l'application ne tourne pas autour de l'argent.</td>
+          </tr>
+          <tr>
+            <td>« Peut-on changer son mot de passe ? »</td>
+            <td>Pas depuis l'application aujourd'hui. Il faut passer par l'administrateur.</td>
+          </tr>
+          <tr>
+            <td>« Puis-je renommer mon centre moi-même ? »</td>
+            <td>Pas encore : c'est une opération d'administration. Le nom apparaît sur les pages de suivi, donc autant le fixer dès le départ.</td>
+          </tr>
+          <tr>
+            <td>« Comment on ouvre notre centre ? »</td>
+            <td>La personne crée son compte, puis l'administrateur crée le centre et la nomme responsable. Ce n'est pas un code d'invitation — ceux-là servent aux enseignants.</td>
+          </tr>
+          <tr>
+            <td>« Une même personne peut-elle gérer deux centres ? »</td>
+            <td>Non. Un compte appartient à un seul centre. Il faut une seconde adresse e-mail.</td>
+          </tr>
+          <tr>
+            <td>« Et si quelqu'un fait suivre le lien de suivi ? »</td>
+            <td>Qui l'a, voit. C'est le prix du « sans compte ». La page le rappelle, et l'enseignant peut couper le lien à tout moment.</td>
+          </tr>
+          <tr>
+            <td>« Ça marche sans internet ? »</td>
+            <td>Non, pas encore. L'application s'installe sur l'écran d'accueil mais a besoin du réseau.</td>
+          </tr>
+          <tr>
+            <td>« Nos données sont-elles mélangées avec celles d'un autre centre ? »</td>
+            <td>Jamais. Chaque table est cloisonnée au centre, et le cloisonnement est vérifié automatiquement à chaque évolution.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note attention" style="margin-top: 1.5rem">
+      <h3>Ne démontrez jamais sur un centre en production</h3>
+      <p>
+        Ouvrez un centre de démonstration dédié. Les cours, apprenants et notes que vous créez
+        pendant une visite restent, et le centre visité n'a pas à voir les vrais élèves d'un autre.
+      </p>
+    </div>
+  </section>
+
+  <footer class="pied">
+    <p>
+      36 étapes · 3 profils · Compter 40 minutes en version complète, 10 en version courte. Le détail
+      technique de chaque fonctionnalité vit dans <code>docs/recette.md</code>.
+    </p>
+  </footer>
+</div>
