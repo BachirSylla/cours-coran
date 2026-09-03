@@ -79,6 +79,7 @@ function cours(enseignantId: string | null): CoursAvecDetails {
     jeton_partage: null,
     session_id: 'session-1',
     niveau: null,
+    reconduit_de: null,
     logo: null,
     assiduite_active: null,
     base_academique: null,

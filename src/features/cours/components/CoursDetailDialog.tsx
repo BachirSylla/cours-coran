@@ -147,6 +147,7 @@ export function CoursDetailDialog({
             <SectionInscriptions
               coursId={cours.id}
               format={cours.format}
+              reconduitDe={cours.reconduit_de}
               lectureSeule={!estResponsable}
             />
 

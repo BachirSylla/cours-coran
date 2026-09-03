@@ -51,6 +51,7 @@ function cours(
     jeton_partage: null,
     session_id: 'session-1',
     niveau: null,
+    reconduit_de: null,
     enseignant_id: null,
     logo: null,
     assiduite_active: null,

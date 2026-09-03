@@ -48,6 +48,10 @@ function messageLisible(erreur: PostgrestError, contexte: string): string {
     case 'P0060': // cours sans session (0022)
     case 'P0061': // session clôturée : ni création, ni modification, ni déplacement
     case 'P0062': // session clôturée : ni séance, ni présence, ni note (0023)
+    case 'P0070': // reconduction : réservée au responsable de ce centre (0024)
+    case 'P0071': // reconduction : nom, dates, ou nom déjà pris
+    case 'P0072': // reconduction : la source contient un chevauchement
+    case 'P0073': // reconduction : un cours de la source n'a aucun créneau
       return erreur.message
     case '23505':
       return `${contexte} : cet enregistrement existe déjà.`

@@ -5,7 +5,11 @@ import type { UseMutationResult } from '@tanstack/react-query'
 import { coursKeys } from '@/features/cours/hooks/coursKeys'
 import { useSessionActiveStore } from '@/features/sessions/sessionActiveStore'
 import * as sessionRepo from '@/shared/supabase/sessionRepo'
-import type { Session, SessionInput } from '@/shared/supabase/sessionRepo'
+import type {
+  ReconductionInput,
+  Session,
+  SessionInput,
+} from '@/shared/supabase/sessionRepo'
 
 export const sessionKeys = {
   tous: ['sessions'] as const,
@@ -95,6 +99,24 @@ export function useModifierSession(): UseMutationResult<Session, Error, Modifica
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: sessionKeys.tous })
       void queryClient.invalidateQueries({ queryKey: coursKeys.tous })
+    },
+  })
+}
+
+/**
+ * Ouvre la session suivante par reconduction, et bascule dessus : personne ne
+ * reconduit une session pour rester dans la précédente.
+ */
+export function useReconduireSession(): UseMutationResult<string, Error, ReconductionInput> {
+  const queryClient = useQueryClient()
+  const choisir = useSessionActiveStore((etat) => etat.choisir)
+
+  return useMutation({
+    mutationFn: sessionRepo.reconduire,
+    onSuccess: (id) => {
+      void queryClient.invalidateQueries({ queryKey: sessionKeys.tous })
+      void queryClient.invalidateQueries({ queryKey: coursKeys.tous })
+      choisir(id)
     },
   })
 }

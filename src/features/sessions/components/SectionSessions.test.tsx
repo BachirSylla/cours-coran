@@ -50,6 +50,7 @@ function cours(id: string, libelle: string, session_id: string, statut: string):
     type_cours_id: 'type-1',
     session_id,
     niveau: null,
+    reconduit_de: null,
     format: 'groupe',
     date_debut: '2026-01-05',
     date_fin: null,

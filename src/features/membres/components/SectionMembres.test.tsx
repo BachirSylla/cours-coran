@@ -101,6 +101,7 @@ function cours(
     lien_meet: null,
     jeton_partage: null,
     niveau: null,
+    reconduit_de: null,
     logo: null,
     assiduite_active: null,
     base_academique: null,

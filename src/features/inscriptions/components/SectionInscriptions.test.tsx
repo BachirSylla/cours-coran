@@ -6,7 +6,10 @@ import type { UseQueryResult } from '@tanstack/react-query'
 import { useApprenants } from '@/features/apprenants/hooks/useApprenants'
 import { SectionInscriptions } from '@/features/inscriptions/components/SectionInscriptions'
 import { useAjouterInscription } from '@/features/inscriptions/hooks/useAjouterInscription'
-import { useInscriptionsCours } from '@/features/inscriptions/hooks/useInscriptionsCours'
+import {
+  useInscriptionsCours,
+  useInscriptionsSessionPrecedente,
+} from '@/features/inscriptions/hooks/useInscriptionsCours'
 import { useRetirerInscription } from '@/features/inscriptions/hooks/useRetirerInscription'
 import type { Apprenant } from '@/shared/supabase/apprenantRepo'
 import type { InscriptionAvecApprenant } from '@/shared/supabase/inscriptionRepo'
@@ -14,6 +17,7 @@ import type { InscriptionAvecApprenant } from '@/shared/supabase/inscriptionRepo
 vi.mock('@/features/apprenants/hooks/useApprenants', () => ({ useApprenants: vi.fn() }))
 vi.mock('@/features/inscriptions/hooks/useInscriptionsCours', () => ({
   useInscriptionsCours: vi.fn(),
+  useInscriptionsSessionPrecedente: vi.fn(),
 }))
 vi.mock('@/features/inscriptions/hooks/useAjouterInscription', () => ({
   useAjouterInscription: vi.fn(),
@@ -23,6 +27,7 @@ vi.mock('@/features/inscriptions/hooks/useRetirerInscription', () => ({
 }))
 
 const useInscriptionsMock = vi.mocked(useInscriptionsCours)
+const usePrecedentsMock = vi.mocked(useInscriptionsSessionPrecedente)
 const useApprenantsMock = vi.mocked(useApprenants)
 const useAjouterMock = vi.mocked(useAjouterInscription)
 const useRetirerMock = vi.mocked(useRetirerInscription)
@@ -91,6 +96,13 @@ const MOUSSA = apprenant('a2', 'Moussa', 'Camara')
 describe('SectionInscriptions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Aucun cours précédent : le cas ordinaire, hors reconduction.
+    usePrecedentsMock.mockReturnValue({
+      data: [],
+      isPending: false,
+      isError: false,
+      error: null,
+    } as unknown as UseQueryResult<InscriptionAvecApprenant[], Error>)
     useApprenantsMock.mockReturnValue({
       data: [AICHA, MOUSSA],
       isPending: false,
@@ -217,5 +229,132 @@ describe('SectionInscriptions', () => {
 
       expect(screen.queryByText(/note d'examen/)).not.toBeInTheDocument()
     })
+  })
+})
+
+/**
+ * Après une reconduction, la section propose les inscrits du cours d'origine.
+ *
+ * ⚠️ PROPOSE. La reconduction ne reprend délibérément aucune inscription :
+ * promouvoir quelqu'un de Niveau 1 à Niveau 2 est une décision pédagogique, et
+ * tout le monde ne se réinscrit pas. Le bouton fait gagner les clics, il ne
+ * décide rien.
+ */
+const ajouter = vi.fn()
+
+describe('SectionInscriptions — anciens inscrits d’un cours reconduit', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    useApprenantsMock.mockReturnValue({
+      data: [AICHA, MOUSSA],
+    } as unknown as ReturnType<typeof useApprenants>)
+    useAjouterMock.mockReturnValue(
+      mutationInerte<ReturnType<typeof useAjouterInscription>>({ mutate: ajouter })
+    )
+    useRetirerMock.mockReturnValue(mutationInerte<ReturnType<typeof useRetirerInscription>>())
+    simulerInscriptions({})
+  })
+
+  function simulerPrecedents(data: InscriptionAvecApprenant[]) {
+    usePrecedentsMock.mockReturnValue({
+      data,
+      isPending: false,
+      isError: false,
+      error: null,
+    } as unknown as UseQueryResult<InscriptionAvecApprenant[], Error>)
+  }
+
+  it('propose les inscrits de la session précédente', () => {
+    simulerPrecedents([inscription('i9', AICHA), inscription('i10', MOUSSA)])
+
+    render(<SectionInscriptions coursId="cours-1" format="groupe" reconduitDe="cours-source" />)
+
+    expect(screen.getByText(/2 apprenants étaient inscrits/)).toBeInTheDocument()
+    // Nom EXACT : « Retirer Aïcha Diallo du cours » contient aussi son nom.
+    expect(screen.getByRole('button', { name: 'Aïcha Diallo' })).toBeInTheDocument()
+  })
+
+  it('n’en propose aucun quand le cours n’est pas issu d’une reconduction', () => {
+    simulerPrecedents([inscription('i9', AICHA)])
+
+    render(<SectionInscriptions coursId="cours-1" format="groupe" />)
+
+    expect(screen.queryByText(/étaient inscrits/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/était inscrit/)).not.toBeInTheDocument()
+  })
+
+  it('ne propose pas quelqu’un qui est DÉJÀ inscrit ici', () => {
+    simulerInscriptions({ data: [inscription('i1', AICHA)] })
+    simulerPrecedents([inscription('i9', AICHA), inscription('i10', MOUSSA)])
+
+    render(<SectionInscriptions coursId="cours-1" format="groupe" reconduitDe="cours-source" />)
+
+    expect(screen.getByText(/1 apprenant était inscrit/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Aïcha Diallo' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Moussa Camara' })).toBeInTheDocument()
+  })
+
+  it('inscrit d’un clic, mais un par un — jamais tous d’un coup', async () => {
+    const utilisateur = userEvent.setup()
+    simulerPrecedents([inscription('i9', AICHA), inscription('i10', MOUSSA)])
+
+    render(<SectionInscriptions coursId="cours-1" format="groupe" reconduitDe="cours-source" />)
+
+    // Aucun bouton « tout replacer » : chaque réinscription est un choix.
+    expect(screen.queryByRole('button', { name: /Tout/ })).not.toBeInTheDocument()
+
+    await utilisateur.click(screen.getByRole('button', { name: 'Aïcha Diallo' }))
+
+    expect(ajouter).toHaveBeenCalledTimes(1)
+    expect(ajouter).toHaveBeenCalledWith({ apprenantId: 'a1', coursId: 'cours-1' })
+  })
+
+  /*
+   * ⚠️ Le cache ne se rafraîchit qu'après invalidation : entre le clic et le
+   * refetch, la personne resterait proposée. Sur un cours individuel, un second
+   * clic passerait la règle de capacité (§5.7), qui est applicative et n'a aucun
+   * filet en base.
+   */
+  it('retire aussitôt la personne replacée, sans attendre le rafraîchissement', async () => {
+    const utilisateur = userEvent.setup()
+    simulerPrecedents([inscription('i9', AICHA), inscription('i10', MOUSSA)])
+
+    render(<SectionInscriptions coursId="cours-1" format="groupe" reconduitDe="cours-source" />)
+
+    await utilisateur.click(screen.getByRole('button', { name: 'Aïcha Diallo' }))
+
+    // Le cache n'a pas bougé — et pourtant elle n'est plus proposée.
+    expect(screen.queryByRole('button', { name: 'Aïcha Diallo' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Moussa Camara' })).toBeInTheDocument()
+    expect(ajouter).toHaveBeenCalledTimes(1)
+  })
+
+  /*
+   * Un enseignant consulte la composition de sa classe sans la modifier : lui
+   * proposer des boutons que la RLS refuserait serait mentir.
+   */
+  it('ne propose rien en lecture seule', () => {
+    simulerPrecedents([inscription('i9', AICHA)])
+
+    render(
+      <SectionInscriptions coursId="cours-1" format="groupe" reconduitDe="cours-source" lectureSeule />
+    )
+
+    expect(screen.queryByText(/était inscrit/)).not.toBeInTheDocument()
+  })
+
+  /*
+   * Un cours individuel plein ne peut plus accueillir personne : proposer
+   * quelqu'un serait tendre un bouton qui échouerait (§5.7).
+   */
+  it('ne propose rien quand la capacité est atteinte', () => {
+    simulerInscriptions({ data: [inscription('i1', MOUSSA)] })
+    simulerPrecedents([inscription('i9', AICHA)])
+
+    render(
+      <SectionInscriptions coursId="cours-1" format="individuel" reconduitDe="cours-source" />
+    )
+
+    expect(screen.queryByText(/était inscrit/)).not.toBeInTheDocument()
   })
 })

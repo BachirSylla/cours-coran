@@ -60,6 +60,42 @@ export async function creer(session: SessionInput): Promise<Session> {
   return data
 }
 
+export interface ReconductionInput {
+  sessionSourceId: string
+  nom: string
+  dateDebut: string
+  dateFin?: string | null
+}
+
+/**
+ * Ouvre la session suivante en recopiant la **structure** des cours (migration
+ * 0024) : libellé, type, niveau, format, enseignant, créneaux, réglages, tarif.
+ *
+ * Ne recopie NI inscriptions, NI séances, NI présences, NI notes, NI examens —
+ * la pédagogie repart à zéro et l'historique reste dans la session source. Ni
+ * lien de visioconférence (périmé, il ferait croire qu'il fonctionne), ni jeton
+ * de partage (recopier un secret donnerait à l'ancien public l'accès au nouveau
+ * cours).
+ *
+ * Atomique et gardée `est_responsable()` côté base : le client ne peut ni
+ * nommer le centre, ni contourner la garde.
+ */
+export async function reconduire(entree: ReconductionInput): Promise<string> {
+  const { data, error } = await getSupabaseClient().rpc('reconduire_session', {
+    p_session_id: entree.sessionSourceId,
+    p_nom: entree.nom,
+    p_date_debut: entree.dateDebut,
+    // Les arguments d'une fonction Postgres ne portent pas de nullabilité : les
+    // types générés la déclarent obligatoire, alors que `null` est la valeur qui
+    // dit « pas de fin prévue ».
+    p_date_fin: (entree.dateFin ?? null) as string,
+  })
+
+  lancerSiErreur(error, 'Ouverture de la session suivante')
+
+  return data
+}
+
 export async function modifier(id: string, session: Partial<SessionInput>): Promise<Session> {
   const { data, error } = await getSupabaseClient()
     .from('session')

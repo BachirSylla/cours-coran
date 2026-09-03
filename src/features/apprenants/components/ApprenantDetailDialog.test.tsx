@@ -54,6 +54,7 @@ function inscription(id: string, libelleCours: string): InscriptionAvecCours {
       centre_id: 'centre-1',
       libelle: libelleCours,
       type_cours_id: 'type-1',
+      reconduit_de: null,
       format: 'groupe',
       date_debut: '2026-07-27',
       date_fin: null,

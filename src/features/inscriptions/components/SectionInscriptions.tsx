@@ -1,11 +1,14 @@
 import { useState } from 'react'
-import { Info, Loader2, TriangleAlert, UserMinus, Users } from 'lucide-react'
+import { Info, Loader2, TriangleAlert, UserMinus, UserRoundPlus, Users } from 'lucide-react'
 
 import { StatutApprenantBadge } from '@/features/apprenants/components/StatutApprenantBadge'
 import { useApprenants } from '@/features/apprenants/hooks/useApprenants'
 import { SelecteurApprenant } from '@/features/inscriptions/components/SelecteurApprenant'
 import { useAjouterInscription } from '@/features/inscriptions/hooks/useAjouterInscription'
-import { useInscriptionsCours } from '@/features/inscriptions/hooks/useInscriptionsCours'
+import {
+  useInscriptionsCours,
+  useInscriptionsSessionPrecedente,
+} from '@/features/inscriptions/hooks/useInscriptionsCours'
 import { useRetirerInscription } from '@/features/inscriptions/hooks/useRetirerInscription'
 import { messageRefus, peutAjouterInscription } from '@/features/inscriptions/reglesInscription'
 import { formaterNote } from '@/shared/lib/evaluations'
@@ -25,6 +28,12 @@ import { Button } from '@/shared/ui/button'
 
 export interface SectionInscriptionsProps {
   coursId: string
+  /**
+   * Cours dont celui-ci est la copie (migration 0024). Quand il existe, la
+   * section propose ses anciens inscrits — une aide à la saisie, jamais une
+   * recopie : la reconduction ne reprend délibérément aucune inscription.
+   */
+  reconduitDe?: string | null
   /** `individuel` ou `groupe` : pilote la règle de capacité (CLAUDE.md §5.7). */
   format: string
   /**
@@ -37,6 +46,7 @@ export interface SectionInscriptionsProps {
 export function SectionInscriptions({
   coursId,
   format,
+  reconduitDe = null,
   lectureSeule = false,
 }: SectionInscriptionsProps) {
   const { data: inscriptions, isPending, isError, error } = useInscriptionsCours(coursId)
@@ -46,6 +56,7 @@ export function SectionInscriptions({
   const retirer = useRetirerInscription()
 
   const [aRetirer, setARetirer] = useState<InscriptionAvecApprenant | null>(null)
+  const [dejaReplaces, setDejaReplaces] = useState<ReadonlySet<string>>(new Set())
 
   const liste = inscriptions ?? []
   const idsInscrits = new Set(liste.map((inscription) => inscription.apprenant_id))
@@ -54,6 +65,38 @@ export function SectionInscriptions({
   )
 
   const verdict = peutAjouterInscription(format, liste.length)
+
+  /*
+   * Les inscrits de la session précédente qui ne le sont pas encore ici.
+   *
+   * ⚠️ Proposés, jamais replacés d'office. Une promotion de Niveau 1 à Niveau 2
+   * est une décision pédagogique, et tout le monde ne se réinscrit pas. Le
+   * bouton fait gagner les clics, il ne décide rien.
+   */
+  const { data: precedents } = useInscriptionsSessionPrecedente(
+    lectureSeule ? null : reconduitDe
+  )
+
+  /*
+   * Le garde porte ICI, pas seulement sur le `enabled` du hook : un composant
+   * qui s'en remet à sa requête pour savoir quoi afficher devient faux dès que
+   * le cache lui rend d'anciennes données.
+   */
+  /*
+   * ⚠️ `idsInscrits` vient du cache, qui ne se rafraîchit qu'après invalidation.
+   * Entre le clic et le refetch, la personne resterait proposée — et sur un
+   * cours individuel, un second clic passerait la règle de capacité (§5.7), qui
+   * est applicative et n'a aucun filet en base. On retient donc localement qui a
+   * déjà été replacé.
+   */
+  const aReplacer = reconduitDe
+    ? (precedents ?? []).filter(
+        (ancienne) =>
+          !idsInscrits.has(ancienne.apprenant_id) &&
+          !dejaReplaces.has(ancienne.apprenant_id) &&
+          ancienne.apprenant !== null
+      )
+    : []
 
   const noteExamen =
     aRetirer?.note_examen !== null &&
@@ -100,6 +143,53 @@ export function SectionInscriptions({
           />
         )}
       </div>
+
+      {/* Ce que la reconduction n'a délibérément pas fait, proposé en un clic. */}
+      {!lectureSeule && aReplacer.length > 0 && verdict.autorise && (
+        <Alert>
+          <UserRoundPlus className="size-4" aria-hidden="true" />
+          <AlertDescription className="space-y-2">
+            <span className="block">
+              {/* Une phrase d'un seul tenant : un texte découpé en plusieurs
+                  nœuds ne se retrouve ni par un lecteur d'écran, ni par un
+                  test. */}
+              {aReplacer.length > 1
+                ? `${aReplacer.length} apprenants étaient inscrits à ce cours la session précédente.`
+                : '1 apprenant était inscrit à ce cours la session précédente.'}
+            </span>
+            <span className="block text-xs">
+              {aReplacer
+                .map((ancienne) =>
+                  [ancienne.apprenant?.prenom, ancienne.apprenant?.nom]
+                    .filter(Boolean)
+                    .join(' ')
+                )
+                .join(', ')}
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {aReplacer.map((ancienne) => (
+                <Button
+                  key={ancienne.id}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setDejaReplaces((precedent) =>
+                      new Set(precedent).add(ancienne.apprenant_id)
+                    )
+                    inscrire(ancienne.apprenant_id)
+                  }}
+                  disabled={ajouter.isPending || !verdict.autorise}
+                >
+                  <UserRoundPlus className="size-4" aria-hidden="true" />
+                  {[ancienne.apprenant?.prenom, ancienne.apprenant?.nom]
+                    .filter(Boolean)
+                    .join(' ')}
+                </Button>
+              ))}
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Le bouton désactivé ne doit pas rester muet : on dit pourquoi. */}
       {!lectureSeule && !verdict.autorise && verdict.raison && (

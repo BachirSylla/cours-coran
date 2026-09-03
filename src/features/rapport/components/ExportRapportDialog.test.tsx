@@ -53,6 +53,7 @@ function cours(niveau: string | null): CoursAvecDetails {
     type_cours_id: 'type-1',
     session_id: 'session-1',
     niveau,
+    reconduit_de: null,
     format: 'groupe',
     date_debut: '2026-03-01',
     date_fin: null,

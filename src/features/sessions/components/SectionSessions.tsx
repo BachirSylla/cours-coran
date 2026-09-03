@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import {
   CalendarRange,
+  CopyPlus,
   Loader2,
   Lock,
   LockOpen,
@@ -14,6 +15,7 @@ import {
   useModifierSession,
   useSessions,
 } from '@/features/sessions/hooks/useSessions'
+import { ReconduireSessionDialog } from '@/features/sessions/components/ReconduireSessionDialog'
 import type { Session } from '@/shared/supabase/sessionRepo'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
 import {
@@ -52,6 +54,7 @@ export function SectionSessions() {
   const [nom, setNom] = useState('')
   const [debut, setDebut] = useState('')
   const [aCloturer, setACloturer] = useState<Session | null>(null)
+  const [aReconduire, setAReconduire] = useState<Session | null>(null)
 
   const liste = sessions ?? []
 
@@ -180,6 +183,7 @@ export function SectionSessions() {
               session={session}
               nbCours={(cours ?? []).filter((c) => c.session_id === session.id).length}
               onCloturer={() => setACloturer(session)}
+              onReconduire={() => setAReconduire(session)}
               onRouvrir={() =>
                 modifier.mutate({ id: session.id, session: { statut: 'en_cours' } })
               }
@@ -199,6 +203,14 @@ export function SectionSessions() {
           dépassée. Seule la clôture arrête la saisie — et elle se défait d'un clic.
         </AlertDescription>
       </Alert>
+
+      <ReconduireSessionDialog
+        source={aReconduire}
+        cours={cours ?? []}
+        onOuvertChange={(ouvert) => {
+          if (!ouvert) setAReconduire(null)
+        }}
+      />
 
       <AlertDialog
         open={Boolean(aCloturer)}
@@ -255,6 +267,7 @@ function LigneSession({
   session,
   nbCours,
   onCloturer,
+  onReconduire,
   onRouvrir,
   onDateFin,
   enCours,
@@ -262,6 +275,7 @@ function LigneSession({
   session: Session
   nbCours: number
   onCloturer: () => void
+  onReconduire: () => void
   onRouvrir: () => void
   onDateFin: (date: string | null) => void
   enCours: boolean
@@ -295,6 +309,13 @@ function LigneSession({
           disabled={terminee || enCours}
           onChange={(evenement) => onDateFin(evenement.currentTarget.value || null)}
         />
+
+        {/* Reconduire reste possible sur une session CLÔTURÉE : clore puis
+            ouvrir la suivante est même l'ordre naturel. */}
+        <Button variant="ghost" size="sm" onClick={onReconduire} disabled={enCours}>
+          <CopyPlus className="size-4" aria-hidden="true" />
+          Reconduire
+        </Button>
 
         <Button
           variant="ghost"

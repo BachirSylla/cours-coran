@@ -126,6 +126,12 @@ Les types de cours sont dans une **table de référence** (extensible), pas en d
   filtrage par session traverse toute l'application : planning, cours, séances **et règlements**.
   Pour un centre multi-session, les totaux d'un mois ne comptent donc que les cours de la session
   affichée — c'est voulu, une session est une période comptable comme une autre.
+- `reconduit_de` **(nullable, migration 0024)** : le cours dont celui-ci est la copie. FK
+  **composite** vers `cours (id, centre_id)`, `on delete set null (reconduit_de)` — la colonne est
+  NOMMÉE, sinon Postgres annulerait aussi `centre_id`, qui est `not null` (leçon de 0018). Sert à
+  proposer les anciens inscrits, et à suivre un apprenant d'une session à l'autre. ⚠️ Il faut lui
+  accorder le `select` **colonne par colonne** : `cours` n'a aucun privilège de table, et sans ce
+  `grant` la colonne serait invisible du client, sans message d'erreur.
 - `niveau` (texte libre, migration 0022) : proposé à la saisie parmi ceux déjà employés dans le
   centre. Volontairement **pas** une table de référence — un niveau se crée en le tapant, pas dans
   un écran d'administration.
@@ -539,7 +545,35 @@ L'étanchéité est **structurelle**, pas seulement déclarative.
     décor. Les filtres de `suivi_apprenant` restent nécessaires — pour les lignes antérieures à
     0020, et pour tout chemin qui ne passe pas par les triggers.
 
-15. **Retrait d'un membre** (migration 0018). `retirer_membre(user_id, reaffecter_a)`,
+15. **Reconduction d'une session** (migration 0024) : `reconduire_session(session, nom, début,
+fin)`, `security definer`, gardée `est_responsable()` et bornée à `centre_courant()`. Elle
+    recopie la **structure** des cours — libellé, type, niveau, format, enseignant affecté,
+    créneaux, réglages de notation, logo, tarif — et **rien d'autre**.
+
+    Ce qui ne suit **jamais** : inscriptions, séances, présences, notes, examens. La pédagogie
+    repart à zéro, l'historique reste dans la session source — c'est précisément ce qui fait de la
+    progression d'un apprenant une histoire sur plusieurs sessions au lieu d'un recommencement.
+    Ni `lien_meet` (un lien périmé est pire qu'un champ vide : on croit qu'il fonctionne), ni
+    ⚠️ `jeton_partage` — recopier un secret donnerait à l'ancien public l'accès au nouveau cours.
+
+    La date de début est **choisie**, jamais déduite : entre deux sessions il y a des vacances, et
+    imposer la continuité obligerait à corriger chaque fois. Aucune contrainte entre les deux
+    périodes — une session de rattrapage n'attend pas la fin de la précédente. La session source
+    n'est **pas touchée** : elle se clôture séparément, et se reconduit même une fois close.
+
+    ⚠️ Ces insertions ne passent PAS par `enregistrer_cours` : le garde-fou de chevauchement ne
+    s'applique donc pas. La fonction vérifie l'état **final** de la session neuve et refuse
+    (P0072), comme `retirer_membre` le fait après réaffectation.
+
+    La reconduction n'est **pas un chaînage** : reconduire deux fois la même source sous des noms
+    différents donne deux sessions sœurs, et c'est voulu. Le même nom est refusé (P0071) — deux
+    « Session 18 » seraient indiscernables dans le sélecteur.
+
+    Les inscriptions se refont **à la main**. L'écran propose les apprenants du cours d'origine,
+    un bouton par personne : promouvoir quelqu'un de Niveau 1 à Niveau 2, ou constater qu'il ne se
+    réinscrit pas, doit rester un choix. Il n'y a délibérément pas de bouton « tout replacer ».
+
+16. **Retrait d'un membre** (migration 0018). `retirer_membre(user_id, reaffecter_a)`,
     `security definer` — `membre` n'accorde ni `delete` ni policy de suppression à personne, cette
     RPC est donc le seul chemin, comme `racheter_invitation` l'est pour l'insertion.
 
@@ -637,6 +671,7 @@ psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/retrait_membre.sql
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/suivi_apprenant.sql
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/presence_seance_faite.sql
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/sessions.sql
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/reconduction.sql
 ```
 
 ⚠️ `sessions.sql` couvre les migrations 0022 **et** 0023 : le scope de conflit, la clôture, et le
@@ -762,6 +797,9 @@ dont dépend le typage de `createClient`.
 - Ne pas croire qu'un backfill qui parcourt les lignes suffit : ici il fallait parcourir les
   **centres**, sinon un centre sans cours n'aurait jamais eu de session. Et couvrir les centres
   FUTURS demande un trigger, pas un `insert` de migration.
+- Ne pas recopier une ligne colonne par colonne sans se demander ce qu'une colonne AJOUTÉE plus
+  tard deviendra : ici, l'oubli est le bon défaut — une colonne nouvelle ne sera pas copiée, ce qui
+  est sûr, là où un `select *` copierait un secret sans que personne s'en aperçoive.
 - Ne pas poser un trigger sur `presence` sans vérifier l'ordre alphabétique de son nom :
   PostgreSQL déclenche les triggers d'un même événement par ordre de NOM, et
   `presence_hydrater_cours` doit passer en premier pour poser `cours_id`. Un trigger nommé plus tôt

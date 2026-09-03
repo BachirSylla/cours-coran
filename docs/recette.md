@@ -997,3 +997,89 @@ un rapport vide, découvert à l'impression.
 
 **Attendu** : le champ vidé le **reste**. Ce sont des propositions, pas des
 contraintes.
+
+---
+
+## Sessions — phase 3 : la reconduction (migration 0024)
+
+Ouvrir la session suivante sans tout ressaisir. C'est le geste qui justifie tout
+le reste : sans lui, les sessions ne seraient qu'un classeur de plus.
+
+### 69. Ouvrir la session suivante
+
+1. **Paramètres → Sessions → Reconduire** sur une session.
+
+**Attendu** : un nom est **proposé** — « Session 17 » devient « Session 18 » — et
+reste modifiable. Le dialogue annonce combien de cours et de créneaux seront
+recopiés.
+
+2. Choisir une date de début, puis **Ouvrir la session**.
+
+**Attendu** : la nouvelle session est créée et l'application bascule dessus. Vos
+cours y sont, aux mêmes horaires, avec les mêmes enseignants et les mêmes
+niveaux.
+
+⚠️ La date de début est **libre** : rien n'oblige à enchaîner. Des vacances entre
+les deux sessions sont permises.
+
+### 70. Ce qui ne suit pas — et il faut le vérifier
+
+Sur un cours de la nouvelle session :
+
+**Attendu** :
+
+- **aucun apprenant inscrit** — la pédagogie repart à zéro ;
+- **aucune séance, aucune note, aucun examen** : tout reste dans la session
+  précédente, et c'est ce qui fait la progression d'un apprenant sur plusieurs
+  sessions ;
+- **pas de lien de visioconférence** — un lien périmé est pire qu'un champ vide,
+  parce qu'on croit qu'il fonctionne ;
+- **pas de lien de partage.** Le recopier donnerait à l'ancien public l'accès au
+  nouveau cours.
+
+Ce qui suit en revanche : le **tarif** et les **réglages de notation**. Sans eux,
+il faudrait ressaisir chaque prix à chaque session.
+
+### 71. Replacer les apprenants, un par un
+
+1. Ouvrir un cours reconduit, section **Apprenants**.
+
+**Attendu** : un encadré liste les apprenants qui suivaient ce cours la session
+précédente, avec **un bouton par personne**.
+
+⚠️ Il n'y a **pas** de bouton « tout replacer », et c'est voulu : promouvoir
+quelqu'un de Niveau 1 à Niveau 2 — ou constater qu'il ne se réinscrit pas — doit
+rester un choix. Quelqu'un déjà inscrit ici n'est plus proposé.
+
+### 72. Les mêmes horaires ne se gênent pas
+
+1. Comparer le planning des deux sessions.
+
+**Attendu** : les mêmes créneaux existent dans les deux, **sans aucun conflit**.
+C'est ce que la phase 1 avait préparé — sans le scope par session, la
+reconduction se heurterait à son propre modèle et serait inutilisable.
+
+2. Modifier un cours reconduit.
+
+**Attendu** : l'enregistrement passe. Le cours de la session précédente ne
+l'empêche pas.
+
+### 73. La session source n'est pas touchée
+
+**Attendu** : elle garde ses cours, ses séances, ses notes, et son statut. La
+clôturer est une action **séparée** — vous pouvez d'ailleurs reconduire une
+session déjà close, c'est même l'ordre le plus naturel.
+
+### 74. Ce qui est refusé
+
+- Reconduire deux fois sous **le même nom** : refusé. Deux « Session 18 » seraient
+  indiscernables dans le sélecteur. Sous un autre nom, c'est permis — la
+  reconduction n'est pas un chaînage.
+- Un **enseignant** ne peut pas reconduire : c'est de la structure.
+
+La preuve automatisée, y compris les cas limites (enseignant retiré entre-temps,
+créneau modifié, double reconduction) :
+
+```bash
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/reconduction.sql
+```

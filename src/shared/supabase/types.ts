@@ -128,6 +128,7 @@ export type Database = {
           logo: string | null
           niveau: string | null
           penaliser_absences_excusees: boolean | null
+          reconduit_de: string | null
           penalite_absence: number | null
           penalite_retard: number | null
           session_id: string
@@ -152,6 +153,7 @@ export type Database = {
           logo?: string | null
           niveau?: string | null
           penaliser_absences_excusees?: boolean | null
+          reconduit_de?: string | null
           penalite_absence?: number | null
           penalite_retard?: number | null
           session_id: string
@@ -176,6 +178,7 @@ export type Database = {
           logo?: string | null
           niveau?: string | null
           penaliser_absences_excusees?: boolean | null
+          reconduit_de?: string | null
           penalite_absence?: number | null
           penalite_retard?: number | null
           session_id?: string
@@ -782,6 +785,7 @@ export type Database = {
           logo: string | null
           niveau: string | null
           penaliser_absences_excusees: boolean | null
+          reconduit_de: string | null
           penalite_absence: number | null
           penalite_retard: number | null
           session_id: string
@@ -808,6 +812,15 @@ export type Database = {
       }
       regenerer_partage: { Args: { p_cours_id: string }; Returns: string }
       regenerer_suivi: { Args: { p_inscription_id: string }; Returns: string }
+      reconduire_session: {
+        Args: {
+          p_date_debut: string
+          p_date_fin?: string
+          p_nom: string
+          p_session_id: string
+        }
+        Returns: string
+      }
       retirer_membre: {
         Args: { p_reaffecter_a: string; p_user_id: string }
         Returns: number
