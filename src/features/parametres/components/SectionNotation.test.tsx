@@ -15,7 +15,14 @@ const useEnregistrerMock = vi.mocked(useEnregistrerNotation)
 const mutateAsync = vi.fn()
 
 function parametres(extra: Partial<ParametresEffectifs> = {}): ParametresEffectifs {
-  return { note_bareme: 20, logo: null, enregistres: true, ...NOTATION_PAR_DEFAUT, ...extra }
+  return {
+    note_bareme: 20,
+    logo: null,
+    mode_facturation: 'mensuel',
+    enregistres: true,
+    ...NOTATION_PAR_DEFAUT,
+    ...extra,
+  }
 }
 
 function rendre(extra: Partial<ParametresEffectifs> = {}) {

@@ -26,6 +26,8 @@ import {
 } from '@/features/inscriptions/reglesInscription'
 import type { Membre } from '@/shared/supabase/membreRepo'
 import type { TypeCours } from '@/shared/supabase/typeCoursRepo'
+import { useParametres } from '@/features/parametres/hooks/useParametres'
+import { MODE_FACTURATION_PAR_DEFAUT } from '@/shared/lib/facturation'
 import { tarifDuCours, type CoursAvecDetails } from '@/shared/supabase/coursRepo'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
@@ -101,6 +103,10 @@ function versFormulaire(cours: CoursAvecDetails): CoursFormValues {
       tarifDuCours(cours)?.prix_mensuel == null
         ? ''
         : String(tarifDuCours(cours)?.prix_mensuel),
+    prix_session:
+      tarifDuCours(cours)?.prix_session == null
+        ? ''
+        : String(tarifDuCours(cours)?.prix_session),
     devise: tarifDuCours(cours)?.devise ?? 'XOF',
     statut: (STATUTS_COURS.find((s) => s === cours.statut) ??
       'actif') as CoursFormValues['statut'],
@@ -128,6 +134,15 @@ export function CoursFormDialog({
   nbInscrits = 0,
 }: CoursFormDialogProps) {
   const modeEdition = Boolean(cours)
+
+  /*
+   * Le rythme de facturation du centre : il ne change pas ce qui est ENREGISTRÉ
+   * — les deux tarifs le sont toujours — seulement ce que l'écran signale comme
+   * inutilisé. Le repli sur le défaut évite qu'un chargement en vol fasse
+   * clignoter la mention d'un mode à l'autre.
+   */
+  const { data: parametres } = useParametres()
+  const modeFacturation = parametres?.mode_facturation ?? MODE_FACTURATION_PAR_DEFAUT
 
   const {
     register,
@@ -392,6 +407,12 @@ export function CoursFormDialog({
             </div>
           </div>
 
+          {/*
+            Les DEUX tarifs sont montrés, quel que soit le mode du centre, et
+            celui qui ne sert pas est signalé plutôt que masqué. Le cacher
+            donnerait l'impression qu'il a été perdu à la bascule — alors qu'il
+            est conservé — et obligerait à re-saisir en cas de retour en arrière.
+          */}
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-2">
               <Label htmlFor="prix_mensuel">Prix mensuel</Label>
@@ -402,12 +423,40 @@ export function CoursFormDialog({
                 aria-invalid={Boolean(errors.prix_mensuel)}
                 {...register('prix_mensuel')}
               />
+              {modeFacturation === 'par_session' && (
+                <p className="text-xs text-muted-foreground">
+                  Non utilisé : le centre facture au forfait. Conservé.
+                </p>
+              )}
               {errors.prix_mensuel && (
                 <p className="text-sm text-destructive">{errors.prix_mensuel.message}</p>
               )}
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="prix_session">Forfait par session</Label>
+              <Input
+                id="prix_session"
+                inputMode="decimal"
+                placeholder="0"
+                aria-invalid={Boolean(errors.prix_session)}
+                {...register('prix_session')}
+              />
+              {modeFacturation === 'mensuel' ? (
+                <p className="text-xs text-muted-foreground">
+                  Non utilisé : le centre facture au mois. Conservé.
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Montant unique couvrant toute la session.
+                </p>
+              )}
+              {errors.prix_session && (
+                <p className="text-sm text-destructive">{errors.prix_session.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-2 sm:col-span-1">
               <Label htmlFor="devise">Devise</Label>
               <Input
                 id="devise"

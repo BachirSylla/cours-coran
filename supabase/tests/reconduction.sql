@@ -118,7 +118,7 @@ begin
     jsonb_build_object('libelle','Coran Niveau 1','type_cours_id',v_type,'format','groupe',
       'date_debut','2026-01-05','statut','actif','enseignant_id',public.__id('u_ens'),
       'session_id',public.__id('s17'),'niveau','Niveau 1',
-      'prix_mensuel',15000,'devise','XOF'),
+      'prix_mensuel',15000,'prix_session',120000,'devise','XOF'),
     jsonb_build_array(jsonb_build_object('jour_semaine',1,'heure_debut','10:00','heure_fin','11:00'),
                       jsonb_build_object('jour_semaine',3,'heure_debut','10:00','heure_fin','11:00')));
 
@@ -313,12 +313,22 @@ begin
            public.__id('s18')),
     3::bigint, 'le type de cours n''a pas suivi');
 
-  -- Le tarif suit : sans lui, il faudrait ressaisir chaque prix à chaque session.
+  /*
+   * Le tarif suit : sans lui, il faudrait ressaisir chaque prix à chaque session.
+   *
+   * ⚠️ LES DEUX tarifs, et l'assertion porte sur les deux ENSEMBLE. N'éprouver
+   * que `prix_mensuel` a laissé passer 0026 : `prix_session` n'était pas recopié,
+   * et un centre au forfait perdait tous ses prix à chaque reconduction — sans
+   * que ce test cesse d'être vert. Une colonne AJOUTÉE à `tarif` doit venir
+   * s'ajouter ici en même temps qu'à la fonction.
+   */
   perform public.__attendre(
     format($sql$select count(*) from public.tarif as t
                 join public.cours as c on c.id = t.cours_id
-                where c.session_id = %L and t.prix_mensuel = 15000$sql$, public.__id('s18')),
-    1::bigint, 'le tarif n''a pas suivi');
+                where c.session_id = %L
+                  and t.prix_mensuel = 15000 and t.prix_session = 120000$sql$,
+           public.__id('s18')),
+    1::bigint, 'le tarif n''a pas suivi — mensuel ET forfait');
 
   -- Un cours « terminé » repart ACTIF : on ouvre une période, on ne recopie pas
   -- un état de fin.

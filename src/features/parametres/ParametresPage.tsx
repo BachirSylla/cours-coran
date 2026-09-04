@@ -4,6 +4,7 @@ import { SectionMembres } from '@/features/membres/components/SectionMembres'
 import { SectionSessions } from '@/features/sessions/components/SectionSessions'
 import { useMembre } from '@/features/membres/hooks/useMembre'
 import { SectionLogo } from '@/features/parametres/components/SectionLogo'
+import { SectionModeFacturation } from '@/features/parametres/components/SectionModeFacturation'
 import { SectionNotation } from '@/features/parametres/components/SectionNotation'
 import { useEnregistrerBareme } from '@/features/parametres/hooks/useEnregistrerBareme'
 import { useParametres } from '@/features/parametres/hooks/useParametres'
@@ -132,6 +133,10 @@ export function ParametresPage() {
       {estResponsable && <SectionSessions />}
 
       {estResponsable && <SectionMembres />}
+
+      {!isPending && !isError && parametres && estResponsable && (
+        <SectionModeFacturation parametres={parametres} />
+      )}
 
       {!isPending && !isError && parametres && estResponsable && (
         <SectionNotation parametres={parametres} />

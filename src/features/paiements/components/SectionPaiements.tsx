@@ -25,8 +25,15 @@ export interface SectionPaiementsProps {
 }
 
 /**
- * Derniers mois d'un cours et leur statut. Les règlements restent visibles quel
- * que soit le statut du cours — on n'efface pas une recette.
+ * **Historique d'avant bascule** — les règlements au grain `(cours, mois)`.
+ *
+ * ⚠️ Ce n'est plus le suivi courant. Depuis la migration 0026, les règlements se
+ * saisissent par PERSONNE, dans l'onglet Paiements ; cette table-ci n'est plus
+ * alimentée que par les lignes déjà présentes. Elle reste affichée parce qu'on
+ * n'efface pas une recette — mais l'écran doit dire ce qu'elle est, sans quoi
+ * deux vues donneraient des chiffres différents sans que rien ne l'explique.
+ *
+ * Elle disparaît d'elle-même pour un cours qui n'a aucun règlement ancien.
  */
 export function SectionPaiements({ cours, limite = 6 }: SectionPaiementsProps) {
   const { data: paiements, isPending, isError, error } = usePaiementsCours(cours.id)
@@ -64,8 +71,13 @@ export function SectionPaiements({ cours, limite = 6 }: SectionPaiementsProps) {
     <section className="space-y-3">
       <h3 className="flex items-center gap-2 text-sm font-medium">
         <Wallet className="size-4 text-muted-foreground" aria-hidden="true" />
-        Paiements
+        Règlements enregistrés avant la bascule
       </h3>
+
+      <p className="text-xs text-muted-foreground">
+        Ces montants portent sur le cours entier, sans distinguer les apprenants. Le suivi
+        nominatif se tient désormais dans l'onglet Paiements.
+      </p>
 
       {isPending && (
         <p

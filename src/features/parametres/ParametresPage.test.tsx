@@ -48,7 +48,13 @@ const mutate = vi.fn()
 
 /** Cet écran ne règle que le barème de récitation : le reste vient des défauts. */
 function parametres(note_bareme: number, enregistres: boolean): ParametresEffectifs {
-  return { note_bareme, logo: null, enregistres, ...NOTATION_PAR_DEFAUT }
+  return {
+    note_bareme,
+    logo: null,
+    mode_facturation: 'mensuel',
+    enregistres,
+    ...NOTATION_PAR_DEFAUT,
+  }
 }
 
 function simuler(etat: Partial<UseQueryResult<ParametresEffectifs, Error>>) {

@@ -175,6 +175,21 @@ export const coursSchema = z
       .refine((valeur) => valeur === null || (Number.isFinite(valeur) && valeur >= 0), {
         message: 'Le prix mensuel doit être un nombre positif.',
       }),
+    /*
+     * Le forfait couvrant TOUTE la session (migration 0026). Il cohabite avec le
+     * prix mensuel : les deux se conservent l'un l'autre, pour qu'un centre qui
+     * essaie un mode puis revient retrouve son tarif intact.
+     */
+    prix_session: z
+      .union([z.string(), z.number()])
+      .optional()
+      .transform((valeur) => {
+        if (valeur === undefined || valeur === '') return null
+        return typeof valeur === 'number' ? valeur : Number(valeur.trim().replace(',', '.'))
+      })
+      .refine((valeur) => valeur === null || (Number.isFinite(valeur) && valeur >= 0), {
+        message: 'Le forfait doit être un nombre positif.',
+      }),
     devise: z
       .string()
       .trim()
@@ -220,6 +235,7 @@ export function valeursParDefaut(sessionId: string): CoursFormValues {
     date_debut: aujourdhui(),
     date_fin: '',
     prix_mensuel: '',
+    prix_session: '',
     devise: 'XOF',
     statut: 'actif',
     creneaux: [creneauParDefaut()],

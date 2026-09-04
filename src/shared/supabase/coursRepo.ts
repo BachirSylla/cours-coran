@@ -45,6 +45,15 @@ export interface CoursInput {
   enseignant_id?: string | null
   /** Routé vers `tarif`, que seul un responsable lit et écrit. */
   prix_mensuel?: number | null
+  /**
+   * Forfait couvrant toute la session (migration 0026).
+   *
+   * ⚠️ **Facultatif au sens strict** : `enregistrer_cours` distingue la clé
+   * ABSENTE — « n'y touche pas » — de la valeur `null` — « efface le forfait ».
+   * Un formulaire qui ignore le mode par session ne doit donc jamais poser la
+   * clé, sous peine d'effacer les forfaits des cours qu'il enregistre.
+   */
+  prix_session?: number | null
   devise?: string
 }
 
@@ -71,18 +80,18 @@ export type CoursAvecDetails = Cours & {
    * lecture, et un embed que la RLS filtre revient vide plutôt qu'en erreur.
    * Ce n'est pas un cas d'exception à traiter — c'est le comportement voulu.
    */
-  tarif: { prix_mensuel: number | null; devise: string }[]
+  tarif: { prix_mensuel: number | null; prix_session: number | null; devise: string }[]
 }
 
 /** Le tarif du cours, ou `null` — ce que voit un enseignant. */
 export function tarifDuCours(
   cours: CoursAvecDetails
-): { prix_mensuel: number | null; devise: string } | null {
+): { prix_mensuel: number | null; prix_session: number | null; devise: string } | null {
   return cours.tarif[0] ?? null
 }
 
 const SELECT_DETAILS =
-  '*, type_cours(libelle), creneau(*), inscription(count), tarif(prix_mensuel, devise)'
+  '*, type_cours(libelle), creneau(*), inscription(count), tarif(prix_mensuel, prix_session, devise)'
 
 /** Nombre d'apprenants inscrits, extrait de l'agrégat. */
 export function nombreInscrits(cours: Pick<CoursAvecDetails, 'inscription'>): number {

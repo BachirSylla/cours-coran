@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { UseQueryResult } from '@tanstack/react-query'
 
 import { useApprenants } from '@/features/apprenants/hooks/useApprenants'
+import { useReglementsInscription } from '@/features/paiements/hooks/useReglementsInscription'
 import { SectionInscriptions } from '@/features/inscriptions/components/SectionInscriptions'
 import { useAjouterInscription } from '@/features/inscriptions/hooks/useAjouterInscription'
 import {
@@ -14,6 +15,13 @@ import { useRetirerInscription } from '@/features/inscriptions/hooks/useRetirerI
 import type { Apprenant } from '@/shared/supabase/apprenantRepo'
 import type { InscriptionAvecApprenant } from '@/shared/supabase/inscriptionRepo'
 
+/*
+ * La confirmation de retrait lit les règlements pour annoncer ce qu'elle détruit
+ * (0026) ; ce fichier ne monte pas de `QueryClientProvider`.
+ */
+vi.mock('@/features/paiements/hooks/useReglementsInscription', () => ({
+  useReglementsInscription: vi.fn(),
+}))
 vi.mock('@/features/apprenants/hooks/useApprenants', () => ({ useApprenants: vi.fn() }))
 vi.mock('@/features/inscriptions/hooks/useInscriptionsCours', () => ({
   useInscriptionsCours: vi.fn(),
@@ -28,6 +36,7 @@ vi.mock('@/features/inscriptions/hooks/useRetirerInscription', () => ({
 
 const useInscriptionsMock = vi.mocked(useInscriptionsCours)
 const usePrecedentsMock = vi.mocked(useInscriptionsSessionPrecedente)
+const useReglementsInscriptionMock = vi.mocked(useReglementsInscription)
 const useApprenantsMock = vi.mocked(useApprenants)
 const useAjouterMock = vi.mocked(useAjouterInscription)
 const useRetirerMock = vi.mocked(useRetirerInscription)
@@ -96,6 +105,9 @@ const MOUSSA = apprenant('a2', 'Moussa', 'Camara')
 describe('SectionInscriptions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    useReglementsInscriptionMock.mockReturnValue({ data: [] } as unknown as ReturnType<
+      typeof useReglementsInscription
+    >)
     // Aucun cours précédent : le cas ordinaire, hors reconduction.
     usePrecedentsMock.mockReturnValue({
       data: [],
@@ -207,6 +219,51 @@ describe('SectionInscriptions', () => {
       expect(
         screen.getByText(/Sa note d'examen \(15,5\/20\) sera définitivement supprimée/)
       ).toBeInTheDocument()
+    })
+
+    /*
+     * ⚠️ `reglement` cascade depuis `inscription` (0026) : retirer un apprenant
+     * emporte tout ce qu'il a versé. La migration pose que l'écran DOIT
+     * l'annoncer avant — la première version ne le faisait pas, et l'argent
+     * disparaissait en silence.
+     */
+    it('avertit que les règlements seront perdus, avec le montant encaissé', async () => {
+      simulerInscriptions({ data: [inscription('i1', AICHA)] })
+      useReglementsInscriptionMock.mockReturnValue({
+        data: [
+          { montant_recu: 15000 },
+          { montant_recu: 5000 },
+        ],
+      } as unknown as ReturnType<typeof useReglementsInscription>)
+
+      await ouvrirLaConfirmation()
+
+      expect(screen.getByText(/2 suivis de règlement seront définitivement supprimés/)).
+        toBeInTheDocument()
+      expect(screen.getByText(/20\s?000/)).toBeInTheDocument()
+      expect(screen.getByText(/disparaîtra des totaux/)).toBeInTheDocument()
+    })
+
+    it('accorde au singulier, et tait le montant quand rien n’a été encaissé', async () => {
+      simulerInscriptions({ data: [inscription('i1', AICHA)] })
+      useReglementsInscriptionMock.mockReturnValue({
+        data: [{ montant_recu: 0 }],
+      } as unknown as ReturnType<typeof useReglementsInscription>)
+
+      await ouvrirLaConfirmation()
+
+      expect(
+        screen.getByText(/Son suivi de règlement sera définitivement supprimé\./)
+      ).toBeInTheDocument()
+      expect(screen.queryByText(/déjà encaissés/)).not.toBeInTheDocument()
+    })
+
+    it('se tait quand il n’y a aucun règlement à perdre', async () => {
+      simulerInscriptions({ data: [inscription('i1', AICHA)] })
+
+      await ouvrirLaConfirmation()
+
+      expect(screen.queryByText(/suivi de règlement/)).not.toBeInTheDocument()
     })
 
     it('se tait quand il n’y a aucune note à perdre', async () => {

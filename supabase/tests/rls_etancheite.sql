@@ -1178,6 +1178,75 @@ begin
 end;
 $$;
 
+-- =============================================================================
+-- LES PRIVILÈGES QUI CONTOURNENT LA RLS — sur TOUTE table de `public`
+--
+-- ⚠️ `TRUNCATE` n'est PAS soumis à la RLS. Une policy filtre des lignes ;
+-- `TRUNCATE` ne les regarde pas, il vide la table — celles de TOUS les centres.
+-- C'est le seul privilège de cette liste qui casse vraiment le cloisonnement,
+-- et il ne se voit dans aucun test de policy : on peut écrire toutes les
+-- assertions d'étanchéité du monde sans jamais l'apercevoir.
+--
+-- Supabase l'accorde par DÉFAUT (`alter default privileges … grant all on tables
+-- to authenticated`), à toute table créée sans révocation explicite. Dix tables
+-- le portaient encore avant 0026 ; l'assertion ci-dessous existe pour que la
+-- onzième ne passe pas.
+--
+-- ⚠️ La corriger se fait par `revoke truncate, references, trigger`, JAMAIS par
+-- `revoke all` : `cours`, `inscription`, `invitation` et `membre` portent des
+-- privilèges de COLONNE — c'est ce qui protège `inscription.jeton`,
+-- `membre.role`, `invitation.code_hash` — et `REVOKE ALL ON TABLE` les
+-- emporterait tous, cassant en silence toute création de cours.
+--
+-- `MAINTAIN` (PostgreSQL 17) reste accordé sur les tables anciennes : il ouvre
+-- `VACUUM`, `ANALYZE`, `REINDEX` — aucune lecture, aucune écriture de données,
+-- donc aucun contournement. Il n'est pas visé ici.
+-- =============================================================================
+reset role;
+
+do $$
+declare v_trous text;
+begin
+  select string_agg(format('%s (%s)', tbl, droits), ', ' order by tbl) into v_trous
+  from (
+    select c.relname as tbl,
+           string_agg(g.droit, '+' order by g.droit) as droits
+    from pg_class as c
+    cross join (values ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')) as g(droit)
+    where c.relnamespace = 'public'::regnamespace
+      and c.relkind = 'r'
+      -- Les tables de DÉCOR, créées dans cette transaction, héritent du même
+      -- défaut Supabase : les compter ferait échouer l'assertion sur le test
+      -- lui-même. Elles disparaissent au `rollback`.
+      and c.relname not like 't\_%'
+      and has_table_privilege('authenticated', c.oid, g.droit)
+    group by c.relname
+  ) as trouve;
+
+  if v_trous is not null then
+    raise exception
+      'FAILLE — `authenticated` détient des privilèges qui contournent la RLS sur : %',
+      v_trous;
+  end if;
+end;
+$$;
+
+-- Et `anon` ne détient RIEN sur aucune table : c'est la doctrine de 0007, et
+-- elle se vérifie ici plutôt que table par table.
+do $$
+declare v_ouvertes text;
+begin
+  select string_agg(distinct table_name, ', ') into v_ouvertes
+  from information_schema.role_table_grants
+  where grantee = 'anon' and table_schema = 'public'
+    and table_name not like 't\_%';
+
+  if v_ouvertes is not null then
+    raise exception 'FAILLE — `anon` détient des droits sur : %', v_ouvertes;
+  end if;
+end;
+$$;
+
 reset role;
 select '✅ TOUTES LES ASSERTIONS PASSENT — étanchéité centres, enseignants, gestion/pédagogie, anon' as resultat;
 

@@ -13,6 +13,14 @@ import { PlanningPage } from '@/features/planning/PlanningPage'
 import type { CoursAvecDetails } from '@/shared/supabase/coursRepo'
 import { rendreAvecQuery } from '@/test/rendreAvecQuery'
 
+/*
+ * Le formulaire de cours lit le rythme de facturation pour signaler le tarif
+ * inutilisé (0026) ; ce fichier ne monte pas d'`AuthProvider`, dont dépend
+ * `useParametres`.
+ */
+vi.mock('@/features/parametres/hooks/useParametres', () => ({
+  useParametres: () => ({ data: undefined }),
+}))
 vi.mock('@/features/cours/hooks/useCours', () => ({ useCours: vi.fn() }))
 vi.mock('@/features/cours/hooks/useModifierCours', () => ({ useModifierCours: vi.fn() }))
 vi.mock('@/features/cours/hooks/useTousLesCreneaux', () => ({ useTousLesCreneaux: vi.fn() }))

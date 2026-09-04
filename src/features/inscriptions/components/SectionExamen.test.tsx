@@ -81,6 +81,7 @@ describe('SectionExamen', () => {
       requete<ParametresEffectifs>({
         note_bareme: 20,
         logo: null,
+        mode_facturation: 'mensuel',
         enregistres: true,
         ...NOTATION_PAR_DEFAUT,
       })
@@ -118,6 +119,7 @@ describe('SectionExamen', () => {
       requete<ParametresEffectifs>({
         note_bareme: 10,
         logo: null,
+        mode_facturation: 'mensuel',
         enregistres: true,
         ...NOTATION_PAR_DEFAUT,
       })

@@ -8,6 +8,14 @@ import type { CoursAvecDetails } from '@/shared/supabase/coursRepo'
 import type { Membre } from '@/shared/supabase/membreRepo'
 import type { TypeCours } from '@/shared/supabase/typeCoursRepo'
 
+/*
+ * Le formulaire lit le rythme de facturation pour signaler le tarif inutilisé
+ * (0026) ; ce fichier ne monte pas d'`AuthProvider`, dont dépend `useParametres`.
+ */
+vi.mock('@/features/parametres/hooks/useParametres', () => ({
+  useParametres: () => ({ data: undefined }),
+}))
+
 /**
  * Affectation d'un cours à un enseignant (migration 0014) et conséquence
  * immédiate : l'aperçu de conflit change d'agenda avec le sélecteur.

@@ -52,6 +52,9 @@ function messageLisible(erreur: PostgrestError, contexte: string): string {
     case 'P0071': // reconduction : nom, dates, ou nom déjà pris
     case 'P0072': // reconduction : la source contient un chevauchement
     case 'P0073': // reconduction : un cours de la source n'a aucun créneau
+    case 'P0080': // forfait sur une session sans date de fin (0026)
+    case 'P0081': // règlement dont la période ne correspond pas au mode du centre
+    case 'P0082': // retirer la date de fin d'une session portant des forfaits
       return erreur.message
     case '23505':
       return `${contexte} : cet enregistrement existe déjà.`

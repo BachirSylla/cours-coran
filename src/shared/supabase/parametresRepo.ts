@@ -3,6 +3,11 @@ import { lancerSiErreur } from '@/shared/supabase/erreurs'
 import * as membreRepo from '@/shared/supabase/membreRepo'
 import type { Bareme } from '@/shared/lib/evaluations'
 import {
+  estModeFacturation,
+  MODE_FACTURATION_PAR_DEFAUT,
+  type ModeFacturation,
+} from '@/shared/lib/facturation'
+import {
   estBaseAcademique,
   NOTATION_PAR_DEFAUT,
   type ConfigNotation,
@@ -42,6 +47,15 @@ export interface ParametresEffectifs extends ConfigNotation {
   note_bareme: number
   /** Logo du centre, data URL, ou `null` s'il n'y en a pas (migration 0010). */
   logo: string | null
+  /**
+   * Rythme de facturation du centre (migration 0026).
+   *
+   * ⚠️ Le défaut est `mensuel`, ici comme en base, et les deux doivent rester
+   * d'accord : un centre sans ligne `parametres` doit se comporter exactement
+   * comme avant la migration, sans quoi la rétro-compatibilité ne tient que du
+   * côté serveur.
+   */
+  mode_facturation: ModeFacturation
   /** `false` quand les valeurs viennent des défauts, sans ligne en base. */
   enregistres: boolean
 }
@@ -67,6 +81,7 @@ export async function get(userId?: string | null): Promise<ParametresEffectifs> 
     return {
       note_bareme: baremeDuMembre ?? BAREME_PAR_DEFAUT,
       logo: null,
+      mode_facturation: MODE_FACTURATION_PAR_DEFAUT,
       ...NOTATION_PAR_DEFAUT,
       // Le barème du membre ne compte pas comme un réglage du centre : c'est ce
       // dernier que ce drapeau décrit.
@@ -77,6 +92,14 @@ export async function get(userId?: string | null): Promise<ParametresEffectifs> 
   return {
     note_bareme: baremeDuMembre ?? data.note_bareme,
     logo: data.logo,
+    /*
+     * Refermée sur le domaine, comme `base_academique` : les types générés
+     * annoncent `string`, et une valeur inconnue doit retomber sur le mode par
+     * défaut plutôt que de faire facturer n'importe quoi.
+     */
+    mode_facturation: estModeFacturation(data.mode_facturation)
+      ? data.mode_facturation
+      : MODE_FACTURATION_PAR_DEFAUT,
     assiduite_active: data.assiduite_active,
     // La base est une chaîne côté types générés : on la referme sur le domaine,
     // et une valeur inattendue retombe sur le défaut plutôt que de casser le

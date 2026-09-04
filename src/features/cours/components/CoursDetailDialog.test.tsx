@@ -93,7 +93,7 @@ function cours(enseignantId: string | null): CoursAvecDetails {
     type_cours: { libelle: 'Mémorisation' },
     inscription: [{ count: 2 }],
     creneau: [],
-    tarif: [{ prix_mensuel: 15000, devise: 'XOF' }],
+    tarif: [{ prix_mensuel: 15000, prix_session: null, devise: 'XOF' }],
   }
 }
 

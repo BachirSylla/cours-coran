@@ -11,6 +11,8 @@ import {
 } from '@/features/inscriptions/hooks/useInscriptionsCours'
 import { useRetirerInscription } from '@/features/inscriptions/hooks/useRetirerInscription'
 import { messageRefus, peutAjouterInscription } from '@/features/inscriptions/reglesInscription'
+import { useReglementsInscription } from '@/features/paiements/hooks/useReglementsInscription'
+import { formaterMontant } from '@/shared/lib/paiements'
 import { formaterNote } from '@/shared/lib/evaluations'
 import type { InscriptionAvecApprenant } from '@/shared/supabase/inscriptionRepo'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
@@ -97,6 +99,19 @@ export function SectionInscriptions({
           ancienne.apprenant !== null
       )
     : []
+
+  /*
+   * ⚠️ Ce que la désinscription va DÉTRUIRE. `reglement` cascade depuis
+   * `inscription` (0026) : retirer un apprenant emporte tout ce qu'il a versé.
+   * C'est de l'argent encaissé, et la migration pose que l'écran doit l'annoncer
+   * avant — sur le modèle de « Retirer les pointages » (0020).
+   */
+  const { data: reglements } = useReglementsInscription(aRetirer?.id ?? null)
+  const encaisse = (reglements ?? []).reduce(
+    (total, reglement) => total + reglement.montant_recu,
+    0
+  )
+  const nbReglements = (reglements ?? []).length
 
   const noteExamen =
     aRetirer?.note_examen !== null &&
@@ -288,6 +303,24 @@ export function SectionInscriptions({
                 <TriangleAlert className="size-4" aria-hidden="true" />
                 <AlertDescription>
                   Sa note d'examen ({noteExamen}) sera définitivement supprimée.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Le suivi de règlement part aussi — et c'est de l'argent. On le
+                dit avec le montant : « des règlements seront supprimés » ne
+                laisse pas mesurer ce qu'on perd. */}
+            {nbReglements > 0 && (
+              <Alert variant="destructive">
+                <TriangleAlert className="size-4" aria-hidden="true" />
+                <AlertDescription>
+                  {nbReglements === 1
+                    ? 'Son suivi de règlement sera définitivement supprimé'
+                    : `Ses ${nbReglements} suivis de règlement seront définitivement supprimés`}
+                  {encaisse > 0
+                    ? `, dont ${formaterMontant(encaisse, 'XOF')} déjà encaissés.`
+                    : '.'}{' '}
+                  Cette recette disparaîtra des totaux.
                 </AlertDescription>
               </Alert>
             )}

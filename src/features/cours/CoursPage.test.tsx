@@ -29,6 +29,14 @@ vi.mock('@/features/cours/hooks/useModifierCours', () => ({ useModifierCours: vi
 vi.mock('@/features/cours/hooks/useSupprimerCours', () => ({ useSupprimerCours: vi.fn() }))
 vi.mock('@/features/cours/hooks/useTousLesCreneaux', () => ({ useTousLesCreneaux: vi.fn() }))
 vi.mock('@/features/cours/hooks/useTypesCours', () => ({ useTypesCours: vi.fn() }))
+/*
+ * Le formulaire de cours lit le rythme de facturation pour signaler le tarif
+ * inutilisé (0026) ; ces fichiers ne montent pas d'`AuthProvider`, dont dépend
+ * `useParametres`.
+ */
+vi.mock('@/features/parametres/hooks/useParametres', () => ({
+  useParametres: () => ({ data: undefined }),
+}))
 vi.mock('@/features/membres/hooks/useMembre', () => ({ useMembre: vi.fn() }))
 vi.mock('@/features/membres/hooks/useMembres', () => ({ useMembres: vi.fn() }))
 // La page transmet la session active au formulaire ; ce fichier teste la liste

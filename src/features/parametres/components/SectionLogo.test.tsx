@@ -26,7 +26,13 @@ const mutate = vi.fn()
 const LOGO = 'data:image/png;base64,AAAA'
 
 function parametres(logo: string | null): ParametresEffectifs {
-  return { note_bareme: 20, logo, enregistres: true, ...NOTATION_PAR_DEFAUT }
+  return {
+    note_bareme: 20,
+    logo,
+    mode_facturation: 'mensuel',
+    enregistres: true,
+    ...NOTATION_PAR_DEFAUT,
+  }
 }
 
 function rendre(logo: string | null = null) {

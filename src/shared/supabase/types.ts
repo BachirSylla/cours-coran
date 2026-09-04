@@ -464,6 +464,7 @@ export type Database = {
           created_at: string
           id: string
           logo: string | null
+          mode_facturation: string
           note_bareme: number
           penaliser_absences_excusees: boolean
           penalite_absence: number
@@ -479,6 +480,7 @@ export type Database = {
           created_at?: string
           id?: string
           logo?: string | null
+          mode_facturation?: string
           note_bareme?: number
           penaliser_absences_excusees?: boolean
           penalite_absence?: number
@@ -494,6 +496,7 @@ export type Database = {
           created_at?: string
           id?: string
           logo?: string | null
+          mode_facturation?: string
           note_bareme?: number
           penaliser_absences_excusees?: boolean
           penalite_absence?: number
@@ -570,6 +573,70 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "seance"
             referencedColumns: ["id", "cours_id"]
+          },
+        ]
+      }
+      reglement: {
+        Row: {
+          centre_id: string
+          created_at: string
+          date_paiement: string | null
+          id: string
+          inscription_id: string
+          methode: string | null
+          mois: string | null
+          montant_du: number
+          montant_recu: number
+          session_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          centre_id?: string
+          created_at?: string
+          date_paiement?: string | null
+          id?: string
+          inscription_id: string
+          methode?: string | null
+          mois?: string | null
+          montant_du: number
+          montant_recu?: number
+          session_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          centre_id?: string
+          created_at?: string
+          date_paiement?: string | null
+          id?: string
+          inscription_id?: string
+          methode?: string | null
+          mois?: string | null
+          montant_du?: number
+          montant_recu?: number
+          session_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reglement_centre_fkey"
+            columns: ["centre_id"]
+            isOneToOne: false
+            referencedRelation: "centre"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reglement_inscription_fkey"
+            columns: ["inscription_id", "centre_id"]
+            isOneToOne: false
+            referencedRelation: "inscription"
+            referencedColumns: ["id", "centre_id"]
+          },
+          {
+            foreignKeyName: "reglement_session_fkey"
+            columns: ["session_id", "centre_id"]
+            isOneToOne: false
+            referencedRelation: "session"
+            referencedColumns: ["id", "centre_id"]
           },
         ]
       }
@@ -692,6 +759,7 @@ export type Database = {
           created_at: string
           devise: string
           prix_mensuel: number | null
+          prix_session: number | null
           updated_at: string
         }
         Insert: {
@@ -700,6 +768,7 @@ export type Database = {
           created_at?: string
           devise?: string
           prix_mensuel?: number | null
+          prix_session?: number | null
           updated_at?: string
         }
         Update: {
@@ -708,6 +777,7 @@ export type Database = {
           created_at?: string
           devise?: string
           prix_mensuel?: number | null
+          prix_session?: number | null
           updated_at?: string
         }
         Relationships: [

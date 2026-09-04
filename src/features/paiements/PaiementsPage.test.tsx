@@ -4,8 +4,8 @@ import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useMembre } from '@/features/membres/hooks/useMembre'
-import type { LigneMois } from '@/features/paiements/hooks/usePaiementsMois'
-import { usePaiementsMois } from '@/features/paiements/hooks/usePaiementsMois'
+import type { LigneFacturation } from '@/features/paiements/hooks/useReglements'
+import { useReglements } from '@/features/paiements/hooks/useReglements'
 import { PaiementsPage } from '@/features/paiements/PaiementsPage'
 import {
   moisCourant,
@@ -14,13 +14,11 @@ import {
   type StatutPaiement,
 } from '@/shared/lib/paiements'
 
-vi.mock('@/features/paiements/hooks/usePaiementsMois', () => ({
-  usePaiementsMois: vi.fn(),
-}))
+vi.mock('@/features/paiements/hooks/useReglements', () => ({ useReglements: vi.fn() }))
 // Le dialog monte ses propres requêtes : il n'est pas le sujet de ce test.
-vi.mock('@/features/paiements/components/PaiementFormDialog', () => ({
-  PaiementFormDialog: ({ cible }: { cible: { cours_libelle: string } | null }) =>
-    cible ? <div role="dialog">Règlement {cible.cours_libelle}</div> : null,
+vi.mock('@/features/paiements/components/ReglementFormDialog', () => ({
+  ReglementFormDialog: ({ cible }: { cible: { apprenant: string } | null }) =>
+    cible ? <div role="dialog">Règlement {cible.apprenant}</div> : null,
 }))
 vi.mock('@/features/membres/hooks/useMembre', () => ({ useMembre: vi.fn() }))
 
@@ -42,32 +40,43 @@ function membre(role: 'responsable' | 'enseignant' = 'responsable') {
   }
 }
 
-const usePaiementsMoisMock = vi.mocked(usePaiementsMois)
+const useReglementsMock = vi.mocked(useReglements)
 
+const SESSION = { id: 's18', nom: 'Session 18', date_fin: '2026-06-30' }
+
+/** Une ligne NOMINATIVE : une personne, un cours, une période. */
 function ligne(
-  cours_libelle: string,
+  apprenant: string,
   statut: StatutPaiement,
   montant_du = 15000,
-  montant_recu = 0
-): LigneMois {
+  montant_recu = 0,
+  extra: Partial<LigneFacturation> = {}
+): LigneFacturation {
   return {
-    cours_id: `cours-${cours_libelle}`,
+    inscription_id: `insc-${apprenant}`,
     mois: '2026-08',
+    session_id: null,
     montant_du,
     montant_recu,
     statut,
-    paiement: null,
+    reglement: null,
     horsPeriode: false,
-    cours_libelle,
+    apprenant,
+    cours_libelle: 'Groupe Hifz',
     devise: 'XOF',
+    tarifManquant: false,
+    ...extra,
   }
 }
 
-function simuler(etat: Partial<ReturnType<typeof usePaiementsMois>>) {
-  usePaiementsMoisMock.mockReturnValue({
+function simuler(etat: Partial<ReturnType<typeof useReglements>>) {
+  useReglementsMock.mockReturnValue({
+    mode: 'mensuel',
     lignes: [],
     totaux: { du: 0, recu: 0, reste: 0 },
     parStatut: { paye: 0, partiel: 0, attente: 0, retard: 0 },
+    autreMode: { nombre: 0, recu: 0 },
+    session: SESSION,
     isPending: false,
     isError: false,
     error: null,
@@ -95,7 +104,7 @@ describe('PaiementsPage', () => {
     afficher()
 
     expect(screen.getByRole('status')).toBeInTheDocument()
-    expect(screen.getByText(/chargement des paiements/i)).toBeInTheDocument()
+    expect(screen.getByText(/chargement des règlements/i)).toBeInTheDocument()
   })
 
   it('affiche l’erreur quand le chargement échoue', () => {
@@ -113,27 +122,36 @@ describe('PaiementsPage', () => {
     afficher()
 
     expect(screen.getByText('Rien à facturer ce mois-ci')).toBeInTheDocument()
+    expect(screen.getByText(/apprenants inscrits à un cours de cette session/i)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /voir mes cours/i })).toHaveAttribute(
       'href',
       '/cours'
     )
   })
 
-  it('affiche une ligne par cours avec son statut', () => {
+  /*
+   * ⚠️ LE point du grain nominatif : deux inscrits du MÊME cours, le même mois,
+   * avec des statuts différents. Sous l'ancien grain `(cours, mois)`, cette
+   * situation n'avait pas de représentation — il n'y avait qu'un total.
+   */
+  it('affiche une ligne par PERSONNE, pas par cours', () => {
     simuler({
       lignes: [
-        ligne('Groupe Hifz', 'paye', 15000, 15000),
-        ligne('Lecture Aïcha', 'partiel', 15000, 5000),
-        ligne('Initiation Ali', 'attente'),
-        ligne('Tajweed', 'retard'),
+        ligne('Aïcha Diallo', 'paye', 15000, 15000),
+        ligne('Omar Ndiaye', 'partiel', 15000, 5000),
+        ligne('Fatou Sy', 'attente'),
+        ligne('Moussa Ba', 'retard'),
       ],
       totaux: { du: 60000, recu: 20000, reste: 40000 },
     })
 
     afficher()
 
-    // Chaque cours apparaît deux fois : tableau (≥ md) et carte (mobile).
-    expect(screen.getAllByText('Groupe Hifz')).toHaveLength(2)
+    // Chaque personne apparaît deux fois : tableau (≥ md) et carte (mobile).
+    expect(screen.getAllByText('Aïcha Diallo')).toHaveLength(2)
+    expect(screen.getAllByText('Omar Ndiaye')).toHaveLength(2)
+    // Le cours, lui, est commun aux quatre.
+    expect(screen.getAllByText('Groupe Hifz')).toHaveLength(8)
     expect(screen.getAllByText('Payé')).toHaveLength(2)
     expect(screen.getAllByText('Partiel')).toHaveLength(2)
     expect(screen.getAllByText('En attente')).toHaveLength(2)
@@ -142,7 +160,7 @@ describe('PaiementsPage', () => {
 
   it('affiche les totaux du mois', () => {
     simuler({
-      lignes: [ligne('Groupe Hifz', 'partiel', 15000, 5000)],
+      lignes: [ligne('Aïcha Diallo', 'partiel', 15000, 5000)],
       totaux: { du: 15000, recu: 5000, reste: 10000 },
     })
 
@@ -162,7 +180,7 @@ describe('PaiementsPage', () => {
 
   it('n’emploie aucun terme de relance', () => {
     simuler({
-      lignes: [ligne('Tajweed', 'retard')],
+      lignes: [ligne('Moussa Ba', 'retard')],
       totaux: { du: 15000, recu: 0, reste: 15000 },
     })
 
@@ -174,16 +192,16 @@ describe('PaiementsPage', () => {
   })
 
   it('ouvre la saisie d’un règlement depuis une ligne', async () => {
-    simuler({ lignes: [ligne('Groupe Hifz', 'attente')] })
+    simuler({ lignes: [ligne('Aïcha Diallo', 'attente')] })
     const utilisateur = userEvent.setup()
 
     afficher()
 
     await utilisateur.click(
-      screen.getAllByRole('button', { name: /Enregistrer un règlement pour Groupe Hifz/ })[0]!
+      screen.getAllByRole('button', { name: /Enregistrer un règlement pour Aïcha Diallo/ })[0]!
     )
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('Règlement Groupe Hifz')
+    expect(screen.getByRole('dialog')).toHaveTextContent('Règlement Aïcha Diallo')
   })
 
   it('démarre sur le mois courant et navigue d’un mois à l’autre', async () => {
@@ -192,17 +210,17 @@ describe('PaiementsPage', () => {
 
     afficher()
 
-    expect(usePaiementsMoisMock.mock.calls[0]?.[0]).toBe(moisCourant())
+    expect(useReglementsMock.mock.calls[0]?.[0]).toBe(moisCourant())
     expect(screen.getByRole('button', { name: /mois courant/i })).toBeDisabled()
 
     await utilisateur.click(screen.getByRole('button', { name: /mois suivant/i }))
-    expect(usePaiementsMoisMock.mock.calls.at(-1)?.[0]).toBe(moisSuivant(moisCourant()))
+    expect(useReglementsMock.mock.calls.at(-1)?.[0]).toBe(moisSuivant(moisCourant()))
 
     await utilisateur.click(screen.getByRole('button', { name: /mois précédent/i }))
-    expect(usePaiementsMoisMock.mock.calls.at(-1)?.[0]).toBe(moisCourant())
+    expect(useReglementsMock.mock.calls.at(-1)?.[0]).toBe(moisCourant())
 
     await utilisateur.click(screen.getByRole('button', { name: /mois précédent/i }))
-    expect(usePaiementsMoisMock.mock.calls.at(-1)?.[0]).toBe(moisPrecedent(moisCourant()))
+    expect(useReglementsMock.mock.calls.at(-1)?.[0]).toBe(moisPrecedent(moisCourant()))
     expect(screen.getByRole('button', { name: /mois courant/i })).toBeEnabled()
   })
 
@@ -216,5 +234,85 @@ describe('PaiementsPage', () => {
 
     expect(screen.getByText('Réservé au responsable')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /mois suivant/i })).not.toBeInTheDocument()
+  })
+
+  /*
+   * ================== LE MODE FORFAIT (migration 0026) ==================
+   *
+   * Au forfait il n'y a qu'UNE période : la session. Un navigateur de mois y
+   * donnerait l'illusion d'un choix qui n'existe pas, et laisserait croire que
+   * l'apprenant doit quelque chose chaque mois.
+   */
+  it('remplace la navigation par le nom de la session au forfait', () => {
+    simuler({
+      mode: 'par_session',
+      lignes: [ligne('Aïcha Diallo', 'attente', 120000, 0, { mois: null, session_id: 's18' })],
+    })
+
+    afficher()
+
+    expect(screen.queryByRole('button', { name: /mois suivant/i })).not.toBeInTheDocument()
+    expect(screen.getByText(/Forfait par session/)).toBeInTheDocument()
+    expect(screen.getByText(/Session 18/)).toBeInTheDocument()
+  })
+
+  it('garde la navigation mensuelle dans l’autre mode', () => {
+    simuler({ mode: 'mensuel', lignes: [] })
+
+    afficher()
+
+    expect(screen.getByRole('button', { name: /mois suivant/i })).toBeInTheDocument()
+    expect(screen.getByText(/Au mois/)).toBeInTheDocument()
+  })
+
+  /*
+   * ⚠️ La base REFUSE un forfait sur une session sans date de fin (P0080).
+   * L'écran doit le dire AVANT la saisie : découvrir l'interdit au moment
+   * d'enregistrer, après avoir compté l'argent, serait le pire moment.
+   */
+  it('avertit quand la session du forfait n’a pas de date de fin', () => {
+    simuler({
+      mode: 'par_session',
+      session: { id: 's18', nom: 'Session perpétuelle', date_fin: null },
+      lignes: [],
+    })
+
+    afficher()
+
+    expect(screen.getByText(/n'a pas de date de fin/)).toBeInTheDocument()
+    expect(screen.getByText(/donnez-lui une date de fin/i)).toBeInTheDocument()
+  })
+
+  it('n’avertit pas quand la session est bornée', () => {
+    simuler({ mode: 'par_session', lignes: [] })
+
+    afficher()
+
+    expect(screen.queryByText(/n'a pas de date de fin/)).not.toBeInTheDocument()
+  })
+
+  /*
+   * Après une bascule de mode, le tarif du nouveau mode n'est pas encore saisi.
+   * L'inscription ne produit alors aucune période — elle disparaîtrait de
+   * l'écran. Un tableau silencieusement incomplet vaut moins qu'une ligne qui
+   * dit ce qui manque.
+   */
+  it('montre les inscriptions sans tarif plutôt que de les taire', () => {
+    simuler({
+      mode: 'par_session',
+      lignes: [ligne('Aïcha Diallo', 'attente', 0, 0, { tarifManquant: true })],
+    })
+
+    afficher()
+
+    expect(screen.getAllByText('Aïcha Diallo')).toHaveLength(2)
+    expect(screen.getAllByText(/aucun tarif saisi pour ce mode/i).length).toBeGreaterThan(0)
+
+    // Et l'action est fermée : enregistrer un montant nul n'aurait aucun sens.
+    for (const bouton of screen.getAllByRole('button', {
+      name: /Enregistrer un règlement pour Aïcha Diallo/,
+    })) {
+      expect(bouton).toBeDisabled()
+    }
   })
 })

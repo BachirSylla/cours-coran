@@ -1176,3 +1176,105 @@ futur sur chaque session agrégée, fermeture globale :
 ```bash
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/suivi_apprenant.sql
 ```
+
+---
+
+## Modes de facturation (migration 0026)
+
+Le centre facture **au mois** ou **au forfait par session**, et le suivi devient
+**nominatif** : une ligne par apprenant, plus un total par cours.
+
+### 80. Rien ne change tant qu'on ne touche à rien
+
+**Attendu**, sur un centre existant : **Paiements** fonctionne comme avant, au
+mois. Le mode par défaut est « Au mois » — personne n'a de réglage à faire.
+
+Ce qui change quand même, et c'est le but : dans un cours de groupe, vous voyez
+maintenant **une ligne par inscrit**, avec le statut de chacun.
+
+### 81. Les anciens règlements n'ont pas bougé
+
+1. **Cours** → un cours qui avait des règlements avant la bascule.
+
+**Attendu** : la section s'intitule **« Règlements enregistrés avant la
+bascule »** et dit que ces montants portent sur le cours entier, sans distinguer
+les apprenants. Les chiffres sont ceux que vous aviez saisis.
+
+⚠️ Ces lignes ne sont **pas** reprises dans le nouveau suivi, et c'est délibéré :
+personne n'a jamais saisi qui, parmi huit inscrits, avait payé. Les répartir
+aurait été une invention.
+
+### 82. Choisir le forfait
+
+1. **Paramètres → Rythme de facturation** → « Forfait par session ».
+
+**Attendu** : l'écran annonce que les règlements déjà enregistrés sont
+**conservés et restent modifiables**. Si une de vos sessions n'a pas de date de
+fin, il vous la nomme — un forfait suppose une période qui se termine.
+
+2. **Enregistrer le mode**.
+
+**Attendu** : l'onglet Paiements bascule. Plus de navigation de mois : la période
+est la session, et son nom s'affiche.
+
+### 83. Saisir un forfait
+
+1. **Cours** → modifier un cours → renseigner **Forfait par session**.
+
+**Attendu** : les deux tarifs sont visibles, et celui qui ne sert pas dans le
+mode courant est marqué « Non utilisé — conservé ». Il ne sera pas effacé.
+
+2. **Paiements** → **Enregistrer** sur une ligne.
+
+**Attendu** : le dialogue nomme l'apprenant, son cours et la session.
+
+⚠️ Sur une session **sans date de fin**, l'enregistrement est refusé avec un
+message clair. Donnez-lui une date de fin d'abord.
+
+### 84. Ce qui est refusé
+
+- **Retirer la date de fin** d'une session qui porte des forfaits : refusé. Ils
+  couvriraient une période sans terme.
+- Enregistrer un règlement **mensuel** dans un centre au forfait, ou l'inverse :
+  refusé. Corriger un ancien règlement reste possible.
+- Un **enseignant** ne voit ni les règlements, ni les tarifs — pas même sur ses
+  propres cours.
+
+### 84 bis. Retirer un apprenant qui a payé
+
+1. **Cours** → un cours → **Inscrits** → **Retirer** quelqu'un qui a des
+   règlements enregistrés.
+
+**Attendu** : la confirmation annonce **combien de suivis** seront supprimés et
+**combien a déjà été encaissé**, et prévient que cette recette disparaîtra des
+totaux. Rien n'est supprimé tant que vous n'avez pas confirmé.
+
+### 85. Revenir en arrière
+
+1. **Paramètres → Rythme de facturation** → « Au mois » → Enregistrer.
+
+**Attendu** : vos prix mensuels sont toujours là, les forfaits encaissés aussi.
+Rien n'a été détruit dans un sens comme dans l'autre.
+
+L'onglet Paiements vous signale alors, en haut, **combien de règlements ont été
+enregistrés sous l'autre rythme** et combien ils représentent — ils ne sont pas
+comptés dans les totaux affichés. Repassez dans ce mode pour les consulter ou les
+corriger.
+
+### 86. Un apprenant qui arrive en cours de route
+
+1. Inscrire quelqu'un à un cours démarré depuis plusieurs mois.
+
+**Attendu** : en mensuel, il doit le **mois de son arrivée**, pas les précédents
+— et le mois entier, sans prorata. Au forfait, il doit le **forfait entier**.
+
+⚠️ Si vous saisissez une inscription **rétroactivement**, l'application ne peut
+pas deviner la date d'entrée réelle : elle prend celle de la saisie. Corrigez le
+montant à la main si besoin.
+
+La preuve automatisée — bascule de mode, session perpétuelle, étanchéité
+inter-centre, grain nominatif :
+
+```bash
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/facturation.sql
+```

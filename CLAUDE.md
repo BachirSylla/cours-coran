@@ -184,11 +184,65 @@ Les types de cours sont dans une **table de référence** (extensible), pas en d
   d'avant la migration 0008 correctement comptées. Les deux colonnes s'écrivent **toujours
   ensemble** (`presenceRepo`), pour qu'elles ne puissent jamais se contredire.
 
-### `paiement`
+### `reglement` (migration 0026) — le suivi courant
+
+- `id`, `centre_id`, `inscription_id`, **`mois`** (`AAAA-MM`) **OU** **`session_id`**,
+  `montant_du`, `montant_recu`, `date_paiement`, `methode`.
+- **Grain `(inscription, période)`** : l'inscription porte le couple apprenant × cours, la période
+  est un mois (mode mensuel) ou une session (mode forfait). Un apprenant inscrit à deux cours a
+  deux suivis, chacun au tarif de son cours ; un groupe de huit a huit lignes par période. C'est ce
+  qui rend « qui n'a pas payé ? » répondable — question insoluble tant qu'un règlement portait sur
+  le cours entier.
+- La période prend **une forme et une seule** : `check (num_nonnulls(mois, session_id) = 1)`. Deux
+  colonnes plutôt qu'une clé polymorphe en texte, parce que `session_id` doit être une vraie clé
+  étrangère — sinon rien n'empêcherait de désigner la session d'un autre centre.
+- Unicité par **index PARTIELS** (`where mois is not null`, `where session_id is not null`) : une
+  contrainte ordinaire laisserait passer autant de lignes qu'on veut avec `mois` nul, NULL n'étant
+  jamais égal à lui-même. ⚠️ Corollaire : PostgREST ne sait pas viser un index partiel, donc
+  `reglementRepo.enregistrer` lit puis insère ou met à jour — **pas d'`upsert`**.
+- ⚠️ La FK composite vers `session` porte une colonne **nullable**. En MATCH SIMPLE (le défaut, et
+  ce qu'on veut) une ligne dont `session_id` est nul satisfait la contrainte sans être vérifiée —
+  exactement le comportement d'un règlement mensuel. En MATCH FULL, elle serait refusée.
+- ⚠️ `on delete cascade` vers `inscription` : désinscrire emporte les règlements, comme cela emporte
+  déjà la note d'examen. C'est de l'argent encaissé, donc **l'écran annonce ce qu'il détruit** —
+  nombre de suivis et montant encaissé — dans la confirmation de retrait (`SectionInscriptions`),
+  sur le modèle de « Retirer les pointages » (0020). `restrict` aurait rendu toute désinscription
+  impossible après le premier règlement, ce qui pousse à supprimer le règlement d'abord : la même
+  perte, en moins visible. Une migration qui écrit « l'interface DOIT annoncer » et s'arrête là ne
+  fait rien : la promesse était vide jusqu'à ce qu'une revue la relève.
+- **Privilèges** : `revoke all … from anon, authenticated` **avant** le `grant`, comme `tarif`
+  (0017) et contrairement à `paiement` (0004). Sans la révocation, `authenticated` garde `TRUNCATE`,
+  `TRIGGER` et `REFERENCES` hérités des défauts Supabase — et ⚠️ **`TRUNCATE` n'est pas soumis à la
+  RLS**. Éprouvé par `has_table_privilege`, jamais par un `like` sur `relacl` : le motif
+  « authenticated=%t% » matche `authenticated=arwd/postgres`, le `t` venant de « postgres ».
+
+  ⚠️ **Ce trou n'était pas propre à `reglement`** : l'audit lancé après l'avoir trouvé a montré
+  DIX autres tables de `public` dans le même cas — toutes celles dont la migration n'avait pas
+  révoqué. 0026 les nettoie. Le défaut vient de `alter default privileges … grant all on tables to
+  authenticated`, posé par Supabase, donc **il se reposera sur toute table future** : créer une
+  table sans `revoke`, c'est le rouvrir. `supabase/tests/rls_etancheite.sql` l'assertait désormais
+  sur TOUTE table de `public`, ainsi que « `anon` ne détient rien ».
+
+  ⚠️ **Corriger l'existant se fait par `revoke truncate, references, trigger`, JAMAIS par
+  `revoke all`** : `cours`, `inscription`, `invitation` et `membre` portent des privilèges de
+  COLONNE, et `REVOKE ALL ON TABLE` les emporte tous — toute création de cours ou d'inscription
+  cesserait de fonctionner en silence côté client. `revoke all` n'est sûr que sur une table neuve.
+  Les tables du schéma `storage` gardent les leurs : elles appartiennent à Supabase.
+- Le **statut n'est pas une colonne**, comme pour `paiement` : il se déduit des montants et de la
+  période comparée à aujourd'hui.
+- Gardée **`est_responsable()` en LECTURE comme en écriture** : un enseignant ne voit aucun
+  règlement, pas même sur ses propres cours.
+
+### `paiement` — l'historique d'avant bascule (grain `(cours, mois)`)
 
 - `id`, `cours_id` (FK), `mois_concerne` (AAAA-MM), `montant_du`, `montant_recu`,
   `date_paiement`, `methode`
 - Unicité `(cours_id, mois_concerne)` : un règlement par cours et par mois.
+- ⚠️ **Cette table n'est plus alimentée** depuis 0026. Elle n'est ni réécrite, ni déplacée, ni
+  réinterprétée : les lignes déjà saisies restent lisibles telles quelles, dans la fiche du cours,
+  sous un intitulé qui dit ce qu'elles sont. **Aucune reprise de données** — les rattacher à des
+  personnes supposerait de deviner qui, parmi huit inscrits, avait payé, et l'inventer rendrait la
+  donnée indiscernable d'une donnée vraie.
 - **Le statut n'est PAS une colonne** : `paye | partiel | attente | retard` se déduit des
   montants et du mois comparé au mois courant (`shared/lib/paiements.ts`). Le stocker le
   figerait, et il deviendrait faux tout seul au passage d'un mois.
@@ -198,8 +252,13 @@ Les types de cours sont dans une **table de référence** (extensible), pas en d
 
 ### `tarif` (migration 0017)
 
-- `cours_id` (PK), `centre_id`, `prix_mensuel`, `devise`. FK **composite** vers
-  `cours (id, centre_id)`.
+- `cours_id` (PK), `centre_id`, `prix_mensuel`, **`prix_session`** (migration 0026), `devise`.
+  FK **composite** vers `cours (id, centre_id)`.
+- `prix_session` est le **forfait couvrant toute la session**. Il cohabite avec `prix_mensuel`
+  plutôt que de le remplacer : les deux ne se déduisent pas l'un de l'autre — un forfait n'est
+  presque jamais le mensuel multiplié par la durée, c'est là tout son intérêt — et un centre qui
+  essaie un mode puis revient doit retrouver son tarif intact. `enregistrer_cours` conserve donc
+  celui de l'autre mode.
 - **Gardée `est_responsable()` en LECTURE comme en écriture.** C'est la fermeture d'une fuite :
   un enseignant lisait `cours.prix_mensuel` sur ses propres cours — l'interface le masquait, la
   RLS non — et `inscriptionRepo.listByApprenant` embarquait `cours(*)` dans la fiche apprenant.
@@ -633,7 +692,72 @@ fin)`, `security definer`, gardée `est_responsable()` et bornée à `centre_cou
     un bouton par personne : promouvoir quelqu'un de Niveau 1 à Niveau 2, ou constater qu'il ne se
     réinscrit pas, doit rester un choix. Il n'y a délibérément pas de bouton « tout replacer ».
 
-16. **Retrait d'un membre** (migration 0018). `retirer_membre(user_id, reaffecter_a)`,
+16. **Modes de facturation** (migration 0026). Un centre facture **au mois** ou **au forfait par
+    session**, et le choix est uniforme à tout le centre. `parametres.mode_facturation` le porte —
+    et non `centre`, qui n'a aucune policy d'UPDATE : l'y poser aurait rendu le NOM du centre
+    modifiable par effet de bord.
+
+    ⚠️ **La lecture du mode n'est PAS réservée au responsable**, contrairement à ce qu'on
+    pourrait attendre d'un réglage financier : il vit sur `parametres`, que tout membre lit (le
+    rapport en dépend, §5.10). Seule l'**écriture** est fermée. Ce n'est pas une fuite — un rythme
+    de facturation n'est pas un montant — mais il faut le savoir avant d'y ranger quoi que ce soit
+    de sensible. Les montants, eux, sont sur `tarif` et `reglement`, tous deux fermés en lecture.
+
+    Le **défaut est `mensuel`**, en base comme dans `parametresRepo`. C'est toute la
+    rétro-compatibilité du lot : un centre qui ne dit rien se comporte exactement comme avant, et
+    aucun écran ne pose une question dont personne n'attendait la réponse. Les deux défauts doivent
+    rester d'accord, sans quoi la garantie ne tient que d'un côté.
+
+    ⚠️ **Ce lot change surtout le GRAIN**, ce qui dépasse le mode : le suivi passe de
+    `(cours, mois)` à `(inscription, période)`. Voir `reglement` au §4.
+
+    ⚠️ **Pas de prorata, dans aucun mode.** Un mois entamé est un mois dû ; rejoindre une session en
+    cours coûte le forfait entier. Le responsable corrige un montant à la main quand il le veut —
+    c'est la souplesse, pas une règle de calcul.
+
+    ⚠️ **Un forfait n'est « en retard » qu'une fois la session TERMINÉE**, jamais au premier jour
+    non payé. Le juger comme un mois ferait passer tout le monde en rouge le lundi de la rentrée, et
+    l'écran ne dirait plus rien.
+
+    ⚠️ **Un forfait suppose une session BORNÉE**, et la garde vaut dans les deux sens : P0080 refuse
+    un forfait sur une session sans `date_fin`, P0082 refuse de retirer la `date_fin` d'une session
+    qui en porte. Une garde à sens unique ne protégerait rien (leçon de 0020). En revanche la
+    **bascule de mode n'est jamais bloquée** : exiger de tout mettre en ordre avant de pouvoir
+    seulement essayer le mode serait un ordre absurde — l'écran signale les sessions concernées.
+
+    ⚠️ **P0081 garde la CRÉATION, pas la correction.** La période d'un règlement doit avoir la forme
+    du mode actif — mais à l'INSERT seulement. Un centre qui bascule doit pouvoir corriger un
+    montant saisi sous l'ancien régime : une faute de frappe ne doit pas devenir définitive parce
+    qu'on a changé de rythme entre-temps.
+
+    **Changer de mode ne détruit ni ne fige aucun règlement.** Le mode n'est pas verrouillé par
+    l'existence de règlements : punir un centre pour une ligne de test serait absurde. Les
+    règlements de l'autre mode restent en base, restent lisibles et restent modifiables.
+
+    Seuls les cours **actifs** sont facturés, comme avant 0026 et comme pour les séances. Pour clore
+    un cours en gardant ses périodes dues visibles, renseigner `date_fin` plutôt que changer le
+    statut.
+
+    ⚠️ **Le dû d'une ligne DÉJÀ ENREGISTRÉE est celui qu'elle porte**, pas le tarif courant. Sinon
+    porter un tarif de 15 000 à 20 000 réécrit le dû de janvier — à l'écran d'abord, puis en base à
+    la première correction, le dialogue renvoyant le montant affiché. Le tarif courant ne sert
+    qu'aux périodes pas encore réglées.
+
+    ⚠️ **« Aucun tarif saisi » ne se déduit PAS de l'absence de période.** `genererPeriodesDues`
+    rend une liste vide dans trois cas : l'apprenant est arrivé APRÈS le mois consulté, son cours
+    s'est terminé AVANT, ou le tarif manque vraiment. Les confondre faisait afficher « sans tarif »,
+    bouton désactivé, à tous ceux qui avaient rejoint plus tard.
+
+    ⚠️ **Ce qu'un écran n'affiche pas, il doit le DIRE.** Les règlements de l'autre forme de période
+    ne sont montrés nulle part : la page les compte et l'annonce, sans les mélanger aux totaux —
+    additionner un forfait et des mois donnerait un chiffre qui ne veut rien dire. Sans cela,
+    « vos règlements restent modifiables » était vrai en SQL et faux à l'écran.
+
+    L'assemblage du tableau vit dans `assemblerFacturation` (`shared/lib/facturation.ts`), **module
+    pur**, et non dans le hook : ce projet ne teste pas les hooks, et ces trois décisions portent sur
+    de l'argent.
+
+17. **Retrait d'un membre** (migration 0018). `retirer_membre(user_id, reaffecter_a)`,
     `security definer` — `membre` n'accorde ni `delete` ni policy de suppression à personne, cette
     RPC est donc le seul chemin, comme `racheter_invitation` l'est pour l'insertion.
 
@@ -684,7 +808,10 @@ fin)`, `security definer`, gardée `est_responsable()` et bornée à `centre_cou
 - Suivi pédagogique cumulé par apprenant (dernière leçon/page pour l'initiation ; dernière
   sourate+verset pour lecture/mémorisation) ; distinction nouveau vs révision (murâja'a) ;
   chaînage des exercices donnés → vérifiés.
-- Paiements mensuels + tableau de bord (consultation seule).
+- **Suivi des règlements, nominatif** : une ligne par apprenant et par période, dans le mode du
+  centre — mensuel, ou forfait couvrant toute la session. Tableau de bord en consultation, sans
+  relance (§5.5). L'ancien suivi par cours reste lisible dans la fiche du cours, sous un intitulé
+  qui dit qu'il précède la bascule.
 - **Rapport de fin de session** (`/cours/:coursId/rapport`, hors `AppLayout`) : feuille A4 paysage
   imprimable — présence par séance, notes de récitation, examen et note finale. Assemblé par
   `shared/lib/rapportSession.ts` (pur), imprimé via `window.print()` — aucune dépendance PDF. Son
@@ -739,6 +866,7 @@ psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/suivi_apprenant.sql
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/presence_seance_faite.sql
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/sessions.sql
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/reconduction.sql
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/facturation.sql
 ```
 
 ⚠️ `sessions.sql` couvre les migrations 0022 **et** 0023 : le scope de conflit, la clôture, et le
@@ -772,7 +900,8 @@ Les migrations qui verrouillent `cours` prennent un verrou exclusif : les lancer
 `-c "set lock_timeout='15s'"`, pour qu'une contention échoue bruyamment plutôt que d'attendre en
 silence derrière une connexion PostgREST restée ouverte.
 
-⚠️ Les migrations qui remplacent `enregistrer_cours` se succèdent (0002, 0012, 0013, 0014, 0022) :
+⚠️ Les migrations qui remplacent `enregistrer_cours` se succèdent (0002, 0012, 0013, 0014, 0022,
+0026) :
 rejouer une ancienne après une plus récente **restaure son comportement**. L'idempotence se
 vérifie en rejouant une migration juste après elle-même, jamais dans le désordre.
 
@@ -853,6 +982,32 @@ dont dépend le typage de `createClient`.
   constante (`SESSION_TERMINEE`).
 - Ne pas se fier à `created_at` pour départager deux lignes créées dans la MÊME transaction : son
   défaut `now()` est le temps de transaction, identique pour toutes.
+- Ne pas écrire `drop constraint if exists` puis `add` pour une contrainte dont une clé étrangère
+  DÉPEND : le `drop` échoue au second passage (« other objects depend on it ») et la migration
+  entière avorte. Le motif est juste pour un `check`, faux pour une contrainte unique référencée.
+  Un défaut qu'on ne voit qu'en REJOUANT.
+- Ne pas écrire `select count(*) … for update` : PostgreSQL refuse (« FOR UPDATE is not allowed with
+  aggregate functions »), et un trigger écrit ainsi lève 0A000 à chaque appel — il refuse donc TOUT,
+  y compris ce qu'il devait laisser passer. Verrouiller par un `perform`, compter ensuite.
+- Ne pas laisser un trigger BEFORE couvrir une clé étrangère d'un diagnostic faux : il parle AVANT
+  elle. `reglement_coherent` teste `found` pour laisser la FK dire « ce n'est pas votre centre »
+  plutôt que d'annoncer une date de fin manquante.
+- Ne pas oublier qu'un trigger BEFORE parle aussi avant les `check` ET avant la policy RLS : pour
+  éprouver une contrainte de structure, il faut suspendre le trigger, sinon le test est vert
+  au-dessus de rien.
+- Ne pas construire une chaîne `select` PostgREST par concaténation : elle devient `string` pour
+  TypeScript, l'inférence de `supabase-js` retombe sur `GenericStringError[]`, et le résultat cesse
+  d'être typé sans que rien ne signale la vraie cause.
+- Ne pas viser un index PARTIEL avec `onConflict` : PostgREST attend une contrainte nommée. Lire
+  puis insérer ou mettre à jour.
+- Ne pas recopier une ligne dans une RPC sans revenir sur TOUTES celles qui la recopient déjà :
+  `prix_session` ajouté à `tarif` en 0026 était oublié par `reconduire_session` (0024), et chaque
+  reconduction perdait silencieusement tous les forfaits du centre. Le test de reconduction
+  n'assertait que `prix_mensuel` — il est resté vert.
+- Ne pas déduire un diagnostic de l'ABSENCE d'un résultat sans vérifier qu'il n'a qu'une cause :
+  une liste vide de périodes voulait dire trois choses, et l'écran en accusait toujours la même.
+- Ne pas mélanger `toISOString()` (UTC) et `getMonth()` (local) dans un même calcul de date : la
+  bascule d'un statut se décale d'un jour selon le fuseau, et pour le seul jour où cela compte.
 - Ne pas oublier d'ajouter un nouveau code métier `P00xx` à `shared/supabase/erreurs.ts` :
   sans cela, le message rédigé côté base s'affiche préfixé du contexte.
 - Ne pas se fier à un `select` de trigger pour arbitrer une concurrence : en READ COMMITTED il ne
