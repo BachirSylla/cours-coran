@@ -801,6 +801,60 @@ fin)`, `security definer`, gardée `est_responsable()` et bornée à `centre_cou
 
 ## 6. Fonctionnalités
 
+- **Tableau de bord** (`/`, l'accueil) : l'état du centre d'un coup d'œil. Deux écrans en un selon
+  qui regarde — le **responsable** voit d'abord l'argent (reste à encaisser, impayés **nominatifs**,
+  encaissements sur six mois, recouvrement, résumé par enseignant), un **enseignant** voit une
+  version pédagogique (ses cours du jour, ses séances à saisir, l'assiduité de ses groupes) et
+  **jamais** les finances du centre.
+
+  ⚠️ Ce n'est pas la page qui protège l'argent : la RLS le fait (`reglement` et `tarif` sont gardées
+  `est_responsable()` en LECTURE). Le partage d'écran évite de montrer des cartes vides, qui se
+  liraient comme une panne.
+
+  ⚠️ **Il ne recalcule aucun montant.** Tout ce qui touche à l'argent vient de `useReglements`, donc
+  de `assemblerFacturation` : c'est la seule façon que l'accueil et la page Paiements ne se
+  contredisent jamais, et c'est ce qui préserve l'invariant de 0026 — changer un tarif ne fait pas
+  bouger un « encaissé » passé. Une agrégation SQL parallèle aurait créé une seconde source de
+  vérité sur l'argent.
+
+  ⚠️ **Aucune RPC, aucun `security definer`.** Le tableau de bord ne fait que regrouper ce que le
+  viewer avait déjà le droit de lire ; les deux seules requêtes propres (`tableauDeBordRepo`)
+  passent par le client ordinaire. Le prix est quelques requêtes parallèles de plus — jamais de
+  N+1 — et c'est le bon prix.
+
+  ⚠️ **L'assemblage de l'écran est PUR** (`assemblerTableauDeBord`), pas dans le hook. Ce projet
+  ne teste pas les hooks : tant que ces décisions y vivaient, le test de la page ne vérifiait
+  qu'une propriété de son propre mock — « une page à qui l'on passe `argent: null` n'affiche pas
+  d'argent ». Cinq bugs s'y cachaient, dont un qui annonçait « Reste à encaisser 0 · 3 personnes
+  concernées » juste au-dessus d'une carte disant « Tout est réglé ».
+
+  ⚠️ **Le mois d'argent est borné à la session affichée.** Pris au mois courant en dur, il rendait
+  une liste d'impayés vide — donc un « Tout est réglé » mensonger — dès qu'on consultait une
+  session terminée.
+
+  ⚠️ **La courbe a sa PROPRE lecture** (`listReglementsDesCours`). Puisée dans les lignes de
+  facturation, elle ne pouvait montrer que le mois consulté : `assemblerFacturation` filtre déjà
+  sur la période affichée, et cinq des six barres étaient structurellement vides.
+
+  ⚠️ **`isError` couvre TOUTES les requêtes.** N'en surveiller que trois faisait lire un 500
+  transitoire comme une bonne nouvelle : « Assiduité — · 0 absence », « Tout est réglé ». Une
+  erreur doit se taire, jamais affirmer. Et `isPending` couvre les requêtes propres au lot, sinon
+  un « 0 » fugace s'affiche avant que les chiffres sautent.
+
+  ⚠️ **`listPointages` est PAGINÉ.** PostgREST plafonne à `max_rows` (1000) et **coupe en
+  silence** : au-delà, l'assiduité aurait été calculée sur un sous-ensemble arbitraire, sans erreur
+  ni indice.
+
+  Les métriques dérivées vivent dans `shared/lib/tableauDeBord.ts`, **module pur** : assiduité,
+  alertes graduées, impayés, encaissements, renouvellement d'une session à l'autre. Ce dernier se
+  mesure **par personne** (via `cours.reconduit_de`, 0024) : qui passe de « Niveau 1 » à
+  « Niveau 2 » est **revenu**, pas parti puis nouveau.
+
+  Trois partis pris de contenu : une valeur qui n'a rien à mesurer vaut **`null`, jamais `0`** — un
+  centre neuf ne doit pas lire « 0 % d'assiduité », qui est un reproche adressé à quelqu'un qui n'a
+  encore rien manqué ; la gravité d'une alerte vient de l'**ancienneté**, pas du nombre ; et le
+  bouton de visioconférence s'appelle **« Lien »**, jamais « Meet » — `cours.lien_meet` n'est qu'une
+  URL, et tous les centres ne sont pas sur Google.
 - Vue principale : **grille hebdomadaire** (jours × heures), blocs colorés, **conflit visible
   immédiatement** à la création/déplacement d'un cours.
 - Fiches apprenants et cours (individuel/groupe via `inscription`).
@@ -1008,6 +1062,16 @@ dont dépend le typage de `createClient`.
   une liste vide de périodes voulait dire trois choses, et l'écran en accusait toujours la même.
 - Ne pas mélanger `toISOString()` (UTC) et `getMonth()` (local) dans un même calcul de date : la
   bascule d'un statut se décale d'un jour selon le fuseau, et pour le seul jour où cela compte.
+- Ne pas déduire un compte de PERSONNES d'un compte de LIGNES : au grain
+  `(inscription, période)`, quelqu'un inscrit à deux cours est deux lignes et une seule personne.
+- Ne pas rapatrier une table sans pagination en se disant « il n'y en aura pas tant » : PostgREST
+  coupe à `max_rows` **sans rien dire**, et le calcul devient faux en silence.
+- Ne pas laisser une garde d'erreur ne surveiller qu'une partie des requêtes : l'écran affirme
+  alors au lieu de se taire, et une panne se lit comme une bonne nouvelle.
+- Ne pas afficher `0` là où la donnée n'existe pas : un taux sans mesure vaut `null`, et l'écran
+  montre un tiret. « 0 % » est un jugement, pas une absence.
+- Ne pas recalculer un montant hors de `facturation.ts`, même « juste pour un total » : deux écrans
+  se mettraient à dire deux choses, et le passé cesserait d'être figé.
 - Ne pas oublier d'ajouter un nouveau code métier `P00xx` à `shared/supabase/erreurs.ts` :
   sans cela, le message rédigé côté base s'affiche préfixé du contexte.
 - Ne pas se fier à un `select` de trigger pour arbitrer une concurrence : en READ COMMITTED il ne

@@ -54,6 +54,7 @@ function ligne(
 ): LigneFacturation {
   return {
     inscription_id: `insc-${apprenant}`,
+    apprenant_id: `app-${apprenant}`,
     mois: '2026-08',
     session_id: null,
     montant_du,
@@ -105,6 +106,21 @@ describe('PaiementsPage', () => {
 
     expect(screen.getByRole('status')).toBeInTheDocument()
     expect(screen.getByText(/chargement des règlements/i)).toBeInTheDocument()
+  })
+
+  /*
+   * ⚠️ RÉGRESSION À NE PAS REFAIRE : `useReglements` accepte un drapeau `actif`,
+   * pour que le tableau de bord n'interroge pas l'argent au nom d'un enseignant.
+   * Une requête `enabled: false` n'est JAMAIS résolue par TanStack Query : si
+   * `isPending` ne tenait pas compte du drapeau, l'écran resterait en chargement
+   * pour toujours — un sablier éternel, pire qu'un message d'échec.
+   */
+  it('n’attend pas une requête qui ne partira jamais', () => {
+    simuler({ isPending: false, lignes: [] })
+    afficher()
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.getByText('Rien à facturer ce mois-ci')).toBeInTheDocument()
   })
 
   it('affiche l’erreur quand le chargement échoue', () => {

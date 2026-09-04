@@ -358,6 +358,8 @@ export interface InscriptionAffichable extends InscriptionFacturable {
 
 export interface LigneAffichable<T extends ReglementRapprochable = ReglementRapprochable>
   extends LigneReglement<T> {
+  /** L'identité de la personne — pour compter des gens, pas des lignes. */
+  apprenant_id: string
   apprenant: string
   cours_libelle: string
   devise: string
@@ -417,6 +419,7 @@ export function assemblerFacturation<T extends ReglementRapprochable>(
 
     return {
       ...ligne,
+      apprenant_id: une?.apprenant_id ?? '',
       apprenant: une?.apprenant ?? 'Apprenant retiré',
       cours_libelle: une?.cours_libelle ?? 'Cours supprimé',
       devise: une?.devise ?? 'XOF',
@@ -451,6 +454,7 @@ export function assemblerFacturation<T extends ReglementRapprochable>(
       statut: 'attente',
       reglement: null,
       horsPeriode: false,
+      apprenant_id: une.apprenant_id,
       apprenant: une.apprenant,
       cours_libelle: une.cours_libelle,
       devise: une.devise,

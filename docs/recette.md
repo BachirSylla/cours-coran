@@ -1278,3 +1278,66 @@ inter-centre, grain nominatif :
 ```bash
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/facturation.sql
 ```
+
+---
+
+## Tableau de bord (écran d'accueil)
+
+L'accueil donne l'état du centre sans ouvrir cours par cours. Le **planning** a
+sa propre entrée dans la navigation — il n'a rien perdu.
+
+### 87. Ce que voit un responsable
+
+1. Se connecter et rester sur l'accueil.
+
+**Attendu**, dans cet ordre : ce qu'il reste **à encaisser** (mis en avant),
+l'encaissé de la période, les séances à renseigner, les apprenants actifs. Puis
+« Qui n'a pas payé » — **nominatif**, avec le reste dû de chacun — les cours du
+jour, la courbe des encaissements, et les indicateurs.
+
+La période affichée suit le **mode de facturation** : le mois en cours en
+mensuel, la session au forfait.
+
+### 88. Ce que voit un enseignant
+
+1. Ouvrir l'accueil depuis un compte enseignant.
+
+**Attendu** : **aucun montant, nulle part**. Ni « reste à encaisser », ni
+« encaissé », ni « qui n'a pas payé », ni courbe, ni résumé par enseignant. Il
+voit ses cours du jour, ses séances à renseigner et l'assiduité de ses groupes.
+
+⚠️ Ce n'est pas seulement l'écran qui protège : la base refuse déjà de lui
+donner les règlements et les tarifs.
+
+### 89. Les alertes
+
+**Attendu** : elles portent un liseré dont la couleur suit la gravité, et
+l'urgent passe en tête. Une séance oubliée depuis trois semaines est plus grave
+que dix oubliées hier — c'est l'**ancienneté** qui décide, pas le nombre.
+
+Cliquer sur une alerte ouvre l'écran qui permet de la corriger.
+
+### 90. Une session sans date de fin
+
+**Attendu** : **aucune** alerte « se termine ». Une session perpétuelle ne se
+termine pas — c'est le cas de tout centre qui n'utilise pas les sessions, et
+l'alerter reviendrait à l'alerter chaque jour pour rien.
+
+Avec une date de fin à moins de 30 jours, l'alerte apparaît et invite à
+reconduire.
+
+### 91. Un centre neuf
+
+1. Ouvrir l'accueil sur un centre sans cours ni apprenant.
+
+**Attendu** : aucun plantage, aucun « 0 % », aucun « NaN ». Les indicateurs sans
+mesure affichent un tiret, et les listes vides expliquent ce qu'on y verra.
+
+### 92. Le montant reste figé
+
+1. Noter l'encaissé d'un mois passé.
+2. **Cours** → modifier le tarif du cours.
+3. Revenir à l'accueil.
+
+**Attendu** : l'encaissé du mois passé **n'a pas bougé**. Un changement de tarif
+ne réécrit jamais une période déjà réglée.

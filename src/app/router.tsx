@@ -14,6 +14,12 @@ import { NotFoundPage } from '@/app/routes/NotFoundPage'
  * évite de servir toute l'application au premier écran (le `Suspense` qui les
  * accueille est posé autour de l'`Outlet` dans `AppLayout`).
  */
+const TableauDeBordPage = lazy(() =>
+  import('@/features/tableauDeBord/TableauDeBordPage').then((module) => ({
+    default: module.TableauDeBordPage,
+  }))
+)
+
 const PlanningPage = lazy(() =>
   import('@/features/planning/PlanningPage').then((module) => ({
     default: module.PlanningPage,
@@ -135,7 +141,8 @@ const router = createBrowserRouter([
             path: '/',
             element: <AppLayout />,
             children: [
-              { index: true, element: <PlanningPage /> },
+              { index: true, element: <TableauDeBordPage /> },
+              { path: 'planning', element: <PlanningPage /> },
               { path: 'cours', element: <CoursPage /> },
               { path: 'seances', element: <SeancesSemainePage /> },
               { path: 'apprenants', element: <ApprenantsPage /> },

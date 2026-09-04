@@ -36,23 +36,25 @@ export const reglementKeys = {
 }
 
 function useInscriptionsAFacturer(
-  sessionId: string | undefined
+  sessionId: string | undefined,
+  actif: boolean
 ): UseQueryResult<InscriptionAFacturer[], Error> {
   return useQuery({
     queryKey: [...reglementKeys.session(sessionId ?? ''), 'inscriptions'],
     queryFn: () => reglementRepo.listAFacturer(sessionId as string),
-    enabled: Boolean(sessionId),
+    enabled: actif && Boolean(sessionId),
   })
 }
 
 function useReglementsEnregistres(
   sessionId: string | undefined,
-  inscriptionIds: readonly string[]
+  inscriptionIds: readonly string[],
+  actif: boolean
 ): UseQueryResult<Reglement[], Error> {
   return useQuery({
     queryKey: [...reglementKeys.session(sessionId ?? ''), 'lignes', inscriptionIds.join(',')],
     queryFn: () => reglementRepo.listPourInscriptions(inscriptionIds),
-    enabled: Boolean(sessionId),
+    enabled: actif && Boolean(sessionId),
   })
 }
 
@@ -89,6 +91,11 @@ function compterParStatut(lignes: readonly LigneFacturation[]): Record<StatutPai
  * En mode mensuel, `mois` désigne le mois affiché ; au forfait il est ignoré —
  * la période est la session, et il n'y en a qu'une.
  *
+ * `actif` à `false` n'émet AUCUNE requête et rend un résultat vide, résolu. Il
+ * sert au tableau de bord, qui n'a rien à demander quand le viewer est un
+ * enseignant : la RLS lui rendrait de toute façon zéro règlement, mais autant ne
+ * pas payer l'aller-retour sur l'écran le plus ouvert de l'application.
+ *
  * ⚠️ Le mois de référence des STATUTS est le mois RÉEL, jamais celui qu'on
  * consulte : sinon un mois passé s'afficherait « en attente » au lieu d'« en
  * retard », et ce statut ne se verrait jamais nulle part.
@@ -97,18 +104,18 @@ function compterParStatut(lignes: readonly LigneFacturation[]): Record<StatutPai
  * clore un cours en gardant ses périodes dues visibles, renseigner `date_fin`
  * plutôt que changer le statut.
  */
-export function useReglements(mois: string): ResultatFacturation {
+export function useReglements(mois: string, actif = true): ResultatFacturation {
   const parametres = useParametres()
   const { session, erreur: erreurSession } = useSessionActive()
 
-  const requeteInscriptions = useInscriptionsAFacturer(session?.id)
+  const requeteInscriptions = useInscriptionsAFacturer(session?.id, actif)
   const inscriptions = useMemo(
     () => requeteInscriptions.data ?? [],
     [requeteInscriptions.data]
   )
   const ids = useMemo(() => inscriptions.map((une) => une.id), [inscriptions])
 
-  const requeteReglements = useReglementsEnregistres(session?.id, ids)
+  const requeteReglements = useReglementsEnregistres(session?.id, ids, actif)
 
   const mode = parametres.data?.mode_facturation ?? MODE_FACTURATION_PAR_DEFAUT
 
@@ -119,7 +126,7 @@ export function useReglements(mois: string): ResultatFacturation {
       autreMode: { nombre: 0, recu: 0 },
     }
 
-    if (requeteReglements.data === undefined) return vide
+    if (!actif || requeteReglements.data === undefined) return vide
 
     /*
      * ⚠️ Seuls les cours ACTIFS sont facturés, comme avant 0026 et comme pour
@@ -168,7 +175,7 @@ export function useReglements(mois: string): ResultatFacturation {
     }
 
     return assemblerFacturation(affichables, requeteReglements.data, mode, mois, contexte)
-  }, [inscriptions, requeteReglements.data, mode, mois])
+  }, [actif, inscriptions, requeteReglements.data, mode, mois])
 
   const parStatut = useMemo(
     () => compterParStatut(lignes.filter((ligne) => !ligne.tarifManquant)),
@@ -182,8 +189,15 @@ export function useReglements(mois: string): ResultatFacturation {
     parStatut,
     autreMode,
     session: session ?? null,
+    /*
+     * ⚠️ `isPending` reste VRAI tant qu'une requête `enabled: false` n'a pas
+     * couru — TanStack Query ne la résout jamais. Sans le `actif &&`, l'écran
+     * d'un enseignant resterait en chargement pour toujours : un sablier
+     * éternel, pire qu'un message d'échec.
+     */
     isPending:
-      parametres.isPending || requeteInscriptions.isPending || requeteReglements.isPending,
+      parametres.isPending ||
+      (actif && (requeteInscriptions.isPending || requeteReglements.isPending)),
     isError: Boolean(erreurSession) || requeteInscriptions.isError || requeteReglements.isError,
     error: erreurSession ?? requeteInscriptions.error ?? requeteReglements.error,
   }

@@ -62,7 +62,7 @@ describe('AppLayout — navigation selon le rôle', () => {
 
     afficher()
 
-    for (const nom of ['Planning', 'Cours', 'Séances', 'Apprenants', 'Paiements']) {
+    for (const nom of ['Accueil', 'Planning', 'Cours', 'Séances', 'Apprenants', 'Paiements']) {
       expect(onglet(nom), nom).toBeInTheDocument()
     }
   })
@@ -73,7 +73,7 @@ describe('AppLayout — navigation selon le rôle', () => {
     afficher()
 
     expect(onglet('Paiements')).not.toBeInTheDocument()
-    for (const nom of ['Planning', 'Cours', 'Séances', 'Apprenants']) {
+    for (const nom of ['Accueil', 'Planning', 'Cours', 'Séances', 'Apprenants']) {
       expect(onglet(nom), nom).toBeInTheDocument()
     }
   })

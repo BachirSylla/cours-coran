@@ -4,6 +4,7 @@ import {
   BookOpen,
   CalendarCheck,
   CalendarDays,
+  LayoutDashboard,
   Loader2,
   LogOut,
   Moon,
@@ -29,7 +30,14 @@ import { PwaInstallPrompt } from '@/shared/ui/PwaInstallPrompt'
  * est pire qu'un onglet absent (migration 0012).
  */
 const NAVIGATION = [
-  { to: '/', libelle: 'Planning', icone: CalendarDays, exact: true, responsable: false },
+  { to: '/', libelle: 'Accueil', icone: LayoutDashboard, exact: true, responsable: false },
+  {
+    to: '/planning',
+    libelle: 'Planning',
+    icone: CalendarDays,
+    exact: false,
+    responsable: false,
+  },
   { to: '/cours', libelle: 'Cours', icone: BookOpen, exact: false, responsable: false },
   {
     to: '/seances',
