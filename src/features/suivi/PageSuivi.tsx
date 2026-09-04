@@ -21,12 +21,18 @@ import { useTheme } from '@/shared/lib/useTheme'
 import type {
   AssiduiteSuivi,
   EvaluationSuivi,
-  SuiviApprenant,
+  ParcoursApprenant,
+  SuiviCours,
 } from '@/shared/supabase/suiviSchema'
 import { useSuiviApprenant } from '@/features/suivi/hooks/useSuiviApprenant'
 
 /**
- * Suivi privé d'un apprenant — le second écran accessible **sans compte**.
+ * Parcours privé d'un apprenant — le second écran accessible **sans compte**.
+ *
+ * Depuis 0025, le lien ne montre plus un cours mais TOUT le parcours de son
+ * porteur dans ce centre : un bloc par cours suivi, sessions comprises. Un
+ * apprenant n'a qu'une progression — lui donner un lien par cours l'obligeait à
+ * jongler avec trois adresses pour la lire.
  *
  * Ce que la page montre appartient à une seule personne et la nomme. Trois
  * partis pris en découlent :
@@ -44,15 +50,16 @@ import { useSuiviApprenant } from '@/features/suivi/hooks/useSuiviApprenant'
  */
 export function PageSuivi() {
   const { jeton } = useParams<{ jeton: string }>()
-  const { data: suivi, isPending, isError } = useSuiviApprenant(jeton)
+  const { data: parcours, isPending, isError } = useSuiviApprenant(jeton)
 
   // La classe `dark` est posée par `AppLayout`, qui n'entoure pas cette page.
   useTheme()
   useSansIndexation()
 
   useEffect(() => {
-    document.title = suivi ? `${suivi.apprenant} — Suivi` : 'Suivi'
-  }, [suivi])
+    // Tous les blocs portent le même apprenant : le premier suffit.
+    document.title = parcours?.[0] ? `${parcours[0].apprenant} — Suivi` : 'Suivi'
+  }, [parcours])
 
   return (
     <div className="flex min-h-dvh flex-col bg-background px-4 py-8 sm:py-12">
@@ -77,29 +84,34 @@ export function PageSuivi() {
 
         {/* Révoqué, régénéré, inventé, tronqué : un seul message, le même dans
             les quatre cas. En dire plus dirait qu'un apprenant existe. */}
-        {!isPending && !isError && !suivi && <LienInvalide />}
+        {!isPending && !isError && !parcours && <LienInvalide />}
 
-        {!isPending && !isError && suivi && <FicheSuivi suivi={suivi} />}
+        {!isPending && !isError && parcours && <Parcours parcours={parcours} />}
       </main>
     </div>
   )
 }
 
-function FicheSuivi({ suivi }: { suivi: SuiviApprenant }) {
-  const notees = suivi.evaluations
-  const pourcentages = notees.map((evaluation) =>
-    noteEnPourcentage(evaluation.note, evaluation.bareme)
-  )
+/**
+ * Le parcours entier : un en-tête pour la personne, puis un bloc par cours.
+ *
+ * ⚠️ L'ordre est INVERSÉ pour l'affichage. SQL rend le parcours du plus ancien
+ * au plus récent — c'est la chronologie, et c'est le bon ordre pour la donnée.
+ * Mais on ouvre ce lien pour voir sa dernière note, pas celle d'il y a deux ans :
+ * le cours en cours vient donc en premier, et l'historique se déroule dessous.
+ * C'est la même règle que les récitations à l'intérieur d'un bloc.
+ */
+function Parcours({ parcours }: { parcours: ParcoursApprenant }) {
+  const duPlusRecent = [...parcours].reverse()
+  const dernier = duPlusRecent[0]!
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <header className="space-y-3 text-center">
-        {suivi.logo ? (
-          <img
-            src={suivi.logo}
-            alt=""
-            className="mx-auto size-14 rounded-2xl object-contain"
-          />
+        {/* Le logo du cours le plus récent : c'est celui du centre s'il n'en a
+            pas à lui, et c'est de toute façon l'actualité de l'apprenant. */}
+        {dernier.logo ? (
+          <img src={dernier.logo} alt="" className="mx-auto size-14 rounded-2xl object-contain" />
         ) : (
           <span className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
             <BookOpen className="size-6" aria-hidden="true" />
@@ -108,32 +120,75 @@ function FicheSuivi({ suivi }: { suivi: SuiviApprenant }) {
 
         <div>
           {/* Le nom d'abord : on vérifie d'un coup d'œil qu'on est sur la bonne
-              page — qui suit plusieurs cours détient plusieurs liens. */}
+              page. */}
           <h1 className="text-2xl leading-tight font-semibold tracking-tight text-balance">
-            {suivi.apprenant}
+            {dernier.apprenant}
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {suivi.cours_libelle} · {suivi.type_libelle}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {suivi.enseignant ? `avec ${suivi.enseignant} · ` : ''}
-            {suivi.centre_nom}
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">{dernier.centre_nom}</p>
         </div>
       </header>
 
-      <EtatSession statut={suivi.statut} />
+      {duPlusRecent.map((cours, index) => (
+        /*
+         * Aucun identifiant interne ne sort de SQL — c'est voulu (§5.8). La clé
+         * combine donc le libellé et le rang, stable tant que l'ordre l'est.
+         */
+        <BlocCours
+          key={`${cours.cours_libelle}-${index}`}
+          cours={cours}
+          historique={index > 0}
+        />
+      ))}
 
-      {suivi.exercices && (
-        <section className="rounded-xl bg-accent px-4 py-4 text-accent-foreground">
-          <h2 className="flex items-center gap-2 text-xs font-medium tracking-wide uppercase opacity-80">
+      <p className="pt-2 text-center text-xs text-muted-foreground">
+        Ce lien est personnel. Toute personne qui l'ouvre voit ces informations : merci de ne
+        pas le transmettre.
+      </p>
+    </div>
+  )
+}
+
+/**
+ * Un cours du parcours.
+ *
+ * `historique` ne change pas ce qui est montré — tout reste lisible — mais pose
+ * un liseré et atténue le titre : la page doit dire d'un coup d'œil où finit
+ * l'actualité et où commence le passé, sans rien cacher.
+ */
+function BlocCours({ cours, historique }: { cours: SuiviCours; historique: boolean }) {
+  const notees = cours.evaluations
+  const pourcentages = notees.map((evaluation) =>
+    noteEnPourcentage(evaluation.note, evaluation.bareme)
+  )
+
+  return (
+    <section
+      className={
+        historique ? 'space-y-4 border-t pt-6 opacity-90' : 'space-y-4'
+      }
+    >
+      <div className="text-center">
+        <h2 className="leading-tight font-semibold tracking-tight text-balance">
+          {cours.cours_libelle}
+        </h2>
+        <p className="text-xs text-muted-foreground">
+          {cours.type_libelle}
+          {cours.enseignant ? ` · avec ${cours.enseignant}` : ''}
+        </p>
+      </div>
+
+      <EtatSession statut={cours.statut} />
+
+      {cours.exercices && (
+        <div className="rounded-xl bg-accent px-4 py-4 text-accent-foreground">
+          <h3 className="flex items-center gap-2 text-xs font-medium tracking-wide uppercase opacity-80">
             <NotebookPen className="size-4" aria-hidden="true" />À préparer
-          </h2>
-          <p className="mt-2 text-sm whitespace-pre-line">{suivi.exercices}</p>
-        </section>
+          </h3>
+          <p className="mt-2 text-sm whitespace-pre-line">{cours.exercices}</p>
+        </div>
       )}
 
-      <Assiduite assiduite={suivi.assiduite} />
+      <Assiduite assiduite={cours.assiduite} />
 
       {/* Une seule note ne dessine pas une évolution : `Sparkline` le sait, mais
           le titre et le cadre n'auraient pas de sens non plus. */}
@@ -145,7 +200,7 @@ function FicheSuivi({ suivi }: { suivi: SuiviApprenant }) {
             hauteur={72}
             tousLesPoints
             className="h-auto w-full"
-            titre={`Évolution des notes de ${suivi.apprenant}`}
+            titre={`Évolution des notes de ${cours.apprenant} en ${cours.cours_libelle}`}
           />
           <p className="mt-2 flex justify-between text-xs text-muted-foreground tabular-nums">
             <span>{formaterJourCourt(notees[0]!.date)}</span>
@@ -156,19 +211,14 @@ function FicheSuivi({ suivi }: { suivi: SuiviApprenant }) {
 
       <Evaluations evaluations={notees} />
 
-      {suivi.examen && (
+      {cours.examen && (
         <Bloc icone={GraduationCap} titre="Examen de fin de session">
           <p className="text-2xl font-semibold tabular-nums">
-            {formaterNote(suivi.examen.note, suivi.examen.bareme)}
+            {formaterNote(cours.examen.note, cours.examen.bareme)}
           </p>
         </Bloc>
       )}
-
-      <p className="pt-2 text-center text-xs text-muted-foreground">
-        Ce lien est personnel. Toute personne qui l'ouvre voit ces informations : merci de ne
-        pas le transmettre.
-      </p>
-    </div>
+    </section>
   )
 }
 
@@ -204,8 +254,8 @@ function Assiduite({ assiduite }: { assiduite: AssiduiteSuivi }) {
   ].filter((chiffre) => chiffre.toujours || chiffre.valeur > 0)
 
   return (
-    <section className="rounded-xl border p-4">
-      <h2 className="sr-only">Assiduité</h2>
+    <div className="rounded-xl border p-4">
+      <h3 className="sr-only">Assiduité</h3>
       <dl className="flex flex-wrap justify-around gap-4 text-center">
         {chiffres.map((chiffre) => (
           <div key={chiffre.singulier}>
@@ -220,7 +270,7 @@ function Assiduite({ assiduite }: { assiduite: AssiduiteSuivi }) {
         Sur {assiduite.seances} séance{assiduite.seances > 1 ? 's' : ''} tenue
         {assiduite.seances > 1 ? 's' : ''}.
       </p>
-    </section>
+    </div>
   )
 }
 
@@ -303,13 +353,13 @@ function Bloc({
   children: React.ReactNode
 }) {
   return (
-    <section className="rounded-xl border p-4">
-      <h2 className="mb-3 flex items-center gap-2 text-sm font-medium">
+    <div className="rounded-xl border p-4">
+      <h3 className="mb-3 flex items-center gap-2 text-sm font-medium">
         <Icone className="size-4 text-muted-foreground" aria-hidden="true" />
         {titre}
-      </h2>
+      </h3>
       {children}
-    </section>
+    </div>
   )
 }
 

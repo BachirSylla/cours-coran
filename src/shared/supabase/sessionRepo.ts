@@ -24,6 +24,15 @@ export type SessionInput = Omit<
 export const STATUTS_SESSION = ['en_cours', 'terminee'] as const
 export type StatutSession = (typeof STATUTS_SESSION)[number]
 
+/*
+ * ⚠️ Le littéral une seule fois, ici. La contrainte de la base n'accepte que ces
+ * deux valeurs, mais `session.statut` est typé `string` par les types générés :
+ * un « cloturee » écrit à la main dans un composant compile, passe les tests si
+ * la fixture porte la même faute, et produit une branche morte que rien ne
+ * signale. C'est arrivé.
+ */
+export const SESSION_TERMINEE: StatutSession = 'terminee'
+
 /**
  * Toutes les sessions du centre, la plus récente en tête.
  *

@@ -47,3 +47,22 @@ export function useRegenererSuivi(): UseMutationResult<string, Error, CibleSuivi
 export function useRevoquerSuivi(): UseMutationResult<void, Error, CibleSuivi> {
   return useMutationSuivi(inscriptionRepo.revoquerSuivi)
 }
+
+/**
+ * Ferme TOUS les liens d'un apprenant, et rend leur nombre (migration 0025).
+ *
+ * ⚠️ Elle ne passe pas par `useMutationSuivi` : elle ne vise pas une inscription
+ * mais une personne, et touche des inscriptions d'autres cours — dont ceux qui
+ * ne sont pas à l'écran. Toutes les listes d'inscriptions sont donc invalidées,
+ * pas seulement les deux vues de la liaison courante.
+ */
+export function useRevoquerSuiviApprenant(): UseMutationResult<number, Error, string> {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: inscriptionRepo.revoquerSuiviApprenant,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: inscriptionKeys.tous })
+    },
+  })
+}

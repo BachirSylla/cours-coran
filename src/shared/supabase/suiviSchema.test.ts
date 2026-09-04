@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { suiviApprenantSchema } from '@/shared/supabase/suiviSchema'
+import { parcoursApprenantSchema, suiviCoursSchema } from '@/shared/supabase/suiviSchema'
 
 /**
  * Ce schéma est la **deuxième** barrière du suivi apprenant : si la fonction
@@ -32,9 +32,9 @@ const suiviValide = {
   exercices: 'Réviser la page 72.',
 }
 
-describe('suiviApprenantSchema', () => {
+describe('suiviCoursSchema', () => {
   it('accepte un suivi complet', () => {
-    const resultat = suiviApprenantSchema.safeParse(suiviValide)
+    const resultat = suiviCoursSchema.safeParse(suiviValide)
 
     expect(resultat.success).toBe(true)
     expect(resultat.data?.apprenant).toBe('Aïcha Diallo')
@@ -42,7 +42,7 @@ describe('suiviApprenantSchema', () => {
   })
 
   it('supprime toute clé hors liste blanche — le payload hostile', () => {
-    const resultat = suiviApprenantSchema.parse({
+    const resultat = suiviCoursSchema.parse({
       ...suiviValide,
       // Ce qu'une fonction élargie par inadvertance pourrait laisser filer.
       prix_mensuel: 15000,
@@ -72,7 +72,7 @@ describe('suiviApprenantSchema', () => {
   })
 
   it("nettoie aussi l'intérieur des évaluations", () => {
-    const resultat = suiviApprenantSchema.parse({
+    const resultat = suiviCoursSchema.parse({
       ...suiviValide,
       evaluations: [
         {
@@ -96,7 +96,7 @@ describe('suiviApprenantSchema', () => {
   })
 
   it('rétablit la nullabilité que les types générés perdent', () => {
-    const resultat = suiviApprenantSchema.parse({
+    const resultat = suiviCoursSchema.parse({
       ...suiviValide,
       enseignant: null,
       logo: null,
@@ -114,15 +114,89 @@ describe('suiviApprenantSchema', () => {
   it("échoue si l'assiduité manque — le compteur n'a pas de valeur par défaut sensée", () => {
     const { assiduite: _assiduite, ...sansAssiduite } = suiviValide
 
-    expect(suiviApprenantSchema.safeParse(sansAssiduite).success).toBe(false)
+    expect(suiviCoursSchema.safeParse(sansAssiduite).success).toBe(false)
   })
 
   it('échoue sur une note sans barème', () => {
-    const resultat = suiviApprenantSchema.safeParse({
+    const resultat = suiviCoursSchema.safeParse({
       ...suiviValide,
       examen: { note: 15 },
     })
 
     expect(resultat.success).toBe(false)
+  })
+})
+
+/*
+ * Depuis 0025, la fonction rend PLUSIEURS lignes. Le contrat qui compte est que
+ * la liste blanche n'ait pas bougé pour autant : agréger des sessions ajoute des
+ * lignes, jamais des colonnes.
+ */
+describe('parcoursApprenantSchema', () => {
+  it('accepte un parcours de plusieurs cours', () => {
+    const resultat = parcoursApprenantSchema.safeParse([
+      suiviValide,
+      { ...suiviValide, cours_libelle: 'Coran niveau 1' },
+    ])
+
+    expect(resultat.success).toBe(true)
+    expect(resultat.data).toHaveLength(2)
+  })
+
+  it("préserve l'ordre rendu par SQL — il porte la chronologie", () => {
+    const resultat = parcoursApprenantSchema.parse([
+      { ...suiviValide, cours_libelle: 'Coran niveau 1' },
+      { ...suiviValide, cours_libelle: 'Coran niveau 2' },
+      { ...suiviValide, cours_libelle: 'Coran niveau 3' },
+    ])
+
+    expect(resultat.map((bloc) => bloc.cours_libelle)).toEqual([
+      'Coran niveau 1',
+      'Coran niveau 2',
+      'Coran niveau 3',
+    ])
+  })
+
+  /*
+   * Le payload hostile, à l'échelle du parcours : une ligne élargie ne doit pas
+   * plus passer qu'un objet seul. C'est le cas qui compte, parce qu'une
+   * agrégation invite à ajouter « juste une colonne » pour étiqueter les blocs.
+   */
+  it('supprime les clés hors liste sur CHAQUE ligne', () => {
+    const resultat = parcoursApprenantSchema.parse([
+      { ...suiviValide, session_nom: 'Session 17', cours_id: 'secret' },
+      { ...suiviValide, centre_id: 'secret', prix_mensuel: 12000 },
+    ])
+
+    for (const bloc of resultat) {
+      expect(Object.keys(bloc).sort()).toEqual([
+        'apprenant',
+        'assiduite',
+        'centre_nom',
+        'cours_libelle',
+        'enseignant',
+        'evaluations',
+        'examen',
+        'exercices',
+        'logo',
+        'statut',
+        'type_libelle',
+      ])
+    }
+  })
+
+  it('refuse le parcours entier si une seule ligne est malformée', () => {
+    const resultat = parcoursApprenantSchema.safeParse([
+      suiviValide,
+      { ...suiviValide, assiduite: undefined },
+    ])
+
+    expect(resultat.success).toBe(false)
+  })
+
+  // Zéro ligne est un tableau valide : c'est le repository qui le lit comme un
+  // lien mort, pas le schéma.
+  it('accepte un parcours vide', () => {
+    expect(parcoursApprenantSchema.safeParse([]).success).toBe(true)
   })
 })

@@ -128,9 +128,9 @@ export type Database = {
           logo: string | null
           niveau: string | null
           penaliser_absences_excusees: boolean | null
-          reconduit_de: string | null
           penalite_absence: number | null
           penalite_retard: number | null
+          reconduit_de: string | null
           session_id: string
           statut: string
           type_cours_id: string
@@ -153,9 +153,9 @@ export type Database = {
           logo?: string | null
           niveau?: string | null
           penaliser_absences_excusees?: boolean | null
-          reconduit_de?: string | null
           penalite_absence?: number | null
           penalite_retard?: number | null
+          reconduit_de?: string | null
           session_id: string
           statut?: string
           type_cours_id: string
@@ -178,9 +178,9 @@ export type Database = {
           logo?: string | null
           niveau?: string | null
           penaliser_absences_excusees?: boolean | null
-          reconduit_de?: string | null
           penalite_absence?: number | null
           penalite_retard?: number | null
+          reconduit_de?: string | null
           session_id?: string
           statut?: string
           type_cours_id?: string
@@ -200,6 +200,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "membre"
             referencedColumns: ["user_id", "centre_id"]
+          },
+          {
+            foreignKeyName: "cours_reconduit_du_centre_fkey"
+            columns: ["reconduit_de", "centre_id"]
+            isOneToOne: false
+            referencedRelation: "cours"
+            referencedColumns: ["id", "centre_id"]
           },
           {
             foreignKeyName: "cours_session_du_centre_fkey"
@@ -785,9 +792,9 @@ export type Database = {
           logo: string | null
           niveau: string | null
           penaliser_absences_excusees: boolean | null
-          reconduit_de: string | null
           penalite_absence: number | null
           penalite_retard: number | null
+          reconduit_de: string | null
           session_id: string
           statut: string
           type_cours_id: string
@@ -810,8 +817,6 @@ export type Database = {
         Args: { p_code: string; p_nom_affiche: string }
         Returns: string
       }
-      regenerer_partage: { Args: { p_cours_id: string }; Returns: string }
-      regenerer_suivi: { Args: { p_inscription_id: string }; Returns: string }
       reconduire_session: {
         Args: {
           p_date_debut: string
@@ -821,6 +826,8 @@ export type Database = {
         }
         Returns: string
       }
+      regenerer_partage: { Args: { p_cours_id: string }; Returns: string }
+      regenerer_suivi: { Args: { p_inscription_id: string }; Returns: string }
       retirer_membre: {
         Args: { p_reaffecter_a: string; p_user_id: string }
         Returns: number
@@ -828,6 +835,10 @@ export type Database = {
       revoquer_invitation: { Args: { p_id: string }; Returns: undefined }
       revoquer_partage: { Args: { p_cours_id: string }; Returns: undefined }
       revoquer_suivi: { Args: { p_inscription_id: string }; Returns: undefined }
+      revoquer_suivi_apprenant: {
+        Args: { p_apprenant_id: string }
+        Returns: number
+      }
       suivi_apprenant: {
         Args: { p_jeton: string }
         Returns: {
@@ -979,3 +990,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+

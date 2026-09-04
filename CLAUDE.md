@@ -356,13 +356,73 @@ L'étanchéité est **structurelle**, pas seulement déclarative.
     colonnes de la ligne. Éprouvé par `supabase/tests/rls_etancheite.sql`, qui teste le refus
     **et** l'acceptation.
 
-11. **Suivi privé d'un apprenant** (`/suivi/:jeton`, hors `RequireAuth`, migration 0019) : la
-    **deuxième** porte de `anon` après `cours_public`, et la première à publier des notes
-    nominatives à qui détient une URL. Toute la doctrine du §5.8 s'y applique mot pour
+11. **Suivi privé d'un apprenant** (`/suivi/:jeton`, hors `RequireAuth`, migrations 0019 et
+    0025) : la **deuxième** porte de `anon` après `cours_public`, et la première à publier des
+    notes nominatives à qui détient une URL. Toute la doctrine du §5.8 s'y applique mot pour
     mot : aucun droit table, une fonction et jamais une vue, la **liste des colonnes de sortie est
     la liste blanche** (onze : `apprenant`, `cours_libelle`, `type_libelle`, `enseignant`,
     `centre_nom`, `logo`, `statut`, `evaluations`, `assiduite`, `examen`, `exercices`), re-vérifiée
     côté client par `shared/supabase/suiviSchema.ts` en mode strip.
+
+    **Le jeton résout vers un APPRENANT, pas vers une inscription** (0025). Il rend le parcours
+    entier de son porteur dans ce centre : **une ligne par cours**, du plus ancien au plus récent.
+    Un apprenant n'a qu'une progression — lui donner un lien par cours l'obligeait à jongler avec
+    trois adresses pour la lire, et « Niveau 1 » puis « Niveau 2 » se lisaient comme deux
+    inconnus.
+
+    ⚠️ **Agréger ajoute des LIGNES, jamais des colonnes.** La liste blanche n'a pas bougé d'une
+    clé, et c'est l'invariant qui compte : la surface exposée à `anon` ne s'est pas élargie d'un
+    octet. Corollaire assumé — les blocs ne portent pas le NOM de leur session, faute de colonne
+    pour cela : ils s'ordonnent, ils ne s'étiquettent pas. Le libellé du cours et son type
+    distinguent « Niveau 1 » de « Niveau 2 » ; l'étiqueter demanderait une douzième colonne, donc
+    une décision délibérée.
+
+    ⚠️ **Chaque jointure porte `centre_id`.** La requête ne joignait qu'une inscription connue ;
+    elle en agrège maintenant plusieurs, et une seule jointure qui l'oublierait ferait remonter le
+    cours — ou l'apprenant — d'un autre centre. La RLS ne protège pas ici : la fonction est
+    `security definer` et voit tout. La CTE `porteur` fixe le couple (apprenant, centre) une fois
+    pour toutes, et tout s'y rattache. Ces gardes sont **redondantes avec les clés composites**
+    (`inscription → cours (id, centre_id)`, `inscription → apprenant`, `cours → session`) : aucune
+    sonde de données ne peut donc les faire tomber, et `supabase/tests/suivi_apprenant.sql` les
+    éprouve par une assertion de FORME plus une assertion sur l'existence des clés. Une garde
+    qu'aucun test ne surveille disparaît à la première relecture qui la trouve « redondante ».
+
+    ⚠️ **La session s'appelle `sess` dans la requête, pas `s`.** Les sous-requêtes corrélées
+    appellent `s` la SÉANCE depuis 0019 : le même nom masquerait la session à l'intérieur, et une
+    sous-requête qui la lirait un jour lirait la séance en silence.
+
+    ⚠️ **Ce que la décision du lien unique implique, et qu'il faut assumer.** L'ouverture reste
+    gardée sur le cours visé (`cours_animables()`), mais ce qu'elle publie dépasse ce cours :
+    l'enseignant A qui ouvre un lien sur son cours rend lisibles les commentaires, l'assiduité et
+    l'examen des cours de B, sessions passées comprises — et il ne peut lui-même pas les lire,
+    `inscription_select` ne lui ouvrant que `cours_lisibles()`. Ce n'est pas un défaut de mise en
+    œuvre, c'est le prix du lien unique : un parcours ne se découpe pas par enseignant sans cesser
+    d'être un parcours. Le dialogue de confirmation le dit en toutes lettres, et c'est la seule
+    protection — resserrer la garde à « anime TOUS ses cours » rendrait l'ouverture impossible dès
+    qu'un apprenant suit deux cours, c'est-à-dire dans le cas courant.
+
+    **Tous les jetons d'un apprenant sont désormais équivalents**, et cela change la révocation :
+    fermer le lien d'un cours ne coupe plus l'accès s'il en a un autre ouvert ailleurs — l'autre
+    montre le même parcours entier. D'où `revoquer_suivi_apprenant(apprenant_id) → integer`,
+    `security definer`, gardée `cours_animables()` sur les inscriptions de cet apprenant, bornée à
+    `centre_courant()`, idempotente, et qui rend le nombre réellement fermé pour que l'interface
+    puisse le dire. `SectionSuiviApprenant` l'énonce en clair : c'est le seul geste qui coupe
+    vraiment l'accès, et il reste affiché **même quand le lien de ce cours-ci est fermé** — le
+    placer dans le bloc du lien le faisait disparaître exactement au moment où il devient
+    nécessaire.
+
+    ⚠️ Cette fonction ferme aussi les liens qu'un AUTRE enseignant a distribués sur ses propres
+    cours, et ce n'est pas une symétrie : A ne peut ni ouvrir ni régénérer chez B, seulement
+    fermer. L'asymétrie penche du bon côté — fermer est réversible et ne divulgue rien, alors que
+    n'autoriser que l'ouvreur rendrait l'accès **impossible à couper** dès que deux enseignants ont
+    ouvert un lien sur le même apprenant.
+
+    ⚠️ **`sess.id` départage l'ordre, en plus de `created_at`.** Celui-ci vaut `now()`, le temps de
+    TRANSACTION : deux sessions créées d'un même geste — toute reconduction, tout décor de test —
+    le partagent à la microseconde près. Le tri retombait alors sur le libellé du cours et
+    **entrelaçait** les deux sessions. Même règle côté client dans `comparerParcours`
+    (`inscriptionRepo.ts`), où l'enjeu est plus grand encore : la fiche ne réunit que les suites
+    **consécutives**, donc une session scindée s'y affiche deux fois, avec la même clé React.
 
     ⚠️ **Ne jamais nommer un paramètre comme une colonne de la requête.** Dans une fonction
     `language sql`, `where i.jeton = jeton` se résout en `i.jeton = i.jeton` — vrai pour toute
@@ -634,9 +694,16 @@ fin)`, `security definer`, gardée `est_responsable()` et bornée à `centre_cou
   prochaine séance, le lien de visioconférence et le dernier exercice — activable, régénérable et
   révocable depuis la fiche du cours, avec partage WhatsApp (§5.8).
 - **Suivi de l'apprenant** (`/suivi/:jeton`) : page privée sans connexion donnant, pour **un**
-  apprenant et **un** cours, ses récitations notées, sa courbe de progression en pourcentage, son
-  assiduité, ses exercices et son examen — un lien par inscription, ouvrable, régénérable et
-  révocable par l'enseignant du cours (§5.11).
+  apprenant, **tout son parcours dans le centre** — un bloc par cours suivi, sessions comprises,
+  du plus récent au plus ancien : récitations notées, courbe de progression en pourcentage,
+  assiduité, exercices et examen. Un seul lien par apprenant suffit, et il reste valable d'une
+  session à l'autre ; ouvrable, régénérable et révocable par l'enseignant affecté, qui peut aussi
+  fermer **tous** ses liens d'un geste (§5.11).
+- **Parcours sur la fiche interne** : la fiche apprenant groupe ses cours **par session**, de la
+  plus récente à la plus ancienne. Sans cet en-tête, « Niveau 1 » et « Niveau 2 » se lisent comme
+  deux cours simultanés au lieu d'une progression. Le regroupement ne réunit que les suites
+  **consécutives** — c'est `comparerParcours` qui garantit qu'une session forme un bloc d'un seul
+  tenant, et les deux ne se relâchent pas séparément.
 - Rappels de cours (plus tard).
 
 ## 7. Roadmap (construire par étapes, ne pas tout faire d'un coup)
@@ -766,6 +833,26 @@ dont dépend le typage de `createClient`.
 - Ne pas écrire `on delete set null` sur une clé étrangère **composite** sans nommer la
   colonne : sans liste, Postgres annule TOUTES les colonnes de la clé, `centre_id` compris —
   et la suppression échoue sur le `not null`.
+- Ne pas joindre sans `centre_id` dans une fonction `security definer` qui AGRÈGE : tant qu'elle
+  ne lisait qu'une ligne désignée, le cloisonnement allait de soi ; dès qu'elle en réunit
+  plusieurs, chaque jointure devient une occasion de sortir du centre.
+- Ne pas réutiliser un alias déjà pris par une sous-requête corrélée (`s` = séance dans
+  `suivi_apprenant`) : le masquage ne casse rien le jour où on l'introduit, seulement le jour où
+  quelqu'un lit la mauvaise table sans le savoir.
+- Ne pas garder `.maybeSingle()` sur une RPC qui peut rendre plusieurs lignes : elle lève
+  (PGRST116) au lieu de rendre une liste, et l'erreur ne survient que pour les apprenants qui ont
+  suivi plus d'un cours — donc jamais dans le premier essai.
+- Ne pas croire que révoquer un jeton de suivi coupe l'accès : depuis 0025, tous ceux d'un même
+  apprenant ouvrent le même parcours. Il faut `revoquer_suivi_apprenant`.
+- Ne pas placer le geste qui RÉPARE à l'intérieur du bloc conditionnel qu'il répare : « Fermer tous
+  ses liens » vivait sous `{url && …}`, donc il disparaissait juste après « Fermer ce lien » —
+  quand il devient utile.
+- Ne pas comparer un statut à un littéral écrit à la main : `session.statut` est typé `string` par
+  les types générés, donc « cloturee » compile, ne correspond à aucune valeur de la contrainte, et
+  produit une branche morte qu'une fixture portant la même faute rend verte. Passer par la
+  constante (`SESSION_TERMINEE`).
+- Ne pas se fier à `created_at` pour départager deux lignes créées dans la MÊME transaction : son
+  défaut `now()` est le temps de transaction, identique pour toutes.
 - Ne pas oublier d'ajouter un nouveau code métier `P00xx` à `shared/supabase/erreurs.ts` :
   sans cela, le message rédigé côté base s'affiche préfixé du contexte.
 - Ne pas se fier à un `select` de trigger pour arbitrer une concurrence : en READ COMMITTED il ne

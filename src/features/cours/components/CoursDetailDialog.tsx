@@ -171,7 +171,7 @@ export function CoursDetailDialog({
             {estEnseignantDuCours && (
               <>
                 <SectionExamen coursId={cours.id} />
-                <SectionSuiviApprenant coursId={cours.id} libelle={cours.libelle} />
+                <SectionSuiviApprenant coursId={cours.id} />
                 <SectionReglagesCours cours={cours} />
               </>
             )}

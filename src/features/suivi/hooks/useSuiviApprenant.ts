@@ -2,12 +2,18 @@ import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 
 import { suiviKeys } from '@/features/suivi/hooks/suiviKeys'
 import * as suiviRepo from '@/shared/supabase/suiviRepo'
-import type { SuiviApprenant } from '@/shared/supabase/suiviSchema'
+import type { ParcoursApprenant } from '@/shared/supabase/suiviSchema'
 
-/** Le suivi de l'apprenant, ou `null` si le jeton ne correspond à rien. */
+/**
+ * Le parcours de l'apprenant, ou `null` si le jeton ne correspond à rien.
+ *
+ * Depuis 0025, c'est une LISTE — un bloc par cours suivi, du plus ancien au plus
+ * récent. Un tableau vide est ramené à `null` par le repository, pour que la
+ * page n'ait qu'un seul message neutre à afficher.
+ */
 export function useSuiviApprenant(
   jeton: string | undefined
-): UseQueryResult<SuiviApprenant | null, Error> {
+): UseQueryResult<ParcoursApprenant | null, Error> {
   return useQuery({
     queryKey: suiviKeys.parJeton(jeton ?? ''),
     queryFn: () => suiviRepo.getParJeton(jeton as string),

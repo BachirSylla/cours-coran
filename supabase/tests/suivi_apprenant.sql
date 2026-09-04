@@ -312,6 +312,162 @@ insert into public.t_ids (cle, val) select 'centre_voisin', id from cree;
 insert into public.membre (centre_id, user_id, role, nom_affiche)
 values (public.__id('centre_voisin'), public.__id('u_voisin'), 'responsable', 'Voisin');
 
+
+/*
+ * ============================ LE PARCOURS (0025) ============================
+ *
+ * Aïcha ne suit pas qu'un cours : elle en suit deux dans la session en cours, et
+ * un troisième dans la SUIVANTE. Son jeton doit désormais rendre les trois, dans
+ * l'ordre du temps — c'est tout l'objet de cette migration.
+ */
+/*
+ * ⚠️ La session que le trigger de 0022 pose à la création du centre démarre
+ * AUJOURD'HUI. La laisser telle quelle ferait dépendre l'ordre du parcours de la
+ * date d'exécution : le test passerait ou non selon le jour. On fixe donc la
+ * chronologie du décor de bout en bout.
+ */
+update public.session
+set nom = 'Session initiale', date_debut = '2026-01-01', date_fin = '2026-05-31'
+where centre_id = public.__id('centre');
+
+with cree as (
+  insert into public.session (centre_id, nom, date_debut, statut)
+  values (public.__id('centre'), 'Session suivante', '2026-06-01', 'en_cours')
+  returning id
+)
+insert into public.t_ids (cle, val) select 's2', id from cree;
+
+with cree as (
+  insert into public.cours
+  (centre_id, session_id, enseignant_id, libelle, type_cours_id, format, date_debut, niveau)
+  select public.__id('centre'), public.__id('s2'), public.__id('u_a'),
+         'Coran C', id, 'groupe', '2026-06-01', 'Niveau 2'
+  from public.type_cours limit 1
+  returning id
+)
+insert into public.t_ids (cle, val) select 'cours_c', id from cree;
+
+insert into public.inscription (centre_id, apprenant_id, cours_id, note_examen, examen_bareme)
+values (public.__id('centre'), public.__id('aicha'), public.__id('cours_c'), 18, 20);
+
+/*
+ * ⚠️ LE DÉCOR DU CAS « DEUX SESSIONS, MÊME DATE DE DÉBUT ».
+ *
+ * `now()` étant le temps de TRANSACTION, ces sessions partagent aussi leur
+ * `created_at` à la microseconde près — exactement l'état qu'une reconduction
+ * produit. Sans départage par identifiant, l'ordre retombait sur le libellé du
+ * cours et entrelaçait les deux sessions.
+ *
+ * « Coran E » est là pour que l'entrelacement soit VISIBLE : avec un seul cours
+ * par session, aucun mélange ne peut se produire, et le test ne prouverait rien.
+ */
+with cree as (
+  insert into public.session (centre_id, nom, date_debut, statut)
+  values (public.__id('centre'), 'Session de rattrapage', '2026-06-01', 'en_cours')
+  returning id
+)
+insert into public.t_ids (cle, val) select 's3', id from cree;
+
+with cree as (
+  insert into public.cours
+  (centre_id, session_id, enseignant_id, libelle, type_cours_id, format, date_debut)
+  select public.__id('centre'), public.__id('s3'), public.__id('u_a'),
+         'Coran D', id, 'groupe', '2026-06-01'
+  from public.type_cours limit 1
+  returning id
+)
+insert into public.t_ids (cle, val) select 'cours_d', id from cree;
+
+with cree as (
+  insert into public.cours
+  (centre_id, session_id, enseignant_id, libelle, type_cours_id, format, date_debut)
+  select public.__id('centre'), public.__id('s2'), public.__id('u_a'),
+         'Coran E', id, 'groupe', '2026-06-01'
+  from public.type_cours limit 1
+  returning id
+)
+insert into public.t_ids (cle, val) select 'cours_e', id from cree;
+
+insert into public.inscription (centre_id, apprenant_id, cours_id) values
+  (public.__id('centre'), public.__id('aicha'), public.__id('cours_d')),
+  (public.__id('centre'), public.__id('aicha'), public.__id('cours_e'));
+
+with cree as (
+  insert into public.seance (centre_id, cours_id, date, heure_debut, heure_fin, statut, sourate)
+  values (public.__id('centre'), public.__id('cours_c'), '2026-06-08', '09:00', '10:00',
+          'faite', 'An-Naba')
+  returning id
+)
+insert into public.t_ids (cle, val) select 's_c1', id from cree;
+
+insert into public.presence (centre_id, seance_id, apprenant_id, present, etat, note, note_bareme, commentaire)
+values (public.__id('centre'), public.__id('s_c1'), public.__id('aicha'), true, 'present',
+        19, 20, 'NOTE SESSION SUIVANTE.');
+
+/*
+ * ⚠️ LES MÊMES PIÈGES, SUR LA SECONDE SESSION.
+ *
+ * Les triggers de 0020 refusent une présence sur une séance non tenue : le décor
+ * les suspend le temps de poser un état que l'application ne produirait pas,
+ * exactement comme plus haut pour `cours_a`.
+ */
+alter table public.presence disable trigger presence_exige_seance_faite;
+alter table public.seance disable trigger seance_refuser_sortie_de_faite;
+
+with future as (
+  insert into public.seance
+  (centre_id, cours_id, date, heure_debut, heure_fin, statut, sourate, exercices_a_faire)
+  values (public.__id('centre'), public.__id('cours_c'), current_date + 21,
+          '09:00', '10:00', 'faite', 'Al-Mulk', 'SECRET FUTUR S2 : le devoir de la rentrée.')
+  returning id
+)
+insert into public.presence
+  (centre_id, seance_id, apprenant_id, present, etat, note, note_bareme, commentaire)
+select public.__id('centre'), id, public.__id('aicha'), true, 'present', 20, 20,
+       'NOTE FUTURE S2.'
+from future;
+
+with annulee as (
+  insert into public.seance (centre_id, cours_id, date, heure_debut, heure_fin, statut, sourate)
+  values (public.__id('centre'), public.__id('cours_c'), '2026-06-15',
+          '09:00', '10:00', 'annulee', 'Al-Qalam')
+  returning id
+)
+insert into public.presence
+  (centre_id, seance_id, apprenant_id, present, etat, note, note_bareme, commentaire)
+select public.__id('centre'), id, public.__id('aicha'), true, 'present', 4, 20,
+       'NOTE ANNULEE S2.'
+from annulee;
+
+alter table public.presence enable trigger presence_exige_seance_faite;
+alter table public.seance enable trigger seance_refuser_sortie_de_faite;
+
+/*
+ * ⚠️ LE DÉCOR DU TEST CAPITAL : un centre voisin, avec son propre apprenant,
+ * sa propre session et son propre cours. Rien de tout cela ne doit jamais
+ * apparaître dans le parcours d'Aïcha.
+ */
+with cree as (
+  insert into public.apprenant (centre_id, nom, prenom)
+  values (public.__id('centre_voisin'), 'Voisine', 'Fatou')
+  returning id
+)
+insert into public.t_ids (cle, val) select 'voisine', id from cree;
+
+with cree as (
+  insert into public.cours
+  (centre_id, session_id, enseignant_id, libelle, type_cours_id, format, date_debut)
+  select public.__id('centre_voisin'),
+         public.__session(public.__id('centre_voisin')),
+         public.__id('u_voisin'), 'COURS DU VOISIN', id, 'groupe', '2026-01-05'
+  from public.type_cours limit 1
+  returning id
+)
+insert into public.t_ids (cle, val) select 'cours_voisin', id from cree;
+
+insert into public.inscription (centre_id, apprenant_id, cours_id)
+values (public.__id('centre_voisin'), public.__id('voisine'), public.__id('cours_voisin'));
+
 -- =============================================================================
 -- 1. Qui peut ouvrir un suivi
 -- =============================================================================
@@ -402,124 +558,175 @@ end;
 $$;
 
 -- =============================================================================
--- 3. Ce que le jeton fait sortir — et surtout ce qu'il ne fait pas sortir
+-- 3. LE PARCOURS — ce que le jeton fait sortir, et ce qu'il ne fait pas sortir
+--
+-- Le jeton résout désormais vers un APPRENANT (0025) : il rend tout son parcours
+-- dans ce centre, une ligne par cours, du plus ancien au plus récent. Ce sont
+-- SES résultats via SON lien — les agréger est le but.
+--
+-- Ce qui reste absolument interdit : un AUTRE apprenant, un AUTRE centre.
 -- =============================================================================
 reset role;
 set local role anon;
 
 do $$
 declare
-  v_jeton uuid := (select jeton from public.t_jetons where cle = 'aicha_a');
-  v_ligne record;
-  v_cles  text;
+  v_jeton   uuid := (select jeton from public.t_jetons where cle = 'aicha_a');
+  v_lignes  jsonb;
+  v_cles    text;
+  v_premier jsonb;
 begin
-  select * into v_ligne from public.suivi_apprenant(v_jeton);
+  select jsonb_agg(to_jsonb(ligne)) into v_lignes
+  from public.suivi_apprenant(v_jeton) as ligne;
 
-  if not found then
+  if v_lignes is null then
     raise exception 'RÉGRESSION : un jeton valide ne renvoie rien.';
   end if;
 
-  -- La bonne personne, le bon cours.
-  if v_ligne.apprenant <> 'Aïcha Diallo' then
-    raise exception 'Mauvais apprenant : %', v_ligne.apprenant;
-  end if;
-  if v_ligne.cours_libelle <> 'Coran A' then
-    raise exception 'Mauvais cours : %', v_ligne.cours_libelle;
-  end if;
-  if v_ligne.enseignant <> 'Amina Bâ' then
-    raise exception 'Mauvais enseignant : %', v_ligne.enseignant;
-  end if;
-  if v_ligne.centre_nom <> 'Centre Al-Fourqane' then
-    raise exception 'Mauvais centre : %', v_ligne.centre_nom;
-  end if;
-  -- Le logo du COURS l'emporte sur celui du centre (règle de 0011). Le repli sur
-  -- le centre est éprouvé plus bas, par le jeton du cours B, qui n'a pas de logo.
-  if v_ligne.logo is distinct from 'data:image/png;base64,LOGOCOURS' then
-    raise exception 'Le logo du cours doit primer sur celui du centre, obtenu : %',
-      v_ligne.logo;
+  -- Cinq cours : deux dans la session initiale, deux dans la suivante, un dans
+  -- la session de rattrapage.
+  if jsonb_array_length(v_lignes) <> 5 then
+    raise exception 'Cinq cours attendus dans le parcours, % obtenu(s) : %',
+      jsonb_array_length(v_lignes), v_lignes;
   end if;
 
-  -- LA LISTE BLANCHE, clé par clé. Un ajout par inadvertance publierait ce
-  -- qu'il ne faut pas — c'est l'assertion la plus importante du fichier.
+  v_premier := v_lignes -> 0;
+
+  /*
+   * LA LISTE BLANCHE, clé par clé. Agréger plusieurs sessions ajoute des LIGNES,
+   * jamais des colonnes : la surface exposée à `anon` ne doit pas s'élargir d'un
+   * octet. C'est l'assertion la plus importante du fichier.
+   */
   select string_agg(cle, ',' order by cle) into v_cles
-  from (select jsonb_object_keys(to_jsonb(v_ligne)) as cle) as k;
+  from (select jsonb_object_keys(v_premier) as cle) as k;
 
   if v_cles <> 'apprenant,assiduite,centre_nom,cours_libelle,enseignant,evaluations,examen,exercices,logo,statut,type_libelle' then
     raise exception 'FAILLE — le payload de `suivi_apprenant` a changé : %', v_cles;
   end if;
 
-  -- Deux évaluations : les séances notées du cours A, et rien d'autre.
-  if jsonb_array_length(v_ligne.evaluations) <> 2 then
-    raise exception 'Deux évaluations attendues, % obtenue(s) : %',
-      jsonb_array_length(v_ligne.evaluations), v_ligne.evaluations;
+  -- La bonne personne, partout.
+  if exists (
+    select 1 from jsonb_array_elements(v_lignes) as l
+    where l ->> 'apprenant' <> 'Aïcha Diallo'
+  ) then
+    raise exception 'Une ligne du parcours porte un autre apprenant : %', v_lignes;
   end if;
 
-  -- ⚠️ Le cœur de la confidentialité : rien de l'autre cours, rien de l'autre
-  -- élève. Les notes de 4 (Aïcha chez B) et 3 (Omar chez A) existent en base.
-  if v_ligne.evaluations::text like '%À retravailler%' then
-    raise exception 'FUITE : un commentaire du cours de B est sorti par le jeton du cours A.';
-  end if;
-  if v_ligne.evaluations::text like '%Confidentiel Omar%' then
-    raise exception 'FUITE : le travail d''un AUTRE apprenant est sorti.';
-  end if;
-  if v_ligne.evaluations::text like '%Tadjwîd%' then
-    raise exception 'FUITE : le contenu d''une séance de l''autre cours est sorti.';
+  if exists (
+    select 1 from jsonb_array_elements(v_lignes) as l
+    where l ->> 'centre_nom' <> 'Centre Al-Fourqane'
+  ) then
+    raise exception 'Une ligne du parcours porte un autre centre : %', v_lignes;
   end if;
 
   /*
-   * ⚠️ Le FUTUR. Une séance datée de dans deux semaines est « faite » par défaut :
-   * sans `date <= current_date`, l'apprenant lirait aujourd'hui la note et le
-   * sujet préparés pour plus tard. Trois surfaces, pas une.
+   * L'ORDRE CHRONOLOGIQUE. « Coran A » et « Coran B » sont dans la session la
+   * plus ancienne, « Coran C » dans la suivante — il vient donc en dernier.
+   * L'ordre est déterministe : date de début, puis création de la session, puis
+   * libellé du cours, puis identifiant.
    */
-  if v_ligne.evaluations::text like '%NOTE FUTURE%' then
-    raise exception 'FUITE : une note d''une séance À VENIR est publiée.';
-  end if;
-  if v_ligne.exercices like '%SECRET FUTUR%' then
-    raise exception 'FUITE : les exercices d''une séance À VENIR sont publiés.';
+  if v_premier ->> 'cours_libelle' <> 'Coran A'
+     or (v_lignes -> 1 ->> 'cours_libelle') <> 'Coran B' then
+    raise exception 'Le parcours n''est pas dans l''ordre attendu : %',
+      (select string_agg(l ->> 'cours_libelle', ' → ')
+       from jsonb_array_elements(v_lignes) with ordinality as t(l, n));
   end if;
 
-  -- Et la séance annulée APRÈS avoir été notée : le rapport l'écarte, la page
-  -- publique doit l'écarter aussi, sans quoi la note « s'évaporerait ».
-  if v_ligne.evaluations::text like '%NOTE ANNULEE%' then
+  -- La session initiale d'abord, en bloc : les trois cours de juin suivent.
+  if (v_lignes -> 2 ->> 'cours_libelle') in ('Coran A', 'Coran B') then
+    raise exception 'La session initiale déborde sur les suivantes : %',
+      (select string_agg(l ->> 'cours_libelle', ' → ')
+       from jsonb_array_elements(v_lignes) with ordinality as t(l, n));
+  end if;
+
+  -- Chaque bloc porte SES données : l'agrégation ne mélange pas les cours.
+  if v_premier ->> 'enseignant' <> 'Amina Bâ' then
+    raise exception 'Mauvais enseignant sur le premier bloc : %', v_premier ->> 'enseignant';
+  end if;
+
+  -- Le logo du COURS l'emporte sur celui du centre (règle de 0011) ; le repli
+  -- s'éprouve sur « Coran B », qui n'a pas de logo à lui.
+  if v_premier ->> 'logo' is distinct from 'data:image/png;base64,LOGOCOURS' then
+    raise exception 'Le logo du cours doit primer, obtenu : %', v_premier ->> 'logo';
+  end if;
+
+  if (v_lignes -> 1 ->> 'logo') is distinct from 'data:image/png;base64,LOGOCENTRE' then
+    raise exception 'Sans logo de cours, celui du centre doit servir de repli, obtenu : %',
+      v_lignes -> 1 ->> 'logo';
+  end if;
+
+  -- L'examen de CHAQUE cours, pas celui du voisin de ligne.
+  if (v_premier -> 'examen' ->> 'note')::numeric <> 15
+     or (v_lignes -> 1 -> 'examen' ->> 'note')::numeric <> 8 then
+    raise exception 'Les examens ne suivent pas leur cours : %', v_lignes;
+  end if;
+
+  -- L'examen de « Coran C » vaut 18, et lui seul le porte parmi les cours de juin.
+  if (select count(*) from jsonb_array_elements(v_lignes) as l
+      where l ->> 'cours_libelle' = 'Coran C'
+        and (l -> 'examen' ->> 'note')::numeric = 18) <> 1 then
+    raise exception 'L''examen de Coran C ne suit pas son cours : %', v_lignes;
+  end if;
+
+  /*
+   * ⚠️ LE TEST CAPITAL : rien d'un AUTRE apprenant, rien d'un AUTRE centre.
+   * Le centre voisin a un apprenant, une session et un cours — la moindre
+   * jointure qui oublierait `centre_id` les ferait remonter ici.
+   */
+  if v_lignes::text like '%COURS DU VOISIN%' then
+    raise exception 'FUITE INTER-CENTRE : le cours d''un autre centre est sorti.';
+  end if;
+  if v_lignes::text like '%Centre Voisin%' then
+    raise exception 'FUITE INTER-CENTRE : le nom d''un autre centre est sorti.';
+  end if;
+  if v_lignes::text like '%Fatou%' then
+    raise exception 'FUITE INTER-CENTRE : un apprenant d''un autre centre est sorti.';
+  end if;
+
+  -- Rien d'un autre apprenant du MÊME centre non plus.
+  if v_lignes::text like '%Confidentiel Omar%' then
+    raise exception 'FUITE : le travail d''un AUTRE apprenant est sorti.';
+  end if;
+
+  /*
+   * LES FILTRES PAR SÉANCE, sur CHAQUE session agrégée. Une séance à venir est
+   * « faite » par défaut (0003) : sans la garde de date, l'apprenant lirait
+   * aujourd'hui la note et le sujet préparés pour plus tard.
+   */
+  if v_lignes::text like '%NOTE FUTURE%' then
+    raise exception 'FUITE : une note d''une séance À VENIR est publiée.';
+  end if;
+  if v_lignes::text like '%SECRET FUTUR%' then
+    raise exception 'FUITE : les exercices d''une séance À VENIR sont publiés.';
+  end if;
+  if v_lignes::text like '%NOTE ANNULEE%' then
     raise exception 'FUITE : une note d''une séance ANNULÉE est publiée.';
   end if;
 
-  -- Le contenu récité suit la règle de `libelleContenuSeance`.
-  if v_ligne.evaluations -> 0 ->> 'contenu' <> 'Al-Fatiha' then
-    raise exception 'Contenu attendu « Al-Fatiha », obtenu %', v_ligne.evaluations -> 0 ->> 'contenu';
-  end if;
-  if v_ligne.evaluations -> 1 ->> 'contenu' <> 'Al-Baqara v1–5' then
-    raise exception 'Contenu attendu « Al-Baqara v1–5 », obtenu %',
-      v_ligne.evaluations -> 1 ->> 'contenu';
-  end if;
-  if v_ligne.evaluations -> 1 ->> 'etat' <> 'retard' then
-    raise exception 'L''état de présence doit accompagner la note.';
+  -- Et la note de la session SUIVANTE, elle, est bien là : c'est le parcours.
+  if v_lignes::text not like '%NOTE SESSION SUIVANTE%' then
+    raise exception 'Le parcours ne remonte pas la session suivante.';
   end if;
 
-  /*
-   * L'assiduité porte sur les séances TENUES : deux notées + une sans note = 3.
-   * La séance ANNULÉE du 19 est exclue — la compter comme une absence serait un
-   * reproche injuste.
-   */
-  if (v_ligne.assiduite ->> 'seances')::int <> 3 then
-    raise exception 'Trois séances tenues attendues, % comptée(s) : %',
-      v_ligne.assiduite ->> 'seances', v_ligne.assiduite;
-  end if;
-  if (v_ligne.assiduite ->> 'absent')::int <> 0 then
-    raise exception 'La séance annulée ne doit pas compter comme une absence : %', v_ligne.assiduite;
-  end if;
-  if (v_ligne.assiduite ->> 'retard')::int <> 1 then
-    raise exception 'Un retard attendu : %', v_ligne.assiduite;
+  -- Les évaluations de « Coran A » : deux séances notées, et rien d'autre.
+  if jsonb_array_length(v_premier -> 'evaluations') <> 2 then
+    raise exception 'Deux évaluations attendues sur Coran A, % obtenue(s)',
+      jsonb_array_length(v_premier -> 'evaluations');
   end if;
 
-  -- L'examen de CE cours (15), pas celui de l'autre (8).
-  if (v_ligne.examen ->> 'note')::numeric <> 15 then
-    raise exception 'Note d''examen attendue 15, obtenue % — celle de l''autre cours a fuité ?',
-      v_ligne.examen ->> 'note';
+  if v_premier -> 'evaluations' -> 0 ->> 'contenu' <> 'Al-Fatiha'
+     or v_premier -> 'evaluations' -> 1 ->> 'contenu' <> 'Al-Baqara v1–5' then
+    raise exception 'Le contenu récité ne suit pas la règle de `libelleContenuSeance`.';
   end if;
 
-  if v_ligne.exercices <> 'Réviser la page 72.' then
-    raise exception 'Exercices attendus, obtenu : %', v_ligne.exercices;
+  -- L'assiduité de « Coran A » porte sur ses seules séances tenues.
+  if (v_premier -> 'assiduite' ->> 'seances')::int <> 3 then
+    raise exception 'Trois séances tenues attendues sur Coran A : %',
+      v_premier -> 'assiduite';
+  end if;
+
+  if v_premier ->> 'exercices' <> 'Réviser la page 72.' then
+    raise exception 'Exercices attendus, obtenu : %', v_premier ->> 'exercices';
   end if;
 end;
 $$;
@@ -536,11 +743,73 @@ end;
 $$;
 
 -- =============================================================================
--- 3 bis. Le SECOND cours du MÊME apprenant
+-- 3 bis bis. DEUX SESSIONS À LA MÊME DATE DE DÉBUT ne s'entrelacent pas
 --
--- Aïcha suit A et B. Son jeton pour B doit montrer B — et rien de A. C'est
--- l'étanchéité dans l'autre sens, et c'est aussi le seul endroit où le repli du
--- logo sur le centre s'éprouve : `Coran B` n'a pas de logo à lui.
+-- §5.15 l'autorise expressément — « une session de rattrapage n'attend pas la
+-- fin de la précédente » — et `reconduire_session` n'impose rien entre les deux
+-- périodes. Or `session.created_at` a pour défaut `now()`, qui est le temps de
+-- TRANSACTION : deux sessions créées d'un même geste portent le même
+-- horodatage. Le tri retombait alors sur le libellé du cours, et les blocs des
+-- deux sessions s'entremêlaient — le liseré « ici commence le passé » de la page
+-- se posant au mauvais endroit, et la fiche interne affichant deux fois le même
+-- en-tête.
+--
+-- Ce qu'on vérifie : chaque session occupe une PLAGE CONTINUE du parcours. On ne
+-- vérifie pas laquelle vient d'abord — le départage par identifiant est
+-- arbitraire, et c'est assumé : la propriété qui compte est la continuité.
+-- =============================================================================
+reset role;
+
+do $$
+declare
+  v_jeton   uuid := (select jeton from public.t_jetons where cle = 'aicha_a');
+  v_coupees text;
+begin
+  perform public.__attendre(
+    format($sql$select count(distinct date_debut) from public.session
+                where centre_id = %L and date_debut = '2026-06-01'$sql$,
+           public.__id('centre')),
+    1::bigint, 'le décor n''a pas deux sessions à la même date');
+
+  perform public.__attendre(
+    format($sql$select count(*) from public.session
+                where centre_id = %L and date_debut = '2026-06-01'$sql$,
+           public.__id('centre')),
+    2::bigint, 'le décor n''a pas DEUX sessions au 2026-06-01');
+
+  /*
+   * Le payload ne porte aucun identifiant — c'est la liste blanche, et elle ne
+   * bougera pas pour un test. On rapproche donc chaque bloc de sa session par le
+   * libellé du cours, qui est unique dans ce décor.
+   */
+  select string_agg(s.nom, ', ') into v_coupees
+  from (
+    select ligne.cours_libelle, ligne.ordinality as rang
+    from public.suivi_apprenant(v_jeton) with ordinality as ligne
+  ) as sortie
+  join public.cours as c
+    on c.libelle = sortie.cours_libelle and c.centre_id = public.__id('centre')
+  join public.session as s on s.id = c.session_id
+  group by s.id, s.nom
+  having max(sortie.rang) - min(sortie.rang) + 1 <> count(*);
+
+  if v_coupees is not null then
+    raise exception
+      'Les blocs d''une même session ne se suivent pas — session(s) coupée(s) : %. Ordre obtenu : %',
+      v_coupees,
+      (select string_agg(l.cours_libelle, ' → ' order by l.ordinality)
+       from public.suivi_apprenant(v_jeton) with ordinality as l);
+  end if;
+end;
+$$;
+
+-- =============================================================================
+-- 3 bis. TOUS les jetons d'un apprenant sont désormais équivalents
+--
+-- C'est la conséquence directe de 0025, et elle doit être dite : le lien ouvert
+-- sur « Coran B » montre le MÊME parcours que celui ouvert sur « Coran A ».
+-- Couper l'accès suppose donc de les révoquer TOUS — d'où
+-- `revoquer_suivi_apprenant`, éprouvée plus bas.
 -- =============================================================================
 reset role;
 set local role authenticated;
@@ -562,45 +831,108 @@ select 'aicha_b', jeton from public.inscription where id = public.__id('insc_aic
 set local role anon;
 
 do $$
-declare v_ligne record;
+declare
+  v_par_a jsonb;
+  v_par_b jsonb;
 begin
-  select * into v_ligne
-  from public.suivi_apprenant((select jeton from public.t_jetons where cle = 'aicha_b'));
+  select jsonb_agg(to_jsonb(l) order by l.cours_libelle) into v_par_a
+  from public.suivi_apprenant((select jeton from public.t_jetons where cle = 'aicha_a')) as l;
 
-  if not found then
-    raise exception 'RÉGRESSION : le jeton du cours B ne renvoie rien.';
+  select jsonb_agg(to_jsonb(l) order by l.cours_libelle) into v_par_b
+  from public.suivi_apprenant((select jeton from public.t_jetons where cle = 'aicha_b')) as l;
+
+  if v_par_a is distinct from v_par_b then
+    raise exception 'Les deux jetons du même apprenant ne rendent pas le même parcours.';
+  end if;
+end;
+$$;
+
+-- =============================================================================
+-- 3 ter. Un apprenant MONO-SESSION — aucune régression
+--
+-- Omar ne suit qu'un cours. Son parcours doit être un seul bloc : l'agrégation
+-- ne doit rien inventer pour qui n'a rien de plus.
+-- =============================================================================
+reset role;
+set local role authenticated;
+
+do $$
+begin
+  perform public.__devenir(public.__id('u_a'));
+  perform public.__accepte(
+    format($sql$select public.activer_suivi(%L)$sql$, public.__id('insc_omar_a')),
+    'A ouvre le suivi d''Omar');
+end;
+$$;
+
+reset role;
+
+insert into public.t_jetons (cle, jeton)
+select 'omar', jeton from public.inscription where id = public.__id('insc_omar_a');
+
+set local role anon;
+
+do $$
+declare v_lignes jsonb;
+begin
+  select jsonb_agg(to_jsonb(l)) into v_lignes
+  from public.suivi_apprenant((select jeton from public.t_jetons where cle = 'omar')) as l;
+
+  if jsonb_array_length(v_lignes) <> 1 then
+    raise exception 'Un apprenant mono-session doit rendre UN bloc, % obtenu(s)',
+      jsonb_array_length(v_lignes);
   end if;
 
-  if v_ligne.cours_libelle <> 'Coran B' then
-    raise exception 'Le jeton du cours B a renvoyé « % »', v_ligne.cours_libelle;
-  end if;
-  if v_ligne.enseignant <> 'Bilal Sow' then
-    raise exception 'Mauvais enseignant sur le cours B : %', v_ligne.enseignant;
+  if v_lignes -> 0 ->> 'apprenant' <> 'Omar Ndiaye' then
+    raise exception 'Mauvais apprenant : %', v_lignes -> 0 ->> 'apprenant';
   end if;
 
-  -- LE REPLI : `Coran B` n'a pas de logo, celui du centre prend le relais.
-  -- Inverser le `coalesce` de la fonction fait tomber cette assertion-ci.
-  if v_ligne.logo is distinct from 'data:image/png;base64,LOGOCENTRE' then
-    raise exception 'Sans logo de cours, celui du centre doit servir de repli, obtenu : %',
-      v_ligne.logo;
+  -- Et rien d'Aïcha, qui suit pourtant le même cours.
+  if v_lignes::text like '%Belle fluidité%' then
+    raise exception 'FUITE : le travail d''un autre apprenant du même cours est sorti.';
   end if;
+end;
+$$;
 
-  -- Son travail chez B, et RIEN de son travail chez A.
-  if v_ligne.evaluations::text not like '%À retravailler%' then
-    raise exception 'Le suivi du cours B doit montrer le travail fait chez B.';
-  end if;
-  if v_ligne.evaluations::text like '%Al-Fatiha%' then
-    raise exception 'FUITE : le travail du cours A est sorti par le jeton du cours B.';
-  end if;
-  if v_ligne.evaluations::text like '%Belle fluidité%' then
-    raise exception 'FUITE : un commentaire du cours A est sorti par le jeton du cours B.';
-  end if;
+-- =============================================================================
+-- 3 quater. Une session PERPÉTUELLE — `date_fin` nulle ne fait rien planter
+--
+-- C'est le cas de tout centre qui n'utilise pas les sessions : celle que le
+-- backfill de 0022 lui a posée n'a pas de fin. Elle doit s'ordonner et se rendre
+-- comme les autres.
+-- =============================================================================
+reset role;
 
-  -- L'examen de B vaut 8, celui de A vaut 15.
-  if (v_ligne.examen ->> 'note')::numeric <> 8 then
-    raise exception 'Examen du cours B attendu 8, obtenu % — celui de A a fuité ?',
-      v_ligne.examen ->> 'note';
-  end if;
+do $$
+begin
+  /*
+   * Le décor porte les DEUX formes : une session bornée (janvier–mai) et deux
+   * perpétuelles. Sans ce mélange, l'assertion ne distinguerait rien — c'est
+   * précisément le défaut qu'elle avait.
+   */
+  perform public.__attendre(
+    format($sql$select count(*) from public.session where centre_id = %L and date_fin is null$sql$,
+           public.__id('centre')),
+    2::bigint, 'le décor n''a pas de session perpétuelle');
+
+  perform public.__attendre(
+    format($sql$select count(*) from public.session where centre_id = %L and date_fin is not null$sql$,
+           public.__id('centre')),
+    1::bigint, 'le décor n''a pas de session BORNÉE : le cas perpétuel ne distingue rien');
+end;
+$$;
+
+set local role anon;
+
+do $$
+declare v_jeton uuid;
+begin
+  -- Le jeton est lu AVANT de raisonner en `anon`, qui n'a aucun droit de table.
+  select jeton into v_jeton from public.t_jetons where cle = 'aicha_a';
+
+  perform public.__attendre(
+    format($sql$select count(*) from public.suivi_apprenant(%L)$sql$, v_jeton),
+    5::bigint, 'une session sans date de fin casse le parcours');
 end;
 $$;
 
@@ -659,7 +991,7 @@ begin
   perform public.__attendre(
     format('select count(*) from public.suivi_apprenant(%L)',
            (select jeton from public.t_jetons where cle = 'aicha_a_neuf')),
-    1::bigint, 'le nouveau lien ne fonctionne pas');
+    5::bigint, 'le nouveau lien ne fonctionne pas');
 end;
 $$;
 
@@ -682,6 +1014,165 @@ begin
     format('select count(*) from public.suivi_apprenant(%L)',
            (select jeton from public.t_jetons where cle = 'aicha_a_neuf')),
     0::bigint, 'le lien révoqué répond encore');
+
+  /*
+   * ⚠️ LA CONSÉQUENCE DE 0025, ET ELLE DOIT ÊTRE DITE NOIR SUR BLANC.
+   *
+   * Révoquer UN lien ne coupe plus l'accès : le jeton du cours de B montre le
+   * même parcours entier. Ce n'est pas un défaut, c'est la contrepartie du lien
+   * unique — mais quiconque croirait avoir refermé la porte se tromperait.
+   * C'est exactement ce que `revoquer_suivi_apprenant` existe pour résoudre, et
+   * ce que l'interface doit dire.
+   */
+  perform public.__attendre(
+    format('select count(*) from public.suivi_apprenant(%L)',
+           (select jeton from public.t_jetons where cle = 'aicha_b')),
+    5::bigint, 'RÉGRESSION : l''autre lien du même apprenant ne montre plus le parcours');
+end;
+$$;
+
+-- =============================================================================
+-- 4 bis. Fermer TOUS les liens — `revoquer_suivi_apprenant`
+--
+-- Même garde que l'ouverture, et pour la même raison : qui peut publier peut
+-- dépublier. Elle se vérifie donc aux mêmes bornes — un enseignant d'un autre
+-- centre, et un responsable qui n'anime aucun des cours de cet apprenant.
+-- =============================================================================
+reset role;
+set local role authenticated;
+
+do $$
+begin
+  perform public.__devenir(public.__id('u_voisin'));
+  perform public.__refus(
+    format('select public.revoquer_suivi_apprenant(%L)', public.__id('aicha')),
+    'P0040', 'un enseignant d''un AUTRE centre ferme les liens');
+
+  /*
+   * R1 est responsable, mais n'anime aucun des cours d'Aïcha : `cours_animables()`
+   * ne lui rend que les cours SANS enseignant. Il doit s'affecter le cours pour
+   * y toucher — c'est la frontière de 0017, et elle vaut ici comme ailleurs.
+   */
+  perform public.__devenir(public.__id('u_r1'));
+  perform public.__refus(
+    format('select public.revoquer_suivi_apprenant(%L)', public.__id('aicha')),
+    'P0040', 'un responsable qui n''anime aucun cours de cet apprenant ferme ses liens');
+end;
+$$;
+
+do $$
+declare v_fermes integer;
+begin
+  perform public.__devenir(public.__id('u_a'));
+
+  select public.revoquer_suivi_apprenant(public.__id('aicha')) into v_fermes;
+
+  -- Le lien de A est déjà révoqué : il reste celui de B. La fonction rend le
+  -- nombre réellement fermé, pour que l'interface puisse le dire.
+  if v_fermes <> 1 then
+    raise exception 'Un lien restait ouvert, % fermé(s) rapporté(s)', v_fermes;
+  end if;
+
+  -- Idempotente : refermer ne ferme plus rien, et ne lève pas.
+  select public.revoquer_suivi_apprenant(public.__id('aicha')) into v_fermes;
+  if v_fermes <> 0 then
+    raise exception 'La fermeture n''est pas idempotente : % ferme(s) au second appel', v_fermes;
+  end if;
+end;
+$$;
+
+reset role;
+set local role anon;
+
+do $$
+begin
+  perform public.__attendre(
+    format('select count(*) from public.suivi_apprenant(%L)',
+           (select jeton from public.t_jetons where cle = 'aicha_b')),
+    0::bigint, 'un lien survit à la fermeture de TOUS les liens');
+
+  -- Omar n'est pas Aïcha : fermer les liens de l'une ne touche pas l'autre.
+  perform public.__attendre(
+    format('select count(*) from public.suivi_apprenant(%L)',
+           (select jeton from public.t_jetons where cle = 'omar')),
+    1::bigint, 'la fermeture a débordé sur un autre apprenant');
+end;
+$$;
+
+-- =============================================================================
+-- 4 ter. L'ÉTANCHÉITÉ INTER-CENTRE, prouvée là où elle vit
+--
+-- Aucune sonde de données ne peut faire tomber les gardes `centre_id` des
+-- jointures : les clés étrangères COMPOSITES les rendent déjà vraies. Une
+-- inscription ne PEUT pas pointer un cours d'un autre centre, un cours ne PEUT
+-- pas pointer la session d'un autre. Construire un décor qui les prendrait en
+-- défaut supposerait de désactiver ces clés — le test ne prouverait alors plus
+-- rien du schéma réel.
+--
+-- Deux assertions, donc, et elles se complètent :
+--
+--   * les clés composites EXISTENT — c'est la garde structurelle, et c'est elle
+--     qui protège vraiment aujourd'hui ;
+--   * la fonction porte quand même `centre_id` sur chaque jointure — c'est la
+--     ceinture, et elle doit survivre à toute réécriture, parce que le jour où
+--     une clé passerait à `(id)` seul, elle serait la seule chose entre un
+--     apprenant et le cours d'un autre centre.
+--
+-- Une garde qu'aucun test ne surveille finit par disparaître à la première
+-- relecture qui la trouve « redondante ».
+-- =============================================================================
+reset role;
+
+do $$
+declare
+  v_def text := pg_get_functiondef('public.suivi_apprenant(uuid)'::regprocedure);
+  v_manque text;
+begin
+  select string_agg(garde, ', ') into v_manque
+  from (values
+    ('i.centre_id    = porte.centre_id'),
+    ('a.centre_id = porte.centre_id'),
+    ('c.centre_id = porte.centre_id'),
+    ('sess.centre_id = porte.centre_id'),
+    ('m.centre_id = porte.centre_id'),
+    ('ce.id = porte.centre_id'),
+    ('p.centre_id = porte.centre_id')
+  ) as g(garde)
+  where position(garde in v_def) = 0;
+
+  if v_manque is not null then
+    raise exception
+      'FAILLE — `suivi_apprenant` a perdu la garde de centre sur : %', v_manque;
+  end if;
+
+  -- Et le couple (apprenant, centre) doit rester figé par la CTE, pas repris
+  -- d'une ligne jointe : c'est ce qui empêche la requête de dériver.
+  if position('with porteur as' in v_def) = 0 then
+    raise exception 'FAILLE — la CTE `porteur` a disparu : le centre n''est plus figé.';
+  end if;
+end;
+$$;
+
+do $$
+declare v_manque text;
+begin
+  select string_agg(attendu, ' | ') into v_manque
+  from (values
+    ('inscription', 'FOREIGN KEY (cours_id, centre_id) REFERENCES cours(id, centre_id)%'),
+    ('inscription', 'FOREIGN KEY (apprenant_id, centre_id) REFERENCES apprenant(id, centre_id)%'),
+    ('cours',       'FOREIGN KEY (session_id, centre_id) REFERENCES session(id, centre_id)%')
+  ) as f(tbl, attendu)
+  where not exists (
+    select 1 from pg_constraint as k
+    where k.contype = 'f'
+      and k.conrelid = ('public.' || f.tbl)::regclass
+      and pg_get_constraintdef(k.oid) like f.attendu
+  );
+
+  if v_manque is not null then
+    raise exception
+      'FAILLE — une clé étrangère ne transporte plus le centre : %', v_manque;
+  end if;
 end;
 $$;
 
@@ -709,6 +1200,9 @@ begin
     format('select public.regenerer_suivi(%L)', gen_random_uuid()), 'anon régénère un lien');
   perform public.__refus_droit(
     format('select public.revoquer_suivi(%L)', gen_random_uuid()), 'anon révoque un lien');
+  perform public.__refus_droit(
+    format('select public.revoquer_suivi_apprenant(%L)', gen_random_uuid()),
+    'anon ferme tous les liens d''un apprenant');
 end;
 $$;
 

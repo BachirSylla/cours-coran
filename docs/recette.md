@@ -1083,3 +1083,96 @@ créneau modifié, double reconduction) :
 ```bash
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/reconduction.sql
 ```
+
+---
+
+## Sessions — phase 4 : le parcours d'un apprenant (migration 0025)
+
+Voir un apprenant **en continuité**, d'une session à l'autre, sur les deux
+surfaces : sa fiche interne, et son lien de suivi privé.
+
+### 75. La fiche interne groupe par session
+
+1. **Apprenants** → ouvrir un apprenant qui a suivi au moins deux sessions
+   (typiquement un apprenant replacé après une reconduction, étape 71).
+
+**Attendu** : la section s'appelle **Parcours**. Les cours sont regroupés sous le
+nom de leur session, de la **plus récente à la plus ancienne**. Une session close
+porte la mention « terminée ».
+
+⚠️ Deux sessions qui **démarrent le même jour** — une session de rattrapage,
+typiquement — doivent former **deux blocs distincts**, chacun d'un seul tenant.
+Voir le même nom de session deux fois dans la liste est le symptôme à signaler.
+
+Deux cours de la même session se rangent sous **un seul** en-tête.
+
+⚠️ Si vous êtes **enseignant** et que l'apprenant suit aussi un cours que vous
+n'animez pas, **ce cours n'apparaît pas** : la RLS écarte la ligne entière. Le
+parcours que vous voyez est donc le vôtre, pas forcément le sien en entier.
+
+### 76. Un seul lien montre tout le parcours
+
+1. **Cours** → un cours → **Suivi de l'apprenant** → sur un inscrit,
+   **Ouvrir le suivi**, puis ouvrir le lien (ou le copier dans un onglet privé).
+
+**Attendu** : la page montre le nom de l'apprenant **une fois**, puis **un bloc
+par cours** qu'il suit dans le centre — y compris ceux d'autres sessions et
+**ceux d'autres cours que celui d'où vous venez**. Le cours actuel est en haut,
+l'historique dessous.
+
+C'est le changement de cette phase, et l'écran le dit avant que vous cliquiez :
+un seul lien par apprenant suffit désormais, et il reste valable d'une session à
+la suivante.
+
+### 77. Ce que la page ne montre toujours pas
+
+**Attendu**, sur chaque bloc :
+
+- aucun **autre apprenant**, aucun **autre centre** ;
+- aucun **prix**, aucun **identifiant** interne, aucun lien de visioconférence ;
+- aucune **moyenne** ni note finale ;
+- aucune **séance à venir** : ni sa note, ni ses exercices — et ce sur *chaque*
+  session, pas seulement la dernière ;
+- aucune note d'une séance **annulée**.
+
+### 78. Fermer un lien ne suffit plus
+
+C'est le point à comprendre, et il est contre-intuitif.
+
+1. Ouvrir le suivi d'un même apprenant depuis **deux cours différents**.
+2. Sur l'un des deux, **Fermer ce lien**.
+
+**Attendu** : le dialogue vous avertit que l'autre lien continuera de montrer
+**tout** le parcours. Vérifiez-le : le second lien fonctionne encore.
+
+3. **Fermer tous ses liens**, puis confirmer.
+
+**Attendu** : l'écran indique combien de liens ont été fermés, et **les deux**
+adresses répondent maintenant « Ce lien n'est plus valide ». C'est le seul geste
+qui coupe réellement l'accès.
+
+⚠️ Un **responsable qui n'anime pas** le cours ne peut ni ouvrir ni fermer ces
+liens — c'est de la pédagogie (§5.13). Il doit s'affecter le cours.
+
+⚠️ À savoir avant d'ouvrir un lien : il publie aussi le travail des cours tenus
+par **d'autres enseignants** — vous ne pouvez d'ailleurs pas le relire vous-même.
+Le dialogue de confirmation le dit. Inversement, « Fermer tous ses liens » ferme
+aussi ceux qu'un collègue a distribués : c'est ce qui rend l'accès réellement
+coupable, et c'est réversible.
+
+### 79. Les jetons morts ne se distinguent pas
+
+**Attendu** : un lien révoqué, un lien régénéré, une adresse inventée et une
+adresse tronquée donnent **le même** message. Aucun ne laisse deviner qu'un
+apprenant existe.
+
+Une coupure réseau, en revanche, affiche « Affichage momentanément impossible…
+Votre lien reste valide » — ce n'est pas un lien mort, et le confondre enverrait
+l'apprenant redemander un lien qui fonctionne.
+
+La preuve automatisée — parcours multi-session, étanchéité inter-centre, fuite du
+futur sur chaque session agrégée, fermeture globale :
+
+```bash
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/suivi_apprenant.sql
+```

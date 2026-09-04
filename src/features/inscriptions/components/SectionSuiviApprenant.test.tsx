@@ -9,6 +9,7 @@ import {
   useActiverSuivi,
   useRegenererSuivi,
   useRevoquerSuivi,
+  useRevoquerSuiviApprenant,
 } from '@/features/suivi/hooks/useLienSuivi'
 import type { Apprenant } from '@/shared/supabase/apprenantRepo'
 import type { InscriptionAvecApprenant } from '@/shared/supabase/inscriptionRepo'
@@ -20,16 +21,19 @@ vi.mock('@/features/suivi/hooks/useLienSuivi', () => ({
   useActiverSuivi: vi.fn(),
   useRegenererSuivi: vi.fn(),
   useRevoquerSuivi: vi.fn(),
+  useRevoquerSuiviApprenant: vi.fn(),
 }))
 
 const useInscriptionsMock = vi.mocked(useInscriptionsCours)
 const useActiverMock = vi.mocked(useActiverSuivi)
 const useRegenererMock = vi.mocked(useRegenererSuivi)
 const useRevoquerMock = vi.mocked(useRevoquerSuivi)
+const useToutFermerMock = vi.mocked(useRevoquerSuiviApprenant)
 
 const activer = vi.fn()
 const regenerer = vi.fn()
 const revoquer = vi.fn()
+const toutFermer = vi.fn()
 
 const JETON = '3f2b1c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d'
 
@@ -86,7 +90,7 @@ function mutation(mutate: ReturnType<typeof vi.fn>, extra: Record<string, unknow
 }
 
 function rendre() {
-  return render(<SectionSuiviApprenant coursId="cours-1" libelle="Coran niveau 3" />)
+  return render(<SectionSuiviApprenant coursId="cours-1" />)
 }
 
 /** La ligne d'un apprenant donné, pour ne pas confondre deux jeux de boutons. */
@@ -111,6 +115,9 @@ describe('SectionSuiviApprenant', () => {
     )
     useRevoquerMock.mockReturnValue(
       mutation(revoquer) as unknown as ReturnType<typeof useRevoquerSuivi>
+    )
+    useToutFermerMock.mockReturnValue(
+      mutation(toutFermer) as unknown as ReturnType<typeof useRevoquerSuiviApprenant>
     )
   })
 
@@ -222,12 +229,12 @@ describe('SectionSuiviApprenant', () => {
     const utilisateur = userEvent.setup()
     rendre()
 
-    await utilisateur.click(within(ligne('Omar Ndiaye')).getByRole('button', { name: /Fermer/ }))
+    await utilisateur.click(within(ligne('Omar Ndiaye')).getByRole('button', { name: 'Fermer ce lien' }))
     await utilisateur.click(screen.getByRole('button', { name: 'Annuler' }))
 
     expect(revoquer).not.toHaveBeenCalled()
 
-    await utilisateur.click(within(ligne('Omar Ndiaye')).getByRole('button', { name: /Fermer/ }))
+    await utilisateur.click(within(ligne('Omar Ndiaye')).getByRole('button', { name: 'Fermer ce lien' }))
     await utilisateur.click(screen.getByRole('button', { name: 'Confirmer' }))
 
     expect(revoquer).toHaveBeenCalledWith({
@@ -235,6 +242,78 @@ describe('SectionSuiviApprenant', () => {
       apprenantId: 'a2',
       coursId: 'cours-1',
     })
+  })
+
+  /*
+   * ⚠️ LA CONSÉQUENCE DE 0025, telle qu'elle doit apparaître à l'écran.
+   *
+   * Tout jeton d'un apprenant ouvre son parcours entier : fermer le lien d'un
+   * cours ne coupe donc PAS l'accès s'il en a d'autres. L'enseignant qui croit
+   * avoir refermé la porte doit lire ici que ce n'est pas le cas.
+   */
+  it('avertit que fermer un seul lien ne coupe pas forcément l’accès', async () => {
+    const utilisateur = userEvent.setup()
+    rendre()
+
+    await utilisateur.click(
+      within(ligne('Omar Ndiaye')).getByRole('button', { name: 'Fermer ce lien' })
+    )
+
+    expect(screen.getByText(/continuera de montrer tout son parcours/)).toBeInTheDocument()
+  })
+
+  it('ferme tous les liens de l’apprenant après confirmation', async () => {
+    const utilisateur = userEvent.setup()
+    rendre()
+
+    await utilisateur.click(
+      within(ligne('Omar Ndiaye')).getByRole('button', { name: /Fermer tous ses liens/ })
+    )
+    expect(toutFermer).not.toHaveBeenCalled()
+
+    expect(screen.getByText(/seul geste qui coupe vraiment l'accès/)).toBeInTheDocument()
+
+    await utilisateur.click(screen.getByRole('button', { name: 'Confirmer' }))
+
+    // La cible est la PERSONNE, pas l'inscription : la RPC ferme au-delà de ce cours.
+    expect(toutFermer).toHaveBeenCalledWith('a2')
+  })
+
+  it('dit que le lien montre tout le parcours, pas seulement ce cours', () => {
+    rendre()
+
+    expect(screen.getByText(/tout son parcours dans le centre/)).toBeInTheDocument()
+  })
+
+  it('rend compte du nombre de liens réellement fermés', () => {
+    useToutFermerMock.mockReturnValue(
+      mutation(toutFermer, { isSuccess: true, data: 3 }) as unknown as ReturnType<
+        typeof useRevoquerSuiviApprenant
+      >
+    )
+    rendre()
+
+    // Le mock est global : chaque ligne porte sa propre mutation dans la vraie
+    // application, on cible donc celle où le geste a eu lieu.
+    expect(within(ligne('Aïcha Diallo')).getByText(/3 liens fermés/)).toBeInTheDocument()
+  })
+
+  /*
+   * ⚠️ RÉGRESSION À NE PAS REFAIRE : ce bouton vivait dans le bloc affiché
+   * seulement quand CE lien-ci est ouvert. Il disparaissait donc exactement au
+   * moment où il devient nécessaire — juste après « Fermer ce lien », alors que
+   * le lien ouvert par un autre enseignant montre toujours tout le parcours.
+   *
+   * Aïcha n'a aucun jeton dans la fixture : le bouton doit quand même être là.
+   */
+  it('propose de fermer tous les liens même quand ce lien-ci est fermé', () => {
+    rendre()
+
+    const sansLien = ligne('Aïcha Diallo')
+    expect(within(sansLien).queryByRole('button', { name: 'Fermer ce lien' })).toBeNull()
+    expect(
+      within(sansLien).getByRole('button', { name: /Fermer tous ses liens/ })
+    ).toBeInTheDocument()
   })
 
   it('remonte le refus de la base sans le maquiller', () => {

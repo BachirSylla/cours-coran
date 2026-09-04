@@ -6,6 +6,8 @@ import { StatutApprenantBadge } from '@/features/apprenants/components/StatutApp
 import { abregeJour, LIBELLES_FORMAT, type FormatCours } from '@/features/cours/coursSchema'
 import { useInscriptionsApprenant } from '@/features/inscriptions/hooks/useInscriptionsApprenant'
 import type { Apprenant } from '@/shared/supabase/apprenantRepo'
+import type { InscriptionAvecCours } from '@/shared/supabase/inscriptionRepo'
+import { SESSION_TERMINEE } from '@/shared/supabase/sessionRepo'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
 import {
@@ -34,6 +36,53 @@ function formatValide(format: string): FormatCours {
   return format === 'groupe' ? 'groupe' : 'individuel'
 }
 
+/**
+ * Regroupe les inscriptions par session, en préservant l'ordre du repository —
+ * du plus récent au plus ancien.
+ *
+ * ⚠️ Ne réunit que les suites CONSÉCUTIVES, et ne retrie rien : c'est
+ * `listByApprenant` qui garantit qu'une session forme un bloc d'un seul tenant,
+ * en départageant par identifiant de session AVANT le libellé du cours. Les deux
+ * vont ensemble — relâcher ce tri ferait réapparaître le même en-tête deux fois,
+ * avec une clé React dupliquée.
+ *
+ * Le repli sur `cours: null` est défensif, et rien de plus : la policy
+ * `inscription_select` porte sur `cours_lisibles()`, donc elle écarte la LIGNE
+ * entière — un embed vide ne remonte jamais de ce chemin. Mais le type de
+ * PostgREST autorise `null`, et afficher « undefined » vaudrait moins que de
+ * dire qu'on ne sait pas.
+ */
+function grouperParSession(
+  inscriptions: InscriptionAvecCours[]
+): { cle: string; nom: string | null; statut: string | null; cours: InscriptionAvecCours[] }[] {
+  const groupes: {
+    cle: string
+    nom: string | null
+    statut: string | null
+    cours: InscriptionAvecCours[]
+  }[] = []
+
+  for (const inscription of inscriptions) {
+    const session = inscription.cours?.session ?? null
+    const cle = session?.id ?? 'sans-session'
+    const dernier = groupes.at(-1)
+
+    if (dernier?.cle === cle) {
+      dernier.cours.push(inscription)
+      continue
+    }
+
+    groupes.push({
+      cle,
+      nom: session?.nom ?? null,
+      statut: session?.statut ?? null,
+      cours: [inscription],
+    })
+  }
+
+  return groupes
+}
+
 /** Fiche d'un apprenant et cours auxquels il est inscrit. */
 export function ApprenantDetailDialog({
   apprenant,
@@ -49,6 +98,7 @@ export function ApprenantDetailDialog({
   } = useInscriptionsApprenant(apprenant?.id)
 
   const liste = inscriptions ?? []
+  const parSession = grouperParSession(liste)
 
   return (
     <Dialog open={Boolean(apprenant)} onOpenChange={onOuvertChange}>
@@ -87,7 +137,7 @@ export function ApprenantDetailDialog({
             <section className="space-y-3">
               <h3 className="flex items-center gap-2 text-sm font-medium">
                 <BookOpen className="size-4 text-muted-foreground" aria-hidden="true" />
-                Cours suivis
+                Parcours
                 {liste.length > 0 && (
                   <span className="font-normal text-muted-foreground">({liste.length})</span>
                 )}
@@ -117,32 +167,51 @@ export function ApprenantDetailDialog({
                 </p>
               )}
 
-              {liste.length > 0 && (
-                <ul className="divide-y rounded-lg border">
-                  {liste.map((inscription) => (
-                    <li key={inscription.id} className="px-3 py-2">
-                      <p className="truncate text-sm font-medium">
-                        {inscription.cours?.libelle}
-                      </p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {inscription.cours?.type_cours?.libelle ?? '—'}
-                        {inscription.cours &&
-                          ` · ${LIBELLES_FORMAT[formatValide(inscription.cours.format)]}`}
-                      </p>
-                      {inscription.cours && inscription.cours.creneau.length > 0 && (
-                        <p className="mt-0.5 text-xs text-muted-foreground tabular-nums">
-                          {inscription.cours.creneau
-                            .map(
-                              (creneau) =>
-                                `${abregeJour(creneau.jour_semaine)} ${creneau.heure_debut.slice(0, 5)}–${creneau.heure_fin.slice(0, 5)}`
-                            )
-                            .join(' · ')}
+              {/*
+                Une session par bloc, de la plus récente à la plus ancienne :
+                c'est ce qui transforme une liste de cours en progression. Sans
+                cet en-tête, « Coran niveau 1 » et « Coran niveau 2 » se lisent
+                comme deux cours suivis en même temps.
+              */}
+              {parSession.map((groupe) => (
+                <div key={groupe.cle} className="space-y-1.5">
+                  <p className="flex items-baseline gap-2 text-xs font-medium text-muted-foreground">
+                    {groupe.nom ?? 'Session non lisible'}
+                    {/* ⚠️ La constante, jamais le littéral : la base n'accepte que
+                        `en_cours` et `terminee`, et un « cloturee » écrit à la main
+                        est une branche morte que rien ne signale. */}
+                    {groupe.statut === SESSION_TERMINEE && (
+                      <span className="font-normal">· terminée</span>
+                    )}
+                  </p>
+
+                  <ul className="divide-y rounded-lg border">
+                    {groupe.cours.map((inscription) => (
+                      <li key={inscription.id} className="px-3 py-2">
+                        <p className="truncate text-sm font-medium">
+                          {inscription.cours?.libelle ?? 'Cours non lisible'}
                         </p>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
+                        <p className="truncate text-xs text-muted-foreground">
+                          {inscription.cours?.type_cours?.libelle ?? '—'}
+                          {inscription.cours &&
+                            ` · ${LIBELLES_FORMAT[formatValide(inscription.cours.format)]}`}
+                          {inscription.cours?.niveau ? ` · ${inscription.cours.niveau}` : ''}
+                        </p>
+                        {inscription.cours && inscription.cours.creneau.length > 0 && (
+                          <p className="mt-0.5 text-xs text-muted-foreground tabular-nums">
+                            {inscription.cours.creneau
+                              .map(
+                                (creneau) =>
+                                  `${abregeJour(creneau.jour_semaine)} ${creneau.heure_debut.slice(0, 5)}–${creneau.heure_fin.slice(0, 5)}`
+                              )
+                              .join(' · ')}
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
             </section>
 
             <SectionProgression apprenantId={apprenant.id} />

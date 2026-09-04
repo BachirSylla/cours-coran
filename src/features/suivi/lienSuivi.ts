@@ -25,10 +25,16 @@ export function urlSuivi(origine: string, jeton: string): string {
  *
  * Le message nomme l'apprenant — c'est ce qui évite d'envoyer le lien d'Aïcha à
  * Omar — et rappelle qu'il est personnel : qui l'a, voit.
+ *
+ * ⚠️ Il ne nomme **plus le cours** depuis 0025. Le lien montre tout le parcours
+ * de son porteur, tous cours confondus : annoncer « — Coran niveau 3 » laissait
+ * croire que la page s'arrête là, et le destinataire n'aurait pas su qu'il en
+ * reçoit davantage. Dire moins, mais juste.
  */
-export function lienWhatsAppSuivi(url: string, apprenant: string, cours: string): string {
+export function lienWhatsAppSuivi(url: string, apprenant: string): string {
   const texte =
-    `Suivi de ${apprenant} — ${cours} : ${url}\n` +
+    `Suivi de ${apprenant} : ${url}\n` +
+    'Vous y trouverez ses notes de récitation et son assiduité, pour tous ses cours.\n' +
     'Ce lien est personnel, merci de ne pas le transmettre.'
 
   return `https://wa.me/?text=${encodeURIComponent(texte)}`

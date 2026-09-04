@@ -5,7 +5,7 @@ import type { UseQueryResult } from '@tanstack/react-query'
 
 import { useSuiviApprenant } from '@/features/suivi/hooks/useSuiviApprenant'
 import { PageSuivi } from '@/features/suivi/PageSuivi'
-import type { SuiviApprenant } from '@/shared/supabase/suiviSchema'
+import type { ParcoursApprenant, SuiviCours } from '@/shared/supabase/suiviSchema'
 
 vi.mock('@/features/suivi/hooks/useSuiviApprenant', () => ({ useSuiviApprenant: vi.fn() }))
 
@@ -13,7 +13,7 @@ const useSuiviApprenantMock = vi.mocked(useSuiviApprenant)
 
 const JETON = '3f2b1c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d'
 
-function suivi(extra: Partial<SuiviApprenant> = {}): SuiviApprenant {
+function suivi(extra: Partial<SuiviCours> = {}): SuiviCours {
   return {
     apprenant: 'Aïcha Diallo',
     cours_libelle: 'Coran niveau 3',
@@ -47,14 +47,14 @@ function suivi(extra: Partial<SuiviApprenant> = {}): SuiviApprenant {
   }
 }
 
-function simuler(etat: Partial<UseQueryResult<SuiviApprenant | null, Error>>) {
+function simuler(etat: Partial<UseQueryResult<ParcoursApprenant | null, Error>>) {
   useSuiviApprenantMock.mockReturnValue({
     data: null,
     isPending: false,
     isError: false,
     error: null,
     ...etat,
-  } as UseQueryResult<SuiviApprenant | null, Error>)
+  } as UseQueryResult<ParcoursApprenant | null, Error>)
 }
 
 function rendre() {
@@ -73,7 +73,7 @@ describe('PageSuivi', () => {
   })
 
   it("annonce l'apprenant et son cours", () => {
-    simuler({ data: suivi() })
+    simuler({ data: [suivi()] })
     rendre()
 
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Aïcha Diallo')
@@ -82,7 +82,7 @@ describe('PageSuivi', () => {
   })
 
   it('affiche les notes réelles avec leur barème et leur contenu', () => {
-    simuler({ data: suivi() })
+    simuler({ data: [suivi()] })
     rendre()
 
     expect(screen.getByText('17/20')).toBeInTheDocument()
@@ -92,7 +92,7 @@ describe('PageSuivi', () => {
   })
 
   it("mentionne l'état seulement quand il n'est pas « présent »", () => {
-    simuler({ data: suivi() })
+    simuler({ data: [suivi()] })
     rendre()
 
     expect(screen.getByText(/En retard/)).toBeInTheDocument()
@@ -100,7 +100,7 @@ describe('PageSuivi', () => {
   })
 
   it('ne calcule ni moyenne ni note finale', () => {
-    simuler({ data: suivi() })
+    simuler({ data: [suivi()] })
     const { container } = rendre()
 
     expect(container.textContent).not.toMatch(/moyenne/i)
@@ -108,13 +108,13 @@ describe('PageSuivi', () => {
   })
 
   it("trace la courbe dès deux notes, jamais avec une seule", () => {
-    simuler({ data: suivi() })
+    simuler({ data: [suivi()] })
     const { unmount } = rendre()
 
     expect(screen.getByRole('img', { name: /Évolution des notes/ })).toBeInTheDocument()
     unmount()
 
-    simuler({ data: suivi({ evaluations: [suivi().evaluations[0]!] }) })
+    simuler({ data: [suivi({ evaluations: [suivi().evaluations[0]!] })] })
     rendre()
 
     expect(screen.queryByRole('img', { name: /Évolution/ })).not.toBeInTheDocument()
@@ -122,7 +122,7 @@ describe('PageSuivi', () => {
   })
 
   it("compte l'assiduité et dit sur combien de séances tenues", () => {
-    simuler({ data: suivi() })
+    simuler({ data: [suivi()] })
     rendre()
 
     expect(screen.getByText('12')).toBeInTheDocument()
@@ -131,7 +131,7 @@ describe('PageSuivi', () => {
   })
 
   it('tait les excusées et les partielles quand il n’y en a aucune', () => {
-    simuler({ data: suivi() })
+    simuler({ data: [suivi()] })
     rendre()
 
     expect(screen.queryByText(/excusée/)).not.toBeInTheDocument()
@@ -139,7 +139,7 @@ describe('PageSuivi', () => {
   })
 
   it('met les exercices en avant quand il y en a', () => {
-    simuler({ data: suivi({ exercices: 'Réviser la page 72.' }) })
+    simuler({ data: [suivi({ exercices: 'Réviser la page 72.' })] })
     rendre()
 
     expect(screen.getByText('Réviser la page 72.')).toBeInTheDocument()
@@ -147,13 +147,13 @@ describe('PageSuivi', () => {
   })
 
   it("n'affiche l'examen que lorsqu'il existe", () => {
-    simuler({ data: suivi() })
+    simuler({ data: [suivi()] })
     const { unmount } = rendre()
 
     expect(screen.queryByText(/Examen de fin de session/)).not.toBeInTheDocument()
     unmount()
 
-    simuler({ data: suivi({ examen: { note: 15, bareme: 20 } }) })
+    simuler({ data: [suivi({ examen: { note: 15, bareme: 20 } })] })
     rendre()
 
     expect(screen.getByText(/Examen de fin de session/)).toBeInTheDocument()
@@ -161,14 +161,14 @@ describe('PageSuivi', () => {
   })
 
   it("dit qu'aucune récitation n'est notée plutôt que d'afficher une grille vide", () => {
-    simuler({ data: suivi({ evaluations: [] }) })
+    simuler({ data: [suivi({ evaluations: [] })] })
     rendre()
 
     expect(screen.getByText(/Aucune récitation n'a encore été notée/)).toBeInTheDocument()
   })
 
   it('signale une session terminée sans fermer la page', () => {
-    simuler({ data: suivi({ statut: 'termine' }) })
+    simuler({ data: [suivi({ statut: 'termine' })] })
     rendre()
 
     expect(screen.getByText(/Cette session est terminée/)).toBeInTheDocument()
@@ -177,7 +177,7 @@ describe('PageSuivi', () => {
   })
 
   it('rappelle que le lien est personnel', () => {
-    simuler({ data: suivi() })
+    simuler({ data: [suivi()] })
     rendre()
 
     expect(screen.getByText(/ne pas le transmettre/)).toBeInTheDocument()
@@ -219,12 +219,87 @@ describe('PageSuivi', () => {
   })
 
   it('demande aux robots de ne pas indexer — le jeton est dans l’URL', () => {
-    simuler({ data: suivi() })
+    simuler({ data: [suivi()] })
     rendre()
 
     expect(document.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe(
       'noindex, nofollow'
     )
+  })
+
+  /*
+   * ============================ LE PARCOURS (0025) ============================
+   *
+   * Le lien montre désormais tous les cours de son porteur. Ce qui doit tenir :
+   * les blocs ne se mélangent pas, la personne n'est nommée qu'une fois, et
+   * l'ordre d'affichage part du plus récent — c'est ce qu'on vient voir.
+   */
+  const ANCIEN = suivi({
+    cours_libelle: 'Coran niveau 1',
+    type_libelle: 'Initiation à la lecture du Coran',
+    enseignant: 'Bilal Sow',
+    statut: 'termine',
+    evaluations: [
+      {
+        date: '2025-09-10',
+        contenu: 'An-Nas',
+        note: 12,
+        bareme: 20,
+        commentaire: 'Bon départ.',
+        etat: 'present',
+      },
+    ],
+    assiduite: { present: 8, retard: 0, absent: 1, excuse: 0, partiel: 0, seances: 9 },
+    examen: { note: 14, bareme: 20 },
+  })
+
+  it('déroule tout le parcours, du plus récent au plus ancien', () => {
+    // SQL rend le parcours dans l'ordre chronologique : l'ancien d'abord.
+    simuler({ data: [ANCIEN, suivi()] })
+    rendre()
+
+    const titres = screen.getAllByRole('heading', { level: 2 }).map((t) => t.textContent)
+    expect(titres).toEqual(['Coran niveau 3', 'Coran niveau 1'])
+  })
+
+  it("ne nomme l'apprenant qu'une fois, quel que soit le nombre de cours", () => {
+    simuler({ data: [ANCIEN, suivi()] })
+    rendre()
+
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+    expect(screen.getAllByText('Aïcha Diallo')).toHaveLength(1)
+  })
+
+  /*
+   * ⚠️ Le point qui compte : agréger ne doit pas mélanger. Chaque bloc porte ses
+   * notes, son assiduité, son enseignant et son examen — une note qui glisserait
+   * d'un cours à l'autre serait invisible à la lecture et fausse pour toujours.
+   */
+  it('garde chaque cours avec ses propres notes, son examen et son enseignant', () => {
+    simuler({ data: [ANCIEN, suivi()] })
+    rendre()
+
+    expect(screen.getByText('An-Nas')).toBeInTheDocument()
+    expect(screen.getByText('Al-Baqara v1–5')).toBeInTheDocument()
+
+    expect(screen.getByText(/Amina Bâ/)).toBeInTheDocument()
+    expect(screen.getByText(/Bilal Sow/)).toBeInTheDocument()
+
+    // L'examen n'existe que sur l'ancien cours : un seul bloc doit le montrer.
+    expect(screen.getAllByText(/Examen de fin de session/)).toHaveLength(1)
+    expect(screen.getByText('14/20')).toBeInTheDocument()
+
+    // Et deux comptages d'assiduité distincts, pas un cumul.
+    expect(screen.getByText(/Sur 13 séances tenues/)).toBeInTheDocument()
+    expect(screen.getByText(/Sur 9 séances tenues/)).toBeInTheDocument()
+  })
+
+  it("signale le cours terminé sans masquer ses résultats", () => {
+    simuler({ data: [ANCIEN, suivi()] })
+    rendre()
+
+    expect(screen.getByText(/Cette session est terminée/)).toBeInTheDocument()
+    expect(screen.getByText('12/20')).toBeInTheDocument()
   })
 
   it('patiente sans rien affirmer pendant le chargement', () => {

@@ -1,13 +1,20 @@
 import { z } from 'zod'
 
 /**
- * Forme du suivi d'un apprenant tel qu'il est **publié** — la deuxième barrière.
+ * Forme du parcours d'un apprenant tel qu'il est **publié** — la deuxième
+ * barrière.
  *
- * La première est SQL : `public.suivi_apprenant()` (migration 0019) n'a que
- * onze colonnes de sortie, et son corps est figé. Ce schéma rejoue la liste
- * blanche côté client, en mode « strip » (le défaut de Zod) : toute clé
+ * La première est SQL : `public.suivi_apprenant()` (migrations 0019 et 0025)
+ * n'a que onze colonnes de sortie, et son corps est figé. Ce schéma rejoue la
+ * liste blanche côté client, en mode « strip » (le défaut de Zod) : toute clé
  * inattendue est **supprimée** avant d'atteindre React. Si quelqu'un élargit un
  * jour la fonction SQL, la donnée n'arrive pas dans l'interface.
+ *
+ * ⚠️ Depuis 0025, la fonction rend **plusieurs lignes** — une par cours suivi,
+ * du plus ancien au plus récent. La liste blanche, elle, n'a pas bougé d'une
+ * clé : agréger plusieurs sessions ajoute des LIGNES, jamais des colonnes. Le
+ * schéma d'un bloc reste donc exactement celui de 0019, et c'est voulu — c'est
+ * ce qui garantit que la surface exposée ne s'est pas élargie.
  *
  * Le raisonnement est celui de `coursPublicSchema`, en plus exigeant : cette
  * page-ci publie des notes nominatives à qui détient une URL. Le mode strict
@@ -65,7 +72,7 @@ export const examenSuiviSchema = z.object({
   bareme: z.number(),
 })
 
-export const suiviApprenantSchema = z.object({
+export const suiviCoursSchema = z.object({
   apprenant: z.string(),
   cours_libelle: z.string(),
   type_libelle: z.string(),
@@ -85,7 +92,19 @@ export const suiviApprenantSchema = z.object({
   exercices: texteFacultatif,
 })
 
-export type SuiviApprenant = z.output<typeof suiviApprenantSchema>
+/**
+ * Le parcours : les blocs dans l'ordre rendu par SQL.
+ *
+ * ⚠️ L'ordre vient de la base (`order by session.date_debut, …`) et n'est PAS
+ * retrié ici. Le tableau ne porte aucune date de session — il n'y a pas de
+ * colonne pour cela, et il ne doit pas y en avoir — donc le client serait
+ * incapable de le reconstruire. Le préserver tel quel est la seule option
+ * juste.
+ */
+export const parcoursApprenantSchema = z.array(suiviCoursSchema)
+
+export type SuiviCours = z.output<typeof suiviCoursSchema>
+export type ParcoursApprenant = z.output<typeof parcoursApprenantSchema>
 export type EvaluationSuivi = z.output<typeof evaluationSuiviSchema>
 export type AssiduiteSuivi = z.output<typeof assiduiteSuiviSchema>
 export type ExamenSuivi = z.output<typeof examenSuiviSchema>

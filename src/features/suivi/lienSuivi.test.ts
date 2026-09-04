@@ -19,20 +19,31 @@ describe('urlSuivi', () => {
 
 describe('lienWhatsAppSuivi', () => {
   it('nomme l’apprenant — c’est ce qui évite d’envoyer le lien à la mauvaise personne', () => {
-    const lien = lienWhatsAppSuivi('https://exemple.app/suivi/abc', 'Aïcha Diallo', 'Coran 3')
+    const lien = lienWhatsAppSuivi('https://exemple.app/suivi/abc', 'Aïcha Diallo')
 
     expect(decodeURIComponent(lien)).toContain('Aïcha Diallo')
-    expect(decodeURIComponent(lien)).toContain('Coran 3')
+  })
+
+  /*
+   * ⚠️ Le lien montre TOUT le parcours depuis 0025. Nommer un cours dans le
+   * message laisserait croire que la page s'y arrête, et le destinataire ne
+   * saurait pas qu'il en reçoit plus.
+   */
+  it('ne nomme aucun cours en particulier, et annonce ce qu’il montre', () => {
+    const lien = decodeURIComponent(lienWhatsAppSuivi('https://exemple.app/suivi/abc', 'Aïcha'))
+
+    expect(lien).toContain('pour tous ses cours')
+    expect(lien).not.toContain('Coran 3')
   })
 
   it('rappelle que le lien est personnel', () => {
-    const lien = lienWhatsAppSuivi('https://exemple.app/suivi/abc', 'Aïcha', 'Coran 3')
+    const lien = lienWhatsAppSuivi('https://exemple.app/suivi/abc', 'Aïcha')
 
     expect(decodeURIComponent(lien)).toContain('ne pas le transmettre')
   })
 
   it('encode le texte et ouvre le sélecteur de contact sans numéro', () => {
-    const lien = lienWhatsAppSuivi('https://exemple.app/suivi/abc', 'Aïcha', 'Coran 3')
+    const lien = lienWhatsAppSuivi('https://exemple.app/suivi/abc', 'Aïcha')
 
     expect(lien.startsWith('https://wa.me/?text=')).toBe(true)
     expect(lien).not.toContain(' ')
