@@ -1,5 +1,6 @@
 import type { SurchargesCours } from '@/shared/lib/paramsCours'
 import { getSupabaseClient } from '@/shared/supabase/client'
+import type { PorteeFacturation } from '@/shared/lib/facturation'
 import { ErreurSupabase, lancerSiErreur } from '@/shared/supabase/erreurs'
 import type { Database, Json } from '@/shared/supabase/types'
 
@@ -54,6 +55,11 @@ export interface CoursInput {
    * clé, sous peine d'effacer les forfaits des cours qu'il enregistre.
    */
   prix_session?: number | null
+  /**
+   * À qui s'applique le prix (migration 0027). Même règle que `prix_session` :
+   * la clé ABSENTE veut dire « n'y touche pas », une valeur la remplace.
+   */
+  portee_facturation?: PorteeFacturation
   devise?: string
 }
 
@@ -80,18 +86,22 @@ export type CoursAvecDetails = Cours & {
    * lecture, et un embed que la RLS filtre revient vide plutôt qu'en erreur.
    * Ce n'est pas un cas d'exception à traiter — c'est le comportement voulu.
    */
-  tarif: { prix_mensuel: number | null; prix_session: number | null; devise: string }[]
+  tarif: {
+    prix_mensuel: number | null
+    prix_session: number | null
+    devise: string
+    /** `par_apprenant` | `forfait_classe` (0027), non interprété ici. */
+    portee_facturation: string
+  }[]
 }
 
 /** Le tarif du cours, ou `null` — ce que voit un enseignant. */
-export function tarifDuCours(
-  cours: CoursAvecDetails
-): { prix_mensuel: number | null; prix_session: number | null; devise: string } | null {
+export function tarifDuCours(cours: CoursAvecDetails): CoursAvecDetails['tarif'][number] | null {
   return cours.tarif[0] ?? null
 }
 
 const SELECT_DETAILS =
-  '*, type_cours(libelle), creneau(*), inscription(count), tarif(prix_mensuel, prix_session, devise)'
+  '*, type_cours(libelle), creneau(*), inscription(count), tarif(prix_mensuel, prix_session, devise, portee_facturation)'
 
 /** Nombre d'apprenants inscrits, extrait de l'agrégat. */
 export function nombreInscrits(cours: Pick<CoursAvecDetails, 'inscription'>): number {

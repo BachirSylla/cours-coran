@@ -20,7 +20,7 @@ export function useReglementsInscription(
 ): UseQueryResult<Reglement[], Error> {
   return useQuery({
     queryKey: [...reglementKeys.tous, 'inscription', inscriptionId ?? ''],
-    queryFn: () => reglementRepo.listPourInscriptions([inscriptionId as string]),
+    queryFn: () => reglementRepo.listPourPorteurs([inscriptionId as string]),
     enabled: Boolean(inscriptionId),
   })
 }

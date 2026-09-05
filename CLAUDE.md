@@ -196,6 +196,11 @@ Les types de cours sont dans une **table de référence** (extensible), pas en d
 - La période prend **une forme et une seule** : `check (num_nonnulls(mois, session_id) = 1)`. Deux
   colonnes plutôt qu'une clé polymorphe en texte, parce que `session_id` doit être une vraie clé
   étrangère — sinon rien n'empêcherait de désigner la session d'un autre centre.
+- Le **PORTEUR** prend deux formes exclusives depuis 0027 : `inscription_id` (suivi nominatif) ou
+  `cours_id` (forfait de classe), sous `check (num_nonnulls(...) = 1)`. Même motif que la période —
+  deux colonnes plutôt qu'une clé polymorphe, pour que chacune soit une vraie clé étrangère.
+  ⚠️ Désigner une inscription « porteuse » du règlement de classe aurait été le piège évident : la
+  recette aurait disparu avec la désinscription d'un apprenant.
 - Unicité par **index PARTIELS** (`where mois is not null`, `where session_id is not null`) : une
   contrainte ordinaire laisserait passer autant de lignes qu'on veut avec `mois` nul, NULL n'étant
   jamais égal à lui-même. ⚠️ Corollaire : PostgREST ne sait pas viser un index partiel, donc
@@ -254,6 +259,14 @@ Les types de cours sont dans une **table de référence** (extensible), pas en d
 
 - `cours_id` (PK), `centre_id`, `prix_mensuel`, **`prix_session`** (migration 0026), `devise`.
   FK **composite** vers `cours (id, centre_id)`.
+- `portee_facturation` **(migration 0027)** : `par_apprenant` (défaut) ou `forfait_classe`. Elle dit
+  À QUI s'applique le prix — à chaque inscrit, ou au cours entier. C'est le correctif d'un bug réel :
+  un cours réglé en bloc par la classe voyait son tarif multiplié par le nombre d'inscrits, et
+  100 000 F le mois devenaient 800 000 F attendus.
+- ⚠️ **La portée vit sur `tarif`, pas sur `cours`.** Deux raisons. La première est le piège de §10 :
+  `cours` n'a aucun privilège d'écriture de table, et une colonne ajoutée sans `grant` de COLONNE en
+  INSERT **et** en UPDATE casse toute création de cours, en silence. `tarif` porte des privilèges de
+  TABLE. La seconde est de fond : une portée de facturation EST un attribut du tarif.
 - `prix_session` est le **forfait couvrant toute la session**. Il cohabite avec `prix_mensuel`
   plutôt que de le remplacer : les deux ne se déduisent pas l'un de l'autre — un forfait n'est
   presque jamais le mensuel multiplié par la durée, c'est là tout son intérêt — et un centre qui
@@ -757,7 +770,45 @@ fin)`, `security definer`, gardée `est_responsable()` et bornée à `centre_cou
     pur**, et non dans le hook : ce projet ne teste pas les hooks, et ces trois décisions portent sur
     de l'argent.
 
-17. **Retrait d'un membre** (migration 0018). `retirer_membre(user_id, reaffecter_a)`,
+17. **Portée de facturation** (migration 0027). Deux axes **orthogonaux**, et ils cohabitent :
+
+    |                    | mensuel                       | par_session                     |
+    | ------------------ | ----------------------------- | ------------------------------- |
+    | **par_apprenant**  | X par mois et par personne    | X par session et par personne   |
+    | **forfait_classe** | X par mois pour la classe     | X par session pour la classe    |
+
+    ⚠️ **Un forfait de classe est dû quel que soit le nombre d'inscrits — même ZÉRO.** C'est un
+    engagement du cours, pas la somme de places individuelles. Corollaire d'implémentation : les
+    cours au forfait entrent dans le calcul par une liste **à part** (`useCoursAuForfait`), jamais
+    déduits des inscriptions — les en déduire ferait disparaître de la facturation exactement les
+    classes qu'on vient d'ouvrir.
+
+    ⚠️ **Toute LECTURE de règlement doit couvrir les DEUX porteurs.** Un règlement de classe a
+    `inscription_id` à `NULL`, et `.in('inscription_id', …)` ne matche jamais `NULL` : la première
+    version du lot enregistrait le forfait sans erreur puis ne le relisait **jamais** — la classe
+    réapparaissait « en retard » à chaque rechargement, et le total réclamait un argent déjà
+    encaissé. Symptôme entièrement muet, corrigé par deux requêtes (`listPourPorteurs`).
+
+    ⚠️ **Les inscriptions d'un cours au forfait restent dans la liste**, mais ne produisent aucune
+    période (`facturee: false`). Les en retirer faisait disparaître de tous les écrans les
+    règlements nominatifs encaissés AVANT une bascule de portée : rien n'était détruit en base,
+    mais l'argent devenait inatteignable depuis l'application.
+
+    ⚠️ **P0083 garde la CRÉATION, pas la correction**, comme P0081. Ce n'est donc PAS une garantie
+    structurelle : encaisser des règlements nominatifs, basculer au forfait, puis encaisser le
+    forfait du même mois reste accepté. C'est le prix de l'invariant qui prime — changer de portée
+    ne détruit ni ne fige rien. Changer la portée d'un cours qui
+    a déjà des règlements ne détruit ni ne fige rien : l'historique reste lisible et corrigeable.
+
+    Sur l'écran « qui n'a pas payé », un cours au forfait donne **une seule ligne**, au nom de la
+    classe — on n'y cherche pas qui paie, on suit l'état de la classe. Une classe n'est donc jamais
+    comptée comme une personne : les compteurs distinguent les deux.
+
+    Le choix est écrit en toutes lettres dans le formulaire de cours — « Chaque apprenant paie ce
+    montant » contre « Ce montant couvre toute la classe » — parce que l'absence de ce choix est
+    précisément ce qui a produit le bug.
+
+18. **Retrait d'un membre** (migration 0018). `retirer_membre(user_id, reaffecter_a)`,
     `security definer` — `membre` n'accorde ni `delete` ni policy de suppression à personne, cette
     RPC est donc le seul chemin, comme `racheter_invitation` l'est pour l'insertion.
 
@@ -1054,6 +1105,11 @@ dont dépend le typage de `createClient`.
   d'être typé sans que rien ne signale la vraie cause.
 - Ne pas viser un index PARTIEL avec `onConflict` : PostgREST attend une contrainte nommée. Lire
   puis insérer ou mettre à jour.
+- Ne pas filtrer une colonne NULLABLE avec `in` en croyant couvrir toutes les lignes : `in` ne
+  matche jamais `NULL`. Une deuxième forme de porteur demande une deuxième lecture, sans quoi ce
+  qui s'écrit sans erreur ne se relit jamais.
+- Ne pas facturer un cours à partir de ses INSCRIPTIONS quand le montant porte sur le cours : la
+  classe vide cesse d'être facturée, et la classe pleine paie autant de fois qu'elle a d'inscrits.
 - Ne pas recopier une ligne dans une RPC sans revenir sur TOUTES celles qui la recopient déjà :
   `prix_session` ajouté à `tarif` en 0026 était oublié par `reconduire_session` (0024), et chaque
   reconduction perdait silencieusement tous les forfaits du centre. Le test de reconduction

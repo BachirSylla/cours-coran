@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { heureEnMinutes, type JourSemaine } from '@/shared/lib/conflits'
+import { PORTEES_FACTURATION } from '@/shared/lib/facturation'
 
 /**
  * Validation de la **structure** d'un cours et de ses créneaux — schéma unique
@@ -190,6 +191,11 @@ export const coursSchema = z
       .refine((valeur) => valeur === null || (Number.isFinite(valeur) && valeur >= 0), {
         message: 'Le forfait doit être un nombre positif.',
       }),
+    /*
+     * À qui s'applique le prix (migration 0027). Le défaut reproduit le
+     * comportement d'avant : chaque apprenant paie le montant.
+     */
+    portee_facturation: z.enum(PORTEES_FACTURATION).default('par_apprenant'),
     devise: z
       .string()
       .trim()
@@ -236,6 +242,7 @@ export function valeursParDefaut(sessionId: string): CoursFormValues {
     date_fin: '',
     prix_mensuel: '',
     prix_session: '',
+    portee_facturation: 'par_apprenant',
     devise: 'XOF',
     statut: 'actif',
     creneaux: [creneauParDefaut()],

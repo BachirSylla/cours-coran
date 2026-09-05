@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 
 import {
   assemblerFacturation,
+  genererPeriodesDuesClasse,
+  LIBELLE_CLASSE,
   clePeriode,
   dateLocale,
   fusionnerReglements,
@@ -10,6 +12,7 @@ import {
   statutMois,
   totauxReglements,
   type ContexteStatut,
+  type CoursFacturable,
   type InscriptionAffichable,
   type InscriptionFacturable,
 } from '@/shared/lib/facturation'
@@ -186,8 +189,18 @@ describe('statutForfait', () => {
 
 describe('clePeriode', () => {
   it('ne confond jamais un mois et une session', () => {
-    const parMois = clePeriode({ inscription_id: 'i1', mois: '2026-04', session_id: null })
-    const parSession = clePeriode({ inscription_id: 'i1', mois: null, session_id: '2026-04' })
+    const parMois = clePeriode({
+      inscription_id: 'i1',
+      cours_id: null,
+      mois: '2026-04',
+      session_id: null,
+    })
+    const parSession = clePeriode({
+      inscription_id: 'i1',
+      cours_id: null,
+      mois: null,
+      session_id: '2026-04',
+    })
 
     expect(parMois).not.toBe(parSession)
   })
@@ -201,6 +214,7 @@ describe('fusionnerReglements', () => {
       [
         {
           inscription_id: 'i1',
+          cours_id: null,
           mois: '2026-01',
           session_id: null,
           montant_du: 15000,
@@ -234,6 +248,7 @@ describe('fusionnerReglements', () => {
       [
         {
           inscription_id: 'i1',
+          cours_id: null,
           mois: '2026-01',
           session_id: null,
           montant_du: 15000,
@@ -257,6 +272,7 @@ describe('fusionnerReglements', () => {
       [
         {
           inscription_id: 'i1',
+          cours_id: null,
           mois: '2025-12',
           session_id: null,
           montant_du: 15000,
@@ -311,6 +327,7 @@ describe('totauxReglements', () => {
     const totaux = totauxReglements([
       {
         inscription_id: 'i1',
+        cours_id: null,
         mois: '2026-01',
         session_id: null,
         montant_du: 15000,
@@ -321,6 +338,7 @@ describe('totauxReglements', () => {
       },
       {
         inscription_id: 'i2',
+        cours_id: null,
         mois: '2026-01',
         session_id: null,
         montant_du: 15000,
@@ -342,6 +360,7 @@ describe('totauxReglements', () => {
     const totaux = totauxReglements([
       {
         inscription_id: 'i1',
+        cours_id: null,
         mois: '2026-01',
         session_id: null,
         montant_du: 10000,
@@ -352,6 +371,7 @@ describe('totauxReglements', () => {
       },
       {
         inscription_id: 'i2',
+        cours_id: null,
         mois: '2026-01',
         session_id: null,
         montant_du: 10000,
@@ -388,6 +408,7 @@ describe('assemblerFacturation', () => {
     const { lignes } = assemblerFacturation(
       [affichable({ id: 'i1', apprenant: 'Aïcha Diallo' })],
       [],
+      [],
       'mensuel',
       '2026-02',
       CONTEXTE
@@ -412,6 +433,7 @@ describe('assemblerFacturation', () => {
     const { lignes } = assemblerFacturation(
       [affichable({ inscrit_le: '2026-03-10' })],
       [],
+      [],
       'mensuel',
       '2026-02',
       CONTEXTE
@@ -424,6 +446,7 @@ describe('assemblerFacturation', () => {
     const { lignes } = assemblerFacturation(
       [affichable({ cours_fin: '2026-01-31' })],
       [],
+      [],
       'mensuel',
       '2026-03',
       CONTEXTE
@@ -435,6 +458,7 @@ describe('assemblerFacturation', () => {
   it('signale le tarif VRAIMENT manquant, et ferme sa saisie', () => {
     const { lignes, totaux } = assemblerFacturation(
       [affichable({ prix_mensuel: null })],
+      [],
       [],
       'mensuel',
       '2026-02',
@@ -450,9 +474,9 @@ describe('assemblerFacturation', () => {
   it('regarde le tarif du mode ACTIF, pas celui de l’autre', () => {
     const sansForfait = [affichable({ prix_session: null })]
 
-    expect(assemblerFacturation(sansForfait, [], 'mensuel', '2026-02', CONTEXTE).lignes[0]!
+    expect(assemblerFacturation(sansForfait, [], [], 'mensuel', '2026-02', CONTEXTE).lignes[0]!
       .tarifManquant).toBe(false)
-    expect(assemblerFacturation(sansForfait, [], 'par_session', '2026-02', CONTEXTE).lignes[0]!
+    expect(assemblerFacturation(sansForfait, [], [], 'par_session', '2026-02', CONTEXTE).lignes[0]!
       .tarifManquant).toBe(true)
   })
 
@@ -465,9 +489,11 @@ describe('assemblerFacturation', () => {
   it('fige le dû déjà enregistré, quel que soit le tarif courant', () => {
     const { lignes } = assemblerFacturation(
       [affichable({ prix_mensuel: 20000 })],
+      [],
       [
         {
           inscription_id: 'i1',
+          cours_id: null,
           mois: '2026-02',
           session_id: null,
           montant_du: 15000,
@@ -487,6 +513,7 @@ describe('assemblerFacturation', () => {
     const { lignes } = assemblerFacturation(
       [affichable({ prix_mensuel: 20000 })],
       [],
+      [],
       'mensuel',
       '2026-02',
       CONTEXTE
@@ -503,9 +530,11 @@ describe('assemblerFacturation', () => {
   it('compte l’argent de l’autre mode sans le mélanger aux totaux', () => {
     const { totaux, autreMode } = assemblerFacturation(
       [affichable()],
+      [],
       [
         {
           inscription_id: 'i1',
+          cours_id: null,
           mois: null,
           session_id: 's18',
           montant_du: 120000,
@@ -526,9 +555,11 @@ describe('assemblerFacturation', () => {
   it('ne compte comme « autre mode » que les règlements de ce centre', () => {
     const { autreMode } = assemblerFacturation(
       [affichable({ id: 'i1' })],
+      [],
       [
         {
           inscription_id: 'inconnue',
+          cours_id: null,
           mois: null,
           session_id: 's18',
           montant_du: 999,
@@ -560,5 +591,214 @@ describe('dateLocale', () => {
 
   it('complète les zéros', () => {
     expect(dateLocale(new Date(2026, 0, 5))).toBe('2026-01-05')
+  })
+})
+
+/* ==========================================================================
+ * LE FORFAIT DE CLASSE (migration 0027)
+ *
+ * Correctif d'un bug RÉEL : un cours réglé en bloc voyait son tarif appliqué à
+ * chaque inscrit. Sur un vrai centre, 100 000 F le mois pour une classe de huit
+ * devenaient 800 000 F attendus, et 100 000 F étaient collés au nom de chaque
+ * apprenant sur l'écran « qui n'a pas payé ».
+ * ========================================================================== */
+
+function classe(extra: Partial<CoursFacturable> = {}): CoursFacturable {
+  return {
+    id: 'c1',
+    libelle: 'Coran Ramadan Samedi',
+    cours_debut: '2026-01-05',
+    cours_fin: null,
+    session: SESSION,
+    prix_mensuel: 100000,
+    prix_session: 500000,
+    devise: 'XOF',
+    ...extra,
+  }
+}
+
+describe('genererPeriodesDuesClasse', () => {
+  it('produit un dû par mois pour le cours, jamais par apprenant', () => {
+    const dues = genererPeriodesDuesClasse(classe(), 'mensuel', '2026-03')
+
+    expect(dues.map((due) => due.mois)).toEqual(['2026-01', '2026-02', '2026-03'])
+    expect(dues.every((due) => due.cours_id === 'c1')).toBe(true)
+    expect(dues.every((due) => due.inscription_id === null)).toBe(true)
+    expect(dues.every((due) => due.montant_du === 100000)).toBe(true)
+  })
+
+  it('produit une seule période au forfait de session', () => {
+    const dues = genererPeriodesDuesClasse(classe(), 'par_session')
+
+    expect(dues).toHaveLength(1)
+    expect(dues[0]).toMatchObject({ cours_id: 'c1', session_id: 's18', montant_du: 500000 })
+  })
+
+  it('s’arrête à la fin du cours', () => {
+    const dues = genererPeriodesDuesClasse(classe({ cours_fin: '2026-02-20' }), 'mensuel', '2026-06')
+
+    expect(dues.map((due) => due.mois)).toEqual(['2026-01', '2026-02'])
+  })
+
+  it('ne facture rien sans tarif dans le mode actif', () => {
+    expect(genererPeriodesDuesClasse(classe({ prix_mensuel: null }), 'mensuel')).toEqual([])
+    expect(genererPeriodesDuesClasse(classe({ prix_session: null }), 'par_session')).toEqual([])
+  })
+})
+
+describe('assemblerFacturation — forfait de classe', () => {
+  /*
+   * ⚠️ LE BUG EXACT, dans les deux sens : une seule ligne, un seul montant, quel
+   * que soit le nombre d'inscrits.
+   */
+  it('compte le forfait UNE fois, pas une par inscrit', () => {
+    const { lignes, totaux } = assemblerFacturation(
+      [],
+      [classe()],
+      [],
+      'mensuel',
+      '2026-03',
+      CONTEXTE
+    )
+
+    expect(lignes).toHaveLength(1)
+    expect(totaux.du).toBe(100000)
+    expect(lignes[0]).toMatchObject({
+      cours_id: 'c1',
+      inscription_id: null,
+      estClasse: true,
+      apprenant: LIBELLE_CLASSE,
+      cours_libelle: 'Coran Ramadan Samedi',
+    })
+  })
+
+  /*
+   * ⚠️ Un forfait de classe est dû même à ZÉRO inscrit : c'est un engagement du
+   * cours, pas la somme de places. Le déduire des inscriptions ferait disparaître
+   * de la facturation les classes qu'on vient d'ouvrir.
+   */
+  it('doit son forfait sans aucun apprenant inscrit', () => {
+    const { lignes, totaux } = assemblerFacturation(
+      [],
+      [classe()],
+      [],
+      'mensuel',
+      '2026-03',
+      CONTEXTE
+    )
+
+    expect(lignes).toHaveLength(1)
+    expect(totaux.reste).toBe(100000)
+  })
+
+  it('n’exige qu’un seul règlement pour solder la classe', () => {
+    const { lignes, totaux } = assemblerFacturation(
+      [],
+      [classe()],
+      [
+        {
+          inscription_id: null,
+          cours_id: 'c1',
+          mois: '2026-03',
+          session_id: null,
+          montant_du: 100000,
+          montant_recu: 100000,
+        },
+      ],
+      'mensuel',
+      '2026-03',
+      CONTEXTE
+    )
+
+    expect(lignes[0]!.statut).toBe('paye')
+    expect(totaux).toEqual({ du: 100000, recu: 100000, reste: 0 })
+  })
+
+  /*
+   * ⚠️ AUCUNE RÉGRESSION sur `par_apprenant` : les deux portées cohabitent dans
+   * le même centre, et chacune garde son grain.
+   */
+  it('laisse le suivi par apprenant strictement inchangé', () => {
+    const { lignes, totaux } = assemblerFacturation(
+      [
+        affichable({ id: 'i1', apprenant_id: 'a1', apprenant: 'Aïcha' }),
+        affichable({ id: 'i2', apprenant_id: 'a2', apprenant: 'Omar' }),
+      ],
+      [],
+      [],
+      'mensuel',
+      '2026-02',
+      CONTEXTE
+    )
+
+    expect(lignes).toHaveLength(2)
+    expect(totaux.du).toBe(30000)
+    expect(lignes.every((ligne) => !ligne.estClasse)).toBe(true)
+  })
+
+  it('fait cohabiter les deux portées dans le même centre', () => {
+    const { lignes, totaux } = assemblerFacturation(
+      [affichable({ id: 'i1', apprenant_id: 'a1' })],
+      [classe()],
+      [],
+      'mensuel',
+      '2026-02',
+      CONTEXTE
+    )
+
+    expect(lignes).toHaveLength(2)
+    // 15 000 pour l'apprenant, 100 000 pour la classe — jamais multipliés.
+    expect(totaux.du).toBe(115000)
+    expect(lignes.filter((ligne) => ligne.estClasse)).toHaveLength(1)
+  })
+
+  /*
+   * ⚠️ ORTHOGONALITÉ : la portée et le mode sont deux axes indépendants.
+   */
+  it('fonctionne au forfait de session comme au mois', () => {
+    const { lignes, totaux } = assemblerFacturation(
+      [],
+      [classe()],
+      [],
+      'par_session',
+      '2026-03',
+      CONTEXTE
+    )
+
+    expect(lignes).toHaveLength(1)
+    expect(lignes[0]).toMatchObject({ session_id: 's18', estClasse: true })
+    expect(totaux.du).toBe(500000)
+  })
+
+  it('signale une classe dont le forfait n’a pas été saisi, sans l’effacer', () => {
+    const { lignes, totaux } = assemblerFacturation(
+      [],
+      [classe({ prix_mensuel: null })],
+      [],
+      'mensuel',
+      '2026-03',
+      CONTEXTE
+    )
+
+    expect(lignes).toHaveLength(1)
+    expect(lignes[0]).toMatchObject({ tarifManquant: true, estClasse: true })
+    expect(totaux.du).toBe(0)
+  })
+
+  it('ne confond jamais le règlement d’une classe et celui d’une inscription', () => {
+    const cleClasse = clePeriode({
+      inscription_id: null,
+      cours_id: 'x',
+      mois: '2026-03',
+      session_id: null,
+    })
+    const cleInscription = clePeriode({
+      inscription_id: 'x',
+      cours_id: null,
+      mois: '2026-03',
+      session_id: null,
+    })
+
+    expect(cleClasse).not.toBe(cleInscription)
   })
 })

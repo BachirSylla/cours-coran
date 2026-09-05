@@ -1341,3 +1341,67 @@ mesure affichent un tiret, et les listes vides expliquent ce qu'on y verra.
 
 **Attendu** : l'encaissé du mois passé **n'a pas bougé**. Un changement de tarif
 ne réécrit jamais une période déjà réglée.
+
+---
+
+## Portée de facturation : par apprenant, ou forfait de classe (migration 0027)
+
+Certains cours se paient par personne, d'autres en bloc par la classe. Le
+réglage se fait **cours par cours**, et il est indépendant du rythme du centre.
+
+### 93. Le défaut ne change rien
+
+**Attendu** : tous vos cours existants restent en « Chaque apprenant paie ce
+montant ». Aucun chiffre ne bouge.
+
+### 94. Basculer un cours en forfait de classe
+
+1. **Cours** → modifier le cours → **À qui s'applique ce prix** → « Ce montant
+   couvre toute la classe ».
+
+**Attendu** : le texte sous le sélecteur change et annonce qu'un seul règlement
+sera attendu par période, quel que soit le nombre d'apprenants.
+
+2. **Paiements**.
+
+**Attendu** : le cours apparaît en **une seule ligne**, au nom de « Toute la
+classe », pour le montant saisi — et non une ligne par inscrit. Le total attendu
+baisse d'autant.
+
+⚠️ C'est le correctif du bug : un cours à 100 000 F avec 8 inscrits comptait
+800 000 F.
+
+### 95. Un forfait de classe sans aucun inscrit
+
+1. Créer un cours au forfait de classe, avec un tarif, sans y inscrire personne.
+
+**Attendu** : le cours est **quand même facturé**. Un forfait de classe est un
+engagement du cours, pas la somme des places.
+
+### 96. Les deux axes se combinent
+
+**Attendu**, selon le rythme du centre (**Paramètres → Rythme de facturation**) :
+
+- au **mois** : « X par mois pour la classe » ;
+- au **forfait de session** : « X pour la session, pour la classe ».
+
+### 97. Revenir en arrière ne détruit rien
+
+1. Repasser le cours en « Chaque apprenant paie ce montant ».
+
+**Attendu** : les règlements déjà enregistrés sous l'autre portée sont
+**conservés** et restent corrigeables. Seuls les nouveaux suivent la nouvelle
+portée.
+
+### 98. Ce qui est refusé
+
+- Enregistrer un règlement **nominatif** sur un cours au forfait de classe, ou
+  l'inverse : refusé, avec un message clair. Sans cette garde, la classe
+  paierait deux fois — une fois en bloc, une fois par tête.
+- Deux règlements pour la même classe et la même période : refusé.
+
+La preuve automatisée :
+
+```bash
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/facturation.sql
+```

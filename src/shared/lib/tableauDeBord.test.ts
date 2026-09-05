@@ -153,6 +153,8 @@ describe('chiffresAssiduite', () => {
 function ligne(extra: Partial<LigneNommee> = {}): LigneNommee {
   return {
     inscription_id: 'i1',
+    cours_id: null,
+    estClasse: false,
     apprenant_id: 'a1',
     apprenant: 'Aïcha Diallo',
     cours_libelle: 'Groupe Hifz',
@@ -700,6 +702,75 @@ describe('assemblerTableauDeBord', () => {
     )
 
     expect(bord.renouvellement).toEqual({ revenus: 1, partis: 1, nouveaux: 1, retention: 50 })
+  })
+
+  /*
+   * ⚠️ LE FORFAIT DE CLASSE (0027) dans le tableau de bord. Une classe n'est pas
+   * une personne : la compter comme telle serait aussi faux que de compter huit
+   * personnes pour un forfait unique — c'est le bug d'origine dans l'autre sens.
+   */
+  it('compte une classe comme une classe, jamais comme une personne', () => {
+    const bord = assemblerTableauDeBord(
+      entrees({
+        lignes: [
+          nommee({ inscription_id: 'i1', apprenant_id: 'a1', montant_recu: 0 }),
+          nommee({
+            inscription_id: null,
+            cours_id: 'c9',
+            apprenant_id: '',
+            apprenant: 'Toute la classe',
+            estClasse: true,
+            montant_du: 100000,
+            montant_recu: 0,
+          }),
+        ],
+      })
+    )
+
+    // Une personne + une classe = deux entrées à relancer, jamais une seule.
+    expect(bord.argent!.enRetard).toBe(2)
+    expect(bord.argent!.du).toBe(115000)
+    expect(bord.impayes).toHaveLength(2)
+  })
+
+  it('ne fond pas deux classes en une seule entrée', () => {
+    const classe = (coursId: string) =>
+      nommee({
+        inscription_id: null,
+        cours_id: coursId,
+        apprenant_id: '',
+        apprenant: 'Toute la classe',
+        estClasse: true,
+        montant_du: 100000,
+        montant_recu: 0,
+      })
+
+    const bord = assemblerTableauDeBord(entrees({ lignes: [classe('c1'), classe('c2')] }))
+
+    // Sans le porteur dans la clé, les deux classes auraient fusionné : leur
+    // `apprenant_id` est vide pour l'une comme pour l'autre.
+    expect(bord.argent!.enRetard).toBe(2)
+    expect(bord.impayes.map((impaye) => impaye.cle)).toEqual(['c1', 'c2'])
+  })
+
+  it('distingue les deux porteurs dans la liste des impayés', () => {
+    const bord = assemblerTableauDeBord(
+      entrees({
+        lignes: [
+          nommee({ inscription_id: 'i1', apprenant_id: 'a1', montant_recu: 0 }),
+          nommee({
+            inscription_id: null,
+            cours_id: 'c9',
+            apprenant_id: '',
+            estClasse: true,
+            montant_recu: 0,
+          }),
+        ],
+      })
+    )
+
+    expect(bord.impayes.map((impaye) => impaye.estClasse).sort()).toEqual([false, true])
+    expect(bord.impayes.every((impaye) => impaye.cle !== '')).toBe(true)
   })
 
   it('ne plante pas sur un centre entièrement vide', () => {

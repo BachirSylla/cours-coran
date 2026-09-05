@@ -6,7 +6,10 @@ import type { Database } from '@/shared/supabase/types'
  * Règlements au grain **(inscription, période)** — migration 0026.
  *
  * Frère de `paiementRepo`, qui reste en place pour l'historique d'avant bascule
- * au grain `(cours, mois)`. Les deux ne se mélangent jamais : le premier suit
+ * au grain `(cours, mois)`. Depuis 0027, un règlement porte SOIT une inscription
+ * (suivi nominatif) SOIT un cours (forfait de classe) : ⚠️ **toute lecture doit
+ * couvrir les deux formes**, sous peine de ne jamais relire ce qui a été
+ * encaissé. Les deux ne se mélangent jamais : le premier suit
  * des personnes, le second des totaux de cours.
  *
  * Toute la table est gardée `est_responsable()` **en lecture comme en écriture**
@@ -23,7 +26,13 @@ export type Reglement = TableReglement['Row']
  * et la période prend l'une OU l'autre forme — jamais les deux.
  */
 export interface ReglementInput {
-  inscription_id: string
+  /**
+   * Le PORTEUR, sous l'une OU l'autre forme (0027) : une inscription (suivi
+   * nominatif) ou un cours entier (forfait de classe). La base refuse les deux
+   * ensemble comme l'absence des deux.
+   */
+  inscription_id: string | null
+  cours_id?: string | null
   /** `AAAA-MM` en mode mensuel. */
   mois?: string | null
   /** L'identifiant de session au forfait. */
@@ -56,7 +65,13 @@ export interface InscriptionAFacturer {
     date_debut: string
     date_fin: string | null
     session: { id: string; nom: string; date_debut: string; date_fin: string | null } | null
-    tarif: { prix_mensuel: number | null; prix_session: number | null; devise: string }[]
+    tarif: {
+      prix_mensuel: number | null
+      prix_session: number | null
+      devise: string
+      /** `par_apprenant` | `forfait_classe` (0027), non interprété ici. */
+      portee_facturation: string
+    }[]
   } | null
 }
 
@@ -67,7 +82,7 @@ export interface InscriptionAFacturer {
  * signale la vraie cause.
  */
 // prettier-ignore
-const SELECT_A_FACTURER = 'id, apprenant_id, cours_id, created_at, apprenant(nom, prenom), cours!inner(id, libelle, statut, date_debut, date_fin, session(id, nom, date_debut, date_fin), tarif(prix_mensuel, prix_session, devise))'
+const SELECT_A_FACTURER = 'id, apprenant_id, cours_id, created_at, apprenant(nom, prenom), cours!inner(id, libelle, statut, date_debut, date_fin, session(id, nom, date_debut, date_fin), tarif(prix_mensuel, prix_session, devise, portee_facturation))'
 
 /**
  * Toutes les inscriptions à facturer dans une session, avec de quoi calculer.
@@ -96,24 +111,42 @@ export async function listAFacturer(sessionId: string): Promise<InscriptionAFact
 }
 
 /**
- * Les règlements de ces inscriptions, toutes périodes confondues.
+ * Les règlements de ces porteurs, toutes périodes confondues.
+ *
+ * ⚠️ **DEUX requêtes, une par forme de porteur** (0027). Un règlement de classe
+ * a `inscription_id` à `NULL`, et `.in('inscription_id', …)` ne matche JAMAIS
+ * `NULL` : lire les deux formes par un seul filtre revenait à ne jamais relire
+ * un forfait de classe. Le symptôme était redoutable parce que MUET — le
+ * règlement s'enregistrait sans erreur, puis la classe réapparaissait « en
+ * retard » au rechargement, indéfiniment, et le total réclamait un argent déjà
+ * encaissé.
  *
  * Filtré par identifiants plutôt que par un embed imbriqué : le nombre
  * d'inscriptions d'un centre se compte en dizaines, et un `in` reste lisible là
  * où `inscription.cours.session_id` empile deux jointures dont on ne verrait
  * plus l'effet en cas d'erreur.
  */
-export async function listPourInscriptions(inscriptionIds: readonly string[]): Promise<Reglement[]> {
-  if (inscriptionIds.length === 0) return []
+export async function listPourPorteurs(
+  inscriptionIds: readonly string[],
+  coursIds: readonly string[] = []
+): Promise<Reglement[]> {
+  if (inscriptionIds.length === 0 && coursIds.length === 0) return []
 
-  const { data, error } = await getSupabaseClient()
-    .from('reglement')
-    .select('*')
-    .in('inscription_id', inscriptionIds)
+  const client = getSupabaseClient()
 
-  lancerSiErreur(error, 'Chargement des règlements')
+  const [parInscription, parCours] = await Promise.all([
+    inscriptionIds.length === 0
+      ? Promise.resolve({ data: [] as Reglement[], error: null })
+      : client.from('reglement').select('*').in('inscription_id', inscriptionIds),
+    coursIds.length === 0
+      ? Promise.resolve({ data: [] as Reglement[], error: null })
+      : client.from('reglement').select('*').in('cours_id', coursIds),
+  ])
 
-  return data ?? []
+  lancerSiErreur(parInscription.error, 'Chargement des règlements')
+  lancerSiErreur(parCours.error, 'Chargement des règlements')
+
+  return [...(parInscription.data ?? []), ...(parCours.data ?? [])]
 }
 
 /**
@@ -129,10 +162,11 @@ export async function listPourInscriptions(inscriptionIds: readonly string[]): P
 export async function enregistrer(entree: ReglementInput): Promise<Reglement> {
   const client = getSupabaseClient()
 
-  const recherche = client
-    .from('reglement')
-    .select('id')
-    .eq('inscription_id', entree.inscription_id)
+  const porteur = client.from('reglement').select('id')
+  const recherche =
+    entree.cours_id != null
+      ? porteur.eq('cours_id', entree.cours_id)
+      : porteur.eq('inscription_id', entree.inscription_id as string)
 
   const { data: existant, error: erreurLecture } = await (
     entree.mois != null
@@ -164,6 +198,7 @@ export async function enregistrer(entree: ReglementInput): Promise<Reglement> {
     .from('reglement')
     .insert({
       inscription_id: entree.inscription_id,
+      cours_id: entree.cours_id ?? null,
       mois: entree.mois ?? null,
       session_id: entree.session_id ?? null,
       montant_du: entree.montant_du,

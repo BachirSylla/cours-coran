@@ -14,6 +14,13 @@ import {
   type StatutPaiement,
 } from '@/shared/lib/paiements'
 
+/*
+ * La page lit les cours au forfait de classe (0027) pour les facturer même sans
+ * inscrit ; ce fichier ne monte pas de `QueryClientProvider`.
+ */
+vi.mock('@/features/paiements/hooks/useCoursAuForfait', () => ({
+  useCoursAuForfait: () => ({ cours: [], isPending: false, isError: false, error: null }),
+}))
 vi.mock('@/features/paiements/hooks/useReglements', () => ({ useReglements: vi.fn() }))
 // Le dialog monte ses propres requêtes : il n'est pas le sujet de ce test.
 vi.mock('@/features/paiements/components/ReglementFormDialog', () => ({
@@ -54,7 +61,9 @@ function ligne(
 ): LigneFacturation {
   return {
     inscription_id: `insc-${apprenant}`,
+    cours_id: null,
     apprenant_id: `app-${apprenant}`,
+    estClasse: false,
     mois: '2026-08',
     session_id: null,
     montant_du,
@@ -138,7 +147,7 @@ describe('PaiementsPage', () => {
     afficher()
 
     expect(screen.getByText('Rien à facturer ce mois-ci')).toBeInTheDocument()
-    expect(screen.getByText(/apprenants inscrits à un cours de cette session/i)).toBeInTheDocument()
+    expect(screen.getByText(/classes réglées au forfait/i)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /voir mes cours/i })).toHaveAttribute(
       'href',
       '/cours'

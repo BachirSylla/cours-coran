@@ -579,10 +579,11 @@ export type Database = {
       reglement: {
         Row: {
           centre_id: string
+          cours_id: string | null
           created_at: string
           date_paiement: string | null
           id: string
-          inscription_id: string
+          inscription_id: string | null
           methode: string | null
           mois: string | null
           montant_du: number
@@ -592,10 +593,11 @@ export type Database = {
         }
         Insert: {
           centre_id?: string
+          cours_id?: string | null
           created_at?: string
           date_paiement?: string | null
           id?: string
-          inscription_id: string
+          inscription_id?: string | null
           methode?: string | null
           mois?: string | null
           montant_du: number
@@ -605,10 +607,11 @@ export type Database = {
         }
         Update: {
           centre_id?: string
+          cours_id?: string | null
           created_at?: string
           date_paiement?: string | null
           id?: string
-          inscription_id?: string
+          inscription_id?: string | null
           methode?: string | null
           mois?: string | null
           montant_du?: number
@@ -623,6 +626,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "centre"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reglement_cours_fkey"
+            columns: ["cours_id", "centre_id"]
+            isOneToOne: false
+            referencedRelation: "cours"
+            referencedColumns: ["id", "centre_id"]
           },
           {
             foreignKeyName: "reglement_inscription_fkey"
@@ -758,6 +768,7 @@ export type Database = {
           cours_id: string
           created_at: string
           devise: string
+          portee_facturation: string
           prix_mensuel: number | null
           prix_session: number | null
           updated_at: string
@@ -767,6 +778,7 @@ export type Database = {
           cours_id: string
           created_at?: string
           devise?: string
+          portee_facturation?: string
           prix_mensuel?: number | null
           prix_session?: number | null
           updated_at?: string
@@ -776,6 +788,7 @@ export type Database = {
           cours_id?: string
           created_at?: string
           devise?: string
+          portee_facturation?: string
           prix_mensuel?: number | null
           prix_session?: number | null
           updated_at?: string

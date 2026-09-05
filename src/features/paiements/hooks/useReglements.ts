@@ -12,11 +12,15 @@ import { useSessionActive } from '@/features/sessions/hooks/useSessions'
 import {
   assemblerFacturation,
   dateLocale,
+  estPorteeFacturation,
   MODE_FACTURATION_PAR_DEFAUT,
+  PORTEE_PAR_DEFAUT,
   type ContexteStatut,
+  type CoursFacturable,
   type InscriptionAffichable,
   type LigneAffichable,
   type ModeFacturation,
+  type PorteeFacturation,
 } from '@/shared/lib/facturation'
 import { moisCourant, type StatutPaiement } from '@/shared/lib/paiements'
 import * as reglementRepo from '@/shared/supabase/reglementRepo'
@@ -49,11 +53,19 @@ function useInscriptionsAFacturer(
 function useReglementsEnregistres(
   sessionId: string | undefined,
   inscriptionIds: readonly string[],
+  coursIds: readonly string[],
   actif: boolean
 ): UseQueryResult<Reglement[], Error> {
   return useQuery({
-    queryKey: [...reglementKeys.session(sessionId ?? ''), 'lignes', inscriptionIds.join(',')],
-    queryFn: () => reglementRepo.listPourInscriptions(inscriptionIds),
+    queryKey: [
+      ...reglementKeys.session(sessionId ?? ''),
+      'lignes',
+      inscriptionIds.join(','),
+      coursIds.join(','),
+    ],
+    // ⚠️ Les deux porteurs : sans les cours, un forfait de classe encaissé ne
+    // serait jamais relu, et la classe resterait « en retard » pour toujours.
+    queryFn: () => reglementRepo.listPourPorteurs(inscriptionIds, coursIds),
     enabled: actif && Boolean(sessionId),
   })
 }
@@ -104,7 +116,17 @@ function compterParStatut(lignes: readonly LigneFacturation[]): Record<StatutPai
  * clore un cours en gardant ses périodes dues visibles, renseigner `date_fin`
  * plutôt que changer le statut.
  */
-export function useReglements(mois: string, actif = true): ResultatFacturation {
+export function useReglements(
+  mois: string,
+  actif = true,
+  /**
+   * Les cours réglés au forfait de classe. La liste est autoritaire : elle
+   * PRIME sur ce que les inscriptions laissent deviner, et couvre le cas qu'elles
+   * ne peuvent pas couvrir — une classe **sans aucun inscrit**, qui doit
+   * pourtant son forfait.
+   */
+  coursAuForfait: readonly CoursFacturable[] = []
+): ResultatFacturation {
   const parametres = useParametres()
   const { session, erreur: erreurSession } = useSessionActive()
 
@@ -115,7 +137,12 @@ export function useReglements(mois: string, actif = true): ResultatFacturation {
   )
   const ids = useMemo(() => inscriptions.map((une) => une.id), [inscriptions])
 
-  const requeteReglements = useReglementsEnregistres(session?.id, ids, actif)
+  const idsAuForfait = useMemo(
+    () => coursAuForfait.map((unCours) => unCours.id),
+    [coursAuForfait]
+  )
+
+  const requeteReglements = useReglementsEnregistres(session?.id, ids, idsAuForfait, actif)
 
   const mode = parametres.data?.mode_facturation ?? MODE_FACTURATION_PAR_DEFAUT
 
@@ -135,9 +162,21 @@ export function useReglements(mois: string, actif = true): ResultatFacturation {
      * Pour clore un cours en gardant ses périodes dues visibles, renseigner
      * `date_fin` plutôt que changer le statut.
      */
-    const affichables: InscriptionAffichable[] = inscriptions
-      .filter((une) => une.cours !== null && une.cours.statut === 'actif')
-      .map((une) => {
+    const retenues = inscriptions.filter(
+      (une) => une.cours !== null && une.cours.statut === 'actif'
+    )
+
+    const porteeDe = (tarif: { portee_facturation: string } | null): PorteeFacturation =>
+      tarif !== null && estPorteeFacturation(tarif.portee_facturation)
+        ? tarif.portee_facturation
+        : PORTEE_PAR_DEFAUT
+
+    /*
+     * ⚠️ Les deux formes de porteur se séparent ICI, et le critère est la PORTÉE
+     * du cours (0027). Une inscription à un cours réglé en bloc ne produit
+     * aucune ligne nominative : la classe paie une fois, pas huit.
+     */
+    const affichables: InscriptionAffichable[] = retenues.map((une) => {
         const tarif = une.cours!.tarif[0] ?? null
 
         return {
@@ -157,8 +196,43 @@ export function useReglements(mois: string, actif = true): ResultatFacturation {
             : 'Apprenant retiré',
           cours_libelle: une.cours!.libelle,
           devise: tarif?.devise ?? 'XOF',
+          /*
+           * ⚠️ Les inscriptions d'un cours au forfait restent dans la liste,
+           * mais ne produisent AUCUNE période : la classe paie une fois, pas
+           * huit. Les retirer aurait fait disparaître de l'écran les règlements
+           * nominatifs encaissés avant la bascule de portée.
+           */
+          facturee: porteeDe(tarif) === 'par_apprenant',
         }
       })
+
+    /*
+     * ⚠️ Les cours au forfait viennent de `coursAuForfait`, une liste À PART —
+     * et non des inscriptions. Un forfait de classe est dû même à ZÉRO inscrit :
+     * le déduire des inscriptions ferait disparaître de la facturation
+     * exactement les classes qu'on vient d'ouvrir.
+     */
+    const parId = new Map<string, CoursFacturable>()
+
+    for (const une of retenues) {
+      const tarif = une.cours!.tarif[0] ?? null
+      if (porteeDe(tarif) !== 'forfait_classe') continue
+
+      parId.set(une.cours_id, {
+        id: une.cours_id,
+        libelle: une.cours!.libelle,
+        cours_debut: une.cours!.date_debut,
+        cours_fin: une.cours!.date_fin,
+        session: une.cours!.session,
+        prix_mensuel: tarif?.prix_mensuel ?? null,
+        prix_session: tarif?.prix_session ?? null,
+        devise: tarif?.devise ?? 'XOF',
+      })
+    }
+
+    for (const unCours of coursAuForfait) parId.set(unCours.id, unCours)
+
+    const classes = [...parId.values()]
 
     const contexte: ContexteStatut = {
       moisCourant: moisCourant(),
@@ -167,15 +241,22 @@ export function useReglements(mois: string, actif = true): ResultatFacturation {
       // « en retard » un jour trop tôt ou trop tard selon le fuseau.
       aujourdHui: dateLocale(),
       finDeSession: new Map(
-        affichables
+        [...affichables, ...classes]
           .map((une) => une.session)
           .filter((une): une is NonNullable<typeof une> => une !== null)
           .map((une) => [une.id, une.date_fin])
       ),
     }
 
-    return assemblerFacturation(affichables, requeteReglements.data, mode, mois, contexte)
-  }, [actif, inscriptions, requeteReglements.data, mode, mois])
+    return assemblerFacturation(
+      affichables,
+      classes,
+      requeteReglements.data,
+      mode,
+      mois,
+      contexte
+    )
+  }, [actif, inscriptions, coursAuForfait, requeteReglements.data, mode, mois])
 
   const parStatut = useMemo(
     () => compterParStatut(lignes.filter((ligne) => !ligne.tarifManquant)),

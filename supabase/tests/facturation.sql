@@ -270,6 +270,34 @@ with cree as (
 )
 insert into public.t_ids (cle, val) select 'i_perpetuel', id from cree;
 
+/*
+ * ⚠️ LE DÉCOR DU BUG DE 0027 : un cours réglé EN BLOC par la classe, avec
+ * plusieurs inscrits. C'est la multiplication par le nombre d'inscrits qui a
+ * fait annoncer 870 000 F au lieu de 170 000 sur un vrai centre.
+ */
+with cree as (
+  insert into public.cours
+  (centre_id, session_id, enseignant_id, libelle, type_cours_id, format, date_debut)
+  select public.__id('c1'), public.__id('s1'), public.__id('u_e1'),
+         'Classe au forfait', id, 'groupe', '2026-01-05'
+  from public.type_cours limit 1
+  returning id
+)
+insert into public.t_ids (cle, val) select 'cours_classe', id from cree;
+
+insert into public.tarif (cours_id, centre_id, prix_mensuel, devise, portee_facturation)
+values (public.__id('cours_classe'), public.__id('c1'), 100000, 'XOF', 'forfait_classe');
+
+with cree as (
+  insert into public.inscription (centre_id, apprenant_id, cours_id)
+  values (public.__id('c1'), public.__id('aicha'), public.__id('cours_classe'))
+  returning id
+)
+insert into public.t_ids (cle, val) select 'i_classe_aicha', id from cree;
+
+insert into public.inscription (centre_id, apprenant_id, cours_id)
+values (public.__id('c1'), public.__id('omar'), public.__id('cours_classe'));
+
 -- L'historique d'AVANT bascule : une ligne au grain (cours, mois).
 insert into public.paiement (centre_id, cours_id, mois_concerne, montant_du, montant_recu)
 values (public.__id('c1'), public.__id('cours1'), '2026-01', 120000, 40000);
@@ -516,8 +544,9 @@ begin
     'select count(*) from public.reglement', 2::bigint,
     'un responsable voit les règlements d''un AUTRE centre');
 
+  -- Deux tarifs dans C1 depuis 0027 : « Groupe C1 » et « Classe au forfait ».
   perform public.__attendre(
-    'select count(*) from public.tarif', 1::bigint,
+    'select count(*) from public.tarif', 2::bigint,
     'un responsable voit les tarifs d''un AUTRE centre');
 
   perform public.__attendre(
@@ -615,6 +644,194 @@ begin
     format($sql$select count(*) from public.reglement where inscription_id = %L$sql$,
            public.__id('i_omar')),
     0::bigint, 'la cascade ne suit pas la désinscription');
+end;
+$$;
+
+-- =============================================================================
+-- 11 bis. LA PORTÉE DE FACTURATION (0027)
+--
+-- Le correctif d'un bug réel : un cours réglé en bloc par la classe voyait son
+-- tarif appliqué à CHAQUE inscrit. Ce que cette section établit :
+--
+--   * un forfait de classe se règle UNE fois, sur le cours ;
+--   * les deux formes de porteur ne peuvent pas coexister sur le même cours ;
+--   * `par_apprenant` reste strictement inchangé ;
+--   * la portée est orthogonale au mode — forfait de classe au mois ET à la
+--     session.
+-- =============================================================================
+reset role;
+
+-- Al-Fourqane est repassé au forfait de session en section 6 ; on le ramène au
+-- mois, qui est le cas du bug d'origine — « X par mois pour la classe ».
+update public.parametres set mode_facturation = 'mensuel'
+where centre_id = public.__id('c1');
+
+do $$
+begin
+  -- Le DÉFAUT est `par_apprenant` : aucun cours existant ne change.
+  perform public.__attendre(
+    format($sql$select count(*) from public.tarif
+                where cours_id = %L and portee_facturation = 'par_apprenant'$sql$,
+           public.__id('cours1')),
+    1::bigint, 'un tarif qui ne dit rien n''est PAS par apprenant');
+
+  perform public.__refus(
+    format($sql$update public.tarif set portee_facturation = 'au_hasard'
+                where cours_id = %L$sql$, public.__id('cours1')),
+    '23514', 'une portée inventée est acceptée');
+end;
+$$;
+
+set local role authenticated;
+
+do $$
+begin
+  perform public.__devenir(public.__id('u_r1'));
+
+  /*
+   * ⚠️ LE BUG EXACT. Le cours porte 100 000 F pour la classe et compte DEUX
+   * inscrits. Un seul règlement doit pouvoir exister — c'est la structure qui
+   * l'impose, pas seulement le calcul côté client.
+   */
+  perform public.__accepte(
+    format($sql$insert into public.reglement (cours_id, mois, montant_du, montant_recu)
+                values (%L, '2026-05', 100000, 100000)$sql$, public.__id('cours_classe')),
+    'le forfait de classe ne peut pas être enregistré');
+
+  perform public.__refus(
+    format($sql$insert into public.reglement (cours_id, mois, montant_du)
+                values (%L, '2026-05', 100000)$sql$, public.__id('cours_classe')),
+    '23505', 'la classe peut payer DEUX fois le même mois');
+
+  perform public.__attendre(
+    format($sql$select count(*) from public.reglement where cours_id = %L$sql$,
+           public.__id('cours_classe')),
+    1::bigint, 'le forfait de classe est compté plus d''une fois');
+
+  /*
+   * ⚠️ Et surtout : on ne peut pas ENCAISSER LES DEUX. Sans cette garde, la
+   * classe paierait une fois en bloc et une fois par tête, et les totaux
+   * additionneraient les deux.
+   */
+  perform public.__refus(
+    format($sql$insert into public.reglement (inscription_id, mois, montant_du)
+                values (%L, '2026-06', 100000)$sql$, public.__id('i_classe_aicha')),
+    'P0083', 'un règlement nominatif passe sur un cours au forfait de classe');
+
+  -- Réciproquement, un cours par apprenant refuse un règlement de classe.
+  perform public.__refus(
+    format($sql$insert into public.reglement (cours_id, mois, montant_du)
+                values (%L, '2026-06', 15000)$sql$, public.__id('cours1')),
+    'P0083', 'un règlement de classe passe sur un cours facturé par apprenant');
+end;
+$$;
+
+/*
+ * ⚠️ Un porteur, et un seul. Ni les deux, ni aucun — sans quoi un règlement
+ * flotterait sans rien désigner, ou compterait deux fois. Le trigger parlant
+ * avant les `check`, on le suspend pour éprouver la STRUCTURE seule.
+ */
+reset role;
+
+alter table public.reglement disable trigger reglement_coherent;
+
+do $$
+begin
+  perform public.__refus(
+    format($sql$insert into public.reglement
+                  (centre_id, inscription_id, cours_id, mois, montant_du)
+                values (%L, %L, %L, '2026-07', 1)$sql$,
+           public.__id('c1'), public.__id('i_classe_aicha'), public.__id('cours_classe')),
+    '23514', 'un règlement porte À LA FOIS une inscription et un cours');
+
+  perform public.__refus(
+    format($sql$insert into public.reglement (centre_id, mois, montant_du)
+                values (%L, '2026-07', 1)$sql$, public.__id('c1')),
+    '23514', 'un règlement sans aucun porteur est accepté');
+
+  -- Et jamais le cours d'un AUTRE centre.
+  perform public.__refus(
+    format($sql$insert into public.reglement (centre_id, cours_id, mois, montant_du)
+                values (%L, %L, '2026-07', 1)$sql$,
+           public.__id('c1'), public.__id('cours2')),
+    '23503', 'un règlement de classe pointe le cours d''un AUTRE centre');
+end;
+$$;
+
+alter table public.reglement enable trigger reglement_coherent;
+
+/*
+ * ⚠️ CHANGER LA PORTÉE NE DÉTRUIT RIEN. Même invariant que le changement de
+ * mode : l'historique reste, et reste corrigeable.
+ */
+do $$
+begin
+  update public.tarif set portee_facturation = 'par_apprenant'
+  where cours_id = public.__id('cours_classe');
+
+  perform public.__attendre(
+    format($sql$select montant_recu::bigint from public.reglement
+                where cours_id = %L and mois = '2026-05'$sql$, public.__id('cours_classe')),
+    100000::bigint, 'la bascule de portée a détruit ou modifié un règlement');
+end;
+$$;
+
+set local role authenticated;
+
+do $$
+begin
+  perform public.__devenir(public.__id('u_r1'));
+
+  -- Corriger reste possible après la bascule ; créer dans l'ancienne forme, non.
+  perform public.__accepte(
+    format($sql$update public.reglement set montant_recu = 90000
+                where cours_id = %L and mois = '2026-05'$sql$, public.__id('cours_classe')),
+    'corriger un règlement de l''ancienne portée est devenu impossible');
+
+  perform public.__refus(
+    format($sql$insert into public.reglement (cours_id, mois, montant_du)
+                values (%L, '2026-08', 100000)$sql$, public.__id('cours_classe')),
+    'P0083', 'un règlement de l''ancienne portée peut encore être créé');
+end;
+$$;
+
+reset role;
+update public.tarif set portee_facturation = 'forfait_classe'
+where cours_id = public.__id('cours_classe');
+
+/*
+ * ⚠️ ORTHOGONALITÉ. La portée et le mode sont deux axes indépendants : un
+ * forfait de classe doit fonctionner au mois COMME à la session. An-Nour
+ * facture par session (section 1).
+ */
+set local role authenticated;
+
+do $$
+begin
+  perform public.__devenir(public.__id('u_r2'));
+
+  perform public.__accepte(
+    format($sql$update public.tarif
+                set prix_session = 250000, portee_facturation = 'forfait_classe'
+                where cours_id = %L$sql$, public.__id('cours2')),
+    'un tarif de classe au forfait de session est refusé');
+
+  perform public.__accepte(
+    format($sql$insert into public.reglement (cours_id, session_id, montant_du, montant_recu)
+                values (%L, %L, 250000, 250000)$sql$,
+           public.__id('cours2'), public.__id('s2_bornee')),
+    'forfait de classe x facturation par session ne fonctionne pas');
+end;
+$$;
+
+do $$
+begin
+  perform public.__devenir(public.__id('u_e1'));
+
+  -- Un ENSEIGNANT ne lit ni la portée ni le tarif.
+  perform public.__attendre(
+    'select count(*) from public.tarif', 0::bigint,
+    'un ENSEIGNANT lit la portée de facturation');
 end;
 $$;
 

@@ -55,6 +55,7 @@ function messageLisible(erreur: PostgrestError, contexte: string): string {
     case 'P0080': // forfait sur une session sans date de fin (0026)
     case 'P0081': // règlement dont la période ne correspond pas au mode du centre
     case 'P0082': // retirer la date de fin d'une session portant des forfaits
+    case 'P0083': // règlement dont le porteur ne suit pas la portée du cours (0027)
       return erreur.message
     case '23505':
       return `${contexte} : cet enregistrement existe déjà.`

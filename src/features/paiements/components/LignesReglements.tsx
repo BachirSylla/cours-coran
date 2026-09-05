@@ -41,8 +41,12 @@ export function LignesReglements({
             </TableRow>
           </TableHeader>
           <TableBody>
+            {/* ⚠️ La clé porte le PORTEUR d'abord : `inscription_id` est nul pour une
+                classe, et deux classes au même mois produiraient la même clé. */}
             {lignes.map((ligne) => (
-              <TableRow key={`${ligne.inscription_id}-${ligne.mois ?? ligne.session_id}`}>
+              <TableRow
+                key={`${ligne.cours_id ?? ligne.inscription_id}-${ligne.mois ?? ligne.session_id}`}
+              >
                 <TableCell className="font-medium">{ligne.apprenant}</TableCell>
                 <TableCell className="text-muted-foreground">{ligne.cours_libelle}</TableCell>
 
@@ -84,7 +88,7 @@ export function LignesReglements({
       <ul className="space-y-3 md:hidden">
         {lignes.map((ligne) => (
           <li
-            key={`${ligne.inscription_id}-${ligne.mois ?? ligne.session_id}`}
+            key={`${ligne.cours_id ?? ligne.inscription_id}-${ligne.mois ?? ligne.session_id}`}
             className="rounded-lg border bg-card p-4"
           >
             <div className="flex items-start justify-between gap-3">

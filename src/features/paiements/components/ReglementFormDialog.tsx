@@ -32,7 +32,10 @@ import { Label } from '@/shared/ui/label'
  * pour que le repository n'ait rien à ré-interpréter.
  */
 export interface CibleReglementNominatif {
-  inscription_id: string
+  /** L'un OU l'autre : une inscription, ou un cours entier au forfait de classe. */
+  inscription_id: string | null
+  cours_id: string | null
+  /** Le nom affiché — la personne, ou « Toute la classe ». */
   apprenant: string
   cours_libelle: string
   mois: string | null
@@ -70,6 +73,7 @@ function Contenu({
   async function onSubmit(valeurs: PaiementValues) {
     await enregistrer.mutateAsync({
       inscription_id: cible.inscription_id,
+      cours_id: cible.cours_id,
       mois: cible.mois,
       session_id: cible.session_id,
       // Le montant dû est FIGÉ ici : un changement ultérieur de tarif ne
@@ -183,7 +187,7 @@ export function ReglementFormDialog({ cible, onOuvertChange }: ReglementFormDial
         {/* La `key` réinitialise le formulaire à chaque période ouverte. */}
         {cible && (
           <Contenu
-            key={`${cible.inscription_id}-${cible.mois ?? cible.session_id}`}
+            key={`${cible.cours_id ?? cible.inscription_id}-${cible.mois ?? cible.session_id}`}
             cible={cible}
             onFerme={() => onOuvertChange(false)}
           />

@@ -118,7 +118,8 @@ begin
     jsonb_build_object('libelle','Coran Niveau 1','type_cours_id',v_type,'format','groupe',
       'date_debut','2026-01-05','statut','actif','enseignant_id',public.__id('u_ens'),
       'session_id',public.__id('s17'),'niveau','Niveau 1',
-      'prix_mensuel',15000,'prix_session',120000,'devise','XOF'),
+      'prix_mensuel',15000,'prix_session',120000,'devise','XOF',
+      'portee_facturation','forfait_classe'),
     jsonb_build_array(jsonb_build_object('jour_semaine',1,'heure_debut','10:00','heure_fin','11:00'),
                       jsonb_build_object('jour_semaine',3,'heure_debut','10:00','heure_fin','11:00')));
 
@@ -316,17 +317,25 @@ begin
   /*
    * Le tarif suit : sans lui, il faudrait ressaisir chaque prix à chaque session.
    *
-   * ⚠️ LES DEUX tarifs, et l'assertion porte sur les deux ENSEMBLE. N'éprouver
-   * que `prix_mensuel` a laissé passer 0026 : `prix_session` n'était pas recopié,
-   * et un centre au forfait perdait tous ses prix à chaque reconduction — sans
-   * que ce test cesse d'être vert. Une colonne AJOUTÉE à `tarif` doit venir
-   * s'ajouter ici en même temps qu'à la fonction.
+   * ⚠️ TOUTES les colonnes de `tarif`, et l'assertion porte sur elles ENSEMBLE.
+   * N'éprouver que `prix_mensuel` a laissé passer 0026 : `prix_session` n'était
+   * pas recopié, et un centre au forfait perdait tous ses prix à chaque
+   * reconduction — sans que ce test cesse d'être vert.
+   *
+   * `portee_facturation` (0027) est ici pour la même raison, et l'oubli aurait
+   * été PIRE : le montant serait resté juste, mais réappliqué à chaque apprenant
+   * au lieu de la classe. Une session reconduite se serait remise à réclamer huit
+   * fois le forfait, sans que rien ne l'annonce.
+   *
+   * Une colonne AJOUTÉE à `tarif` doit venir s'ajouter ici en même temps qu'à la
+   * fonction.
    */
   perform public.__attendre(
     format($sql$select count(*) from public.tarif as t
                 join public.cours as c on c.id = t.cours_id
                 where c.session_id = %L
-                  and t.prix_mensuel = 15000 and t.prix_session = 120000$sql$,
+                  and t.prix_mensuel = 15000 and t.prix_session = 120000
+                  and t.portee_facturation = 'forfait_classe'$sql$,
            public.__id('s18')),
     1::bigint, 'le tarif n''a pas suivi — mensuel ET forfait');
 

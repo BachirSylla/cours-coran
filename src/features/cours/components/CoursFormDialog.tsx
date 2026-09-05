@@ -27,7 +27,14 @@ import {
 import type { Membre } from '@/shared/supabase/membreRepo'
 import type { TypeCours } from '@/shared/supabase/typeCoursRepo'
 import { useParametres } from '@/features/parametres/hooks/useParametres'
-import { MODE_FACTURATION_PAR_DEFAUT } from '@/shared/lib/facturation'
+import {
+  estPorteeFacturation,
+  LIBELLES_PORTEE,
+  MODE_FACTURATION_PAR_DEFAUT,
+  PORTEE_PAR_DEFAUT,
+  PORTEES_FACTURATION,
+  type PorteeFacturation,
+} from '@/shared/lib/facturation'
 import { tarifDuCours, type CoursAvecDetails } from '@/shared/supabase/coursRepo'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
@@ -41,6 +48,7 @@ import {
 } from '@/shared/ui/dialog'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
+import { SelectNatif } from '@/shared/ui/SelectNatif'
 import {
   Select,
   SelectContent,
@@ -107,6 +115,9 @@ function versFormulaire(cours: CoursAvecDetails): CoursFormValues {
       tarifDuCours(cours)?.prix_session == null
         ? ''
         : String(tarifDuCours(cours)?.prix_session),
+    portee_facturation: estPorteeFacturation(tarifDuCours(cours)?.portee_facturation ?? '')
+      ? (tarifDuCours(cours)!.portee_facturation as PorteeFacturation)
+      : PORTEE_PAR_DEFAUT,
     devise: tarifDuCours(cours)?.devise ?? 'XOF',
     statut: (STATUTS_COURS.find((s) => s === cours.statut) ??
       'actif') as CoursFormValues['statut'],
@@ -177,6 +188,10 @@ export function CoursFormDialog({
   // Changer d'enseignant re-scope l'aperçu de conflit sur-le-champ : c'est le
   // seul moyen de voir, avant d'enregistrer, que la personne visée est libre.
   const enseignantSaisi = useWatch({ control, name: 'enseignant_id' })
+
+  // La portée décide du texte d'aide sous le sélecteur : il doit changer avec
+  // le choix, sinon l'explication contredit ce qui est sélectionné.
+  const portee = useWatch({ control, name: 'portee_facturation' })
   const agenda = enseignantSaisi || enseignantId
 
   /*
@@ -405,6 +420,28 @@ export function CoursFormDialog({
                 <p className="text-sm text-destructive">{errors.date_fin.message}</p>
               )}
             </div>
+          </div>
+
+          {/*
+            ⚠️ LE CHOIX QUI MANQUAIT, et dont l'absence a produit un vrai bug :
+            un cours réglé en bloc par la classe voyait son tarif appliqué à
+            chaque inscrit — 100 000 F × 8 apprenants au lieu de 100 000 F. Les
+            deux options sont donc écrites en toutes lettres, pas en jargon.
+          */}
+          <div className="space-y-2">
+            <Label htmlFor="portee_facturation">À qui s'applique ce prix</Label>
+            <SelectNatif id="portee_facturation" {...register('portee_facturation')}>
+              {PORTEES_FACTURATION.map((valeur) => (
+                <option key={valeur} value={valeur}>
+                  {LIBELLES_PORTEE[valeur]}
+                </option>
+              ))}
+            </SelectNatif>
+            <p className="text-xs text-muted-foreground">
+              {portee === 'forfait_classe'
+                ? 'Un seul règlement par période pour tout le cours, quel que soit le nombre d’apprenants — et même s’il n’y en a aucun.'
+                : 'Le montant est dû par chaque inscrit : le total attendu suit le nombre d’apprenants.'}
+            </p>
           </div>
 
           {/*

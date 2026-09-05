@@ -112,7 +112,11 @@ export interface ReglementPourCourbe {
 }
 
 /**
- * Les règlements des cours donnés, **toutes périodes confondues**.
+ * Les règlements des cours donnés, **toutes périodes et les deux porteurs
+ * confondus** — nominatifs comme forfaits de classe (0027).
+ *
+ * ⚠️ Couvre les DEUX formes de porteur (0027) : un règlement de classe a
+ * `inscription_id` nul, et l'embed `inscription!inner` l'écarterait.
  *
  * ⚠️ Lecture SÉPARÉE de celle de la page Paiements, et c'est nécessaire :
  * `assemblerFacturation` filtre déjà sur la période affichée, si bien qu'une
@@ -128,14 +132,29 @@ export async function listReglementsDesCours(
 ): Promise<ReglementPourCourbe[]> {
   if (coursIds.length === 0) return []
 
-  const { data, error } = await getSupabaseClient()
-    .from('reglement')
-    .select('date_paiement, mois, montant_recu, inscription!inner(cours_id)')
-    .in('inscription.cours_id', coursIds)
+  const client = getSupabaseClient()
 
-  lancerSiErreur(error, 'Chargement des encaissements')
+  /*
+   * ⚠️ Les DEUX formes de porteur (0027). L'embed `inscription!inner` écarte par
+   * construction les règlements de classe, dont `inscription_id` est nul : la
+   * courbe de trésorerie ignorait alors tout l'argent encaissé au forfait, et
+   * les deux écrans se contredisaient sans que rien ne l'explique.
+   */
+  const [parInscription, parCours] = await Promise.all([
+    client
+      .from('reglement')
+      .select('date_paiement, mois, montant_recu, inscription!inner(cours_id)')
+      .in('inscription.cours_id', coursIds),
+    client
+      .from('reglement')
+      .select('date_paiement, mois, montant_recu')
+      .in('cours_id', coursIds),
+  ])
 
-  return (data ?? []).map((ligne) => ({
+  lancerSiErreur(parInscription.error, 'Chargement des encaissements')
+  lancerSiErreur(parCours.error, 'Chargement des encaissements')
+
+  return [...(parInscription.data ?? []), ...(parCours.data ?? [])].map((ligne) => ({
     date_paiement: ligne.date_paiement,
     mois: ligne.mois,
     montant_recu: ligne.montant_recu,

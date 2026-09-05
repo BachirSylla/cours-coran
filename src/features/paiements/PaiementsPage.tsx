@@ -10,6 +10,7 @@ import {
 } from '@/features/paiements/components/ReglementFormDialog'
 import { TotauxMois } from '@/features/paiements/components/TotauxMois'
 import { useMembre } from '@/features/membres/hooks/useMembre'
+import { useCoursAuForfait } from '@/features/paiements/hooks/useCoursAuForfait'
 import { useReglements, type LigneFacturation } from '@/features/paiements/hooks/useReglements'
 import { LIBELLES_MODE_FACTURATION } from '@/shared/lib/facturation'
 import {
@@ -34,8 +35,25 @@ export function PaiementsPage() {
   const [cible, setCible] = useState<CibleReglementNominatif | null>(null)
   const { estResponsable, chargement } = useMembre()
 
-  const { mode, lignes, totaux, autreMode, session, isPending, isError, error } =
-    useReglements(mois)
+  /*
+   * Les cours au forfait de classe sont passés à part : un forfait est dû même à
+   * ZÉRO inscrit, et le déduire des inscriptions ferait disparaître de l'écran
+   * les classes qu'on vient d'ouvrir.
+   */
+  const forfaits = useCoursAuForfait()
+  const facturation = useReglements(mois, true, forfaits.cours)
+
+  const { mode, lignes, totaux, autreMode, session } = facturation
+
+  /*
+   * ⚠️ L'état des DEUX chaînes. `useCoursAuForfait` est seul à apporter les
+   * classes SANS inscrit : son échec les faisait disparaître de l'écran et des
+   * totaux, sans erreur ni sablier — l'écran affirmait un total faux au lieu de
+   * se taire.
+   */
+  const isPending = facturation.isPending || forfaits.isPending
+  const isError = facturation.isError || forfaits.isError
+  const error = facturation.error ?? forfaits.error
 
   /*
    * ⚠️ La base REFUSE un forfait sur une session sans date de fin (P0080). Le
@@ -52,6 +70,7 @@ export function PaiementsPage() {
   function ouvrirReglement(ligne: LigneFacturation) {
     setCible({
       inscription_id: ligne.inscription_id,
+      cours_id: ligne.cours_id,
       apprenant: ligne.apprenant,
       cours_libelle: ligne.cours_libelle,
       mois: ligne.mois,
@@ -159,7 +178,8 @@ export function PaiementsPage() {
               {mode === 'mensuel' ? 'Rien à facturer ce mois-ci' : 'Rien à facturer'}
             </p>
             <p className="text-sm text-muted-foreground">
-              Seuls les apprenants inscrits à un cours de cette session apparaissent ici.
+              Les apprenants inscrits, et les classes réglées au forfait, apparaissent ici dès
+              qu'un tarif est saisi.
             </p>
           </div>
           <Button asChild variant="outline">

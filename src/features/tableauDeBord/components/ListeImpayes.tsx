@@ -1,5 +1,5 @@
 import { Link } from 'react-router'
-import { Wallet } from 'lucide-react'
+import { Users, Wallet } from 'lucide-react'
 
 import { StatutPaiementBadge } from '@/features/paiements/components/StatutPaiementBadge'
 import { formaterMontant } from '@/shared/lib/paiements'
@@ -52,21 +52,29 @@ export function ListeImpayes({ impayes, limite = 6 }: ListeImpayesProps) {
    * l'annoncer comme deux personnes gonflerait le chiffre sur l'écran qui sert à
    * relancer.
    */
-  const personnes = new Set(impayes.map((impaye) => impaye.apprenant_id)).size
+  /*
+   * ⚠️ Les classes ne comptent pas comme des personnes : leur `apprenant_id` est
+   * vide, et une classe n'est pas quelqu'un. On les compte à part.
+   */
+  const personnes = new Set(
+    impayes.filter((impaye) => !impaye.estClasse).map((impaye) => impaye.apprenant_id)
+  ).size
+  const classes = impayes.filter((impaye) => impaye.estClasse).length
 
   return (
     <div className="space-y-2">
       <ul className="divide-y rounded-lg border">
         {visibles.map((impaye) => (
           <li
-            key={impaye.inscription_id}
+            key={impaye.cle}
             className="flex items-center gap-3 px-3 py-2.5"
           >
+            {/* Une classe n'a pas d'initiales : elle porte son icône. */}
             <span
               aria-hidden="true"
               className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground"
             >
-              {initiales(impaye.apprenant)}
+              {impaye.estClasse ? <Users className="size-4" /> : initiales(impaye.apprenant)}
             </span>
 
             <div className="min-w-0 flex-1">
@@ -90,7 +98,12 @@ export function ListeImpayes({ impayes, limite = 6 }: ListeImpayesProps) {
         <p className="text-xs text-muted-foreground">
           {restants > 0
             ? `et ${restants} autre${restants > 1 ? 's' : ''}`
-            : `${personnes} personne${personnes > 1 ? 's' : ''} · ${impayes.length} règlement${impayes.length > 1 ? 's' : ''}`}
+            : [
+                personnes > 0 ? `${personnes} personne${personnes > 1 ? 's' : ''}` : null,
+                classes > 0 ? `${classes} classe${classes > 1 ? 's' : ''}` : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
         </p>
         <Button asChild variant="ghost" size="sm">
           <Link to="/paiements">Ouvrir les paiements</Link>

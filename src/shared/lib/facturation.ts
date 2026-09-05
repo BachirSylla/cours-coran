@@ -28,6 +28,32 @@ import { moisCourant, moisDe, moisSuivant, type StatutPaiement } from '@/shared/
 
 export type ModeFacturation = 'mensuel' | 'par_session'
 
+/**
+ * À qui s'applique le prix d'un cours (migration 0027).
+ *
+ * ⚠️ **Orthogonal au mode du centre**, et les deux axes cohabitent :
+ * `forfait_classe × mensuel` se lit « X par mois pour la classe »,
+ * `forfait_classe × par_session` « X pour la session, pour la classe ».
+ */
+export type PorteeFacturation = 'par_apprenant' | 'forfait_classe'
+
+export const PORTEES_FACTURATION: readonly PorteeFacturation[] = [
+  'par_apprenant',
+  'forfait_classe',
+]
+
+export const LIBELLES_PORTEE: Record<PorteeFacturation, string> = {
+  par_apprenant: 'Chaque apprenant paie ce montant',
+  forfait_classe: 'Ce montant couvre toute la classe',
+}
+
+/** La portée retenue tant que rien n'a été choisi — le comportement d'avant 0027. */
+export const PORTEE_PAR_DEFAUT: PorteeFacturation = 'par_apprenant'
+
+export function estPorteeFacturation(valeur: string): valeur is PorteeFacturation {
+  return (PORTEES_FACTURATION as readonly string[]).includes(valeur)
+}
+
 export const MODES_FACTURATION: readonly ModeFacturation[] = ['mensuel', 'par_session']
 
 export const LIBELLES_MODE_FACTURATION: Record<ModeFacturation, string> = {
@@ -81,9 +107,17 @@ export interface InscriptionFacturable {
   prix_session: number | null
 }
 
+/**
+ * Qui doit la somme : une inscription (suivi nominatif) ou un cours entier
+ * (forfait de classe). Exclusifs, comme en base.
+ */
+export interface Porteur {
+  inscription_id: string | null
+  cours_id: string | null
+}
+
 /** Une période à régler, telle que le calcul la produit. */
-export interface PeriodeDue {
-  inscription_id: string
+export interface PeriodeDue extends Porteur {
   /** `AAAA-MM` en mode mensuel, `null` au forfait. */
   mois: string | null
   /** L'identifiant de session au forfait, `null` en mensuel. */
@@ -92,16 +126,15 @@ export interface PeriodeDue {
 }
 
 /** Ce qu'une ligne enregistrée doit exposer pour être rapprochée d'une période. */
-export interface ReglementRapprochable {
-  inscription_id: string
+export interface ReglementRapprochable extends Porteur {
   mois: string | null
   session_id: string | null
   montant_du: number
   montant_recu: number
 }
 
-export interface LigneReglement<T extends ReglementRapprochable = ReglementRapprochable> {
-  inscription_id: string
+export interface LigneReglement<T extends ReglementRapprochable = ReglementRapprochable>
+  extends Porteur {
   mois: string | null
   session_id: string | null
   montant_du: number
@@ -122,14 +155,15 @@ export interface LigneReglement<T extends ReglementRapprochable = ReglementRappr
  * sans lui, une session dont l'identifiant ressemblerait à un mois entrerait en
  * collision — improbable, mais la clé ne coûte rien à rendre non ambiguë.
  */
-export function clePeriode(periode: {
-  inscription_id: string
-  mois: string | null
-  session_id: string | null
-}): string {
+export function clePeriode(periode: Porteur & { mois: string | null; session_id: string | null }): string {
+  // Le porteur d'abord — une inscription et un cours ne se confondent jamais,
+  // même si leurs identifiants venaient à se ressembler.
+  const porteur =
+    periode.cours_id !== null ? `c:${periode.cours_id}` : `i:${periode.inscription_id ?? ''}`
+
   return periode.mois !== null
-    ? `${periode.inscription_id}|m|${periode.mois}`
-    : `${periode.inscription_id}|s|${periode.session_id ?? ''}`
+    ? `${porteur}|m|${periode.mois}`
+    : `${porteur}|s|${periode.session_id ?? ''}`
 }
 
 /**
@@ -156,6 +190,7 @@ export function genererPeriodesDues(
     return [
       {
         inscription_id: inscription.id,
+        cours_id: null,
         mois: null,
         session_id: inscription.session.id,
         montant_du: inscription.prix_session,
@@ -178,9 +213,79 @@ export function genererPeriodesDues(
   for (let mois = premier; mois <= dernier; mois = moisSuivant(mois)) {
     dues.push({
       inscription_id: inscription.id,
+      cours_id: null,
       mois,
       session_id: null,
       montant_du: inscription.prix_mensuel,
+    })
+  }
+
+  return dues
+}
+
+/**
+ * Ce dont le calcul a besoin pour facturer un COURS ENTIER — le forfait de
+ * classe (migration 0027).
+ */
+export interface CoursFacturable {
+  id: string
+  libelle: string
+  cours_debut: string
+  cours_fin: string | null
+  session: { id: string; date_debut: string; date_fin: string | null } | null
+  prix_mensuel: number | null
+  prix_session: number | null
+  devise: string
+}
+
+/**
+ * Les périodes dues par un cours réglé **en bloc par la classe**.
+ *
+ * ⚠️ Le nombre d'inscrits n'entre PAS dans le calcul — c'est tout l'objet de
+ * 0027. Un forfait de classe est dû même à zéro apprenant : c'est un engagement
+ * du cours, pas la somme de places individuelles. Multiplier par les inscrits
+ * était exactement le bug, et faisait annoncer 800 000 F là où 100 000 étaient
+ * attendus.
+ *
+ * La logique de période reste celle des inscriptions : un dû par mois de la vie
+ * du cours en mensuel, une seule période au forfait de session. Seul le porteur
+ * change.
+ */
+export function genererPeriodesDuesClasse(
+  cours: CoursFacturable,
+  mode: ModeFacturation,
+  moisMax: string = moisCourant()
+): PeriodeDue[] {
+  if (mode === 'par_session') {
+    if (cours.prix_session === null || cours.session === null) return []
+
+    return [
+      {
+        inscription_id: null,
+        cours_id: cours.id,
+        mois: null,
+        session_id: cours.session.id,
+        montant_du: cours.prix_session,
+      },
+    ]
+  }
+
+  if (cours.prix_mensuel === null) return []
+
+  const premier = moisDe(cours.cours_debut)
+  const finCours = cours.cours_fin === null ? null : moisDe(cours.cours_fin)
+  const dernier = finCours !== null && finCours < moisMax ? finCours : moisMax
+
+  if (premier > dernier) return []
+
+  const dues: PeriodeDue[] = []
+  for (let mois = premier; mois <= dernier; mois = moisSuivant(mois)) {
+    dues.push({
+      inscription_id: null,
+      cours_id: cours.id,
+      mois,
+      session_id: null,
+      montant_du: cours.prix_mensuel,
     })
   }
 
@@ -286,6 +391,7 @@ export function fusionnerReglements<T extends ReglementRapprochable>(
 
     return {
       inscription_id: due.inscription_id,
+      cours_id: due.cours_id,
       mois: due.mois,
       session_id: due.session_id,
       montant_du: montantDu,
@@ -302,6 +408,7 @@ export function fusionnerReglements<T extends ReglementRapprochable>(
 
     lignes.push({
       inscription_id: reglement.inscription_id,
+      cours_id: reglement.cours_id,
       mois: reglement.mois,
       session_id: reglement.session_id,
       montant_du: reglement.montant_du,
@@ -354,12 +461,30 @@ export interface InscriptionAffichable extends InscriptionFacturable {
   apprenant: string
   cours_libelle: string
   devise: string
+  /**
+   * `false` quand le cours est réglé au forfait de classe : l'inscription ne
+   * produit alors aucune période due.
+   *
+   * ⚠️ Elle reste néanmoins dans la liste, et c'est délibéré. Les règlements
+   * nominatifs encaissés AVANT une bascule de portée y sont rattachés : les
+   * écarter de la liste les faisait disparaître de tous les écrans — ni dans le
+   * tableau, ni dans les totaux, ni dans le bandeau « ils restent modifiables ».
+   * Rien n'était détruit en base, mais l'argent devenait inatteignable.
+   */
+  facturee?: boolean
 }
 
 export interface LigneAffichable<T extends ReglementRapprochable = ReglementRapprochable>
   extends LigneReglement<T> {
-  /** L'identité de la personne — pour compter des gens, pas des lignes. */
+  /**
+   * L'identité de la personne — pour compter des gens, pas des lignes. **Vide
+   * pour un forfait de classe** : la ligne ne désigne alors personne.
+   */
   apprenant_id: string
+  /**
+   * Le nom affiché en tête de ligne : la personne, ou « Toute la classe » quand
+   * le cours est réglé en bloc.
+   */
   apprenant: string
   cours_libelle: string
   devise: string
@@ -368,6 +493,12 @@ export interface LigneAffichable<T extends ReglementRapprochable = ReglementRapp
    * que la période ne concerne pas cette personne.
    */
   tarifManquant: boolean
+  /**
+   * `true` quand la ligne porte un cours entier (forfait de classe) et non une
+   * inscription. L'écran l'affiche alors comme une classe, et le compte des
+   * personnes l'ignore : une classe n'est pas quelqu'un.
+   */
+  estClasse: boolean
 }
 
 export interface Facturation<T extends ReglementRapprochable = ReglementRapprochable> {
@@ -378,9 +509,20 @@ export interface Facturation<T extends ReglementRapprochable = ReglementRapproch
 }
 
 /** Le tarif du mode actif, ou `null` s'il n'a pas été saisi. */
-function tarifDuMode(inscription: InscriptionFacturable, mode: ModeFacturation): number | null {
-  return mode === 'mensuel' ? inscription.prix_mensuel : inscription.prix_session
+function tarifDuMode(
+  porteur: { prix_mensuel: number | null; prix_session: number | null },
+  mode: ModeFacturation
+): number | null {
+  return mode === 'mensuel' ? porteur.prix_mensuel : porteur.prix_session
 }
+
+/**
+ * Ce qu'on lit en tête d'une ligne de classe.
+ *
+ * Pas un nom d'apprenant : personne en particulier ne doit ce montant, et
+ * afficher celui d'un inscrit au hasard laisserait croire qu'on le lui réclame.
+ */
+export const LIBELLE_CLASSE = 'Toute la classe'
 
 /**
  * Assemble le tableau d'une période : les lignes, leurs totaux, et ce qui reste
@@ -391,31 +533,62 @@ function tarifDuMode(inscription: InscriptionFacturable, mode: ModeFacturation):
  */
 export function assemblerFacturation<T extends ReglementRapprochable>(
   inscriptions: readonly InscriptionAffichable[],
+  coursAuForfait: readonly CoursFacturable[],
   reglements: readonly T[],
   mode: ModeFacturation,
   mois: string,
   contexte: ContexteStatut
 ): Facturation<T> {
-  const dues = inscriptions.flatMap((une) => {
-    const periodes = genererPeriodesDues(une, mode, mois)
+  /*
+   * Les périodes des deux formes de porteur. Les cours au forfait viennent d'une
+   * liste À PART, et non des inscriptions : un forfait de classe est dû même à
+   * ZÉRO inscrit — c'est un engagement du cours, pas la somme de places.
+   * Le déduire des inscriptions aurait fait disparaître de la facturation
+   * exactement les classes qu'on vient d'ouvrir.
+   */
+  const periodesDe = (brutes: PeriodeDue[]) =>
+    mode === 'mensuel' ? brutes.filter((due) => due.mois === mois) : brutes
 
-    // En mensuel on n'affiche que le mois consulté ; au forfait, l'unique
-    // période de la session. Filtrer coûte moins cher qu'un second chemin de
-    // calcul à côté de celui qui est déjà éprouvé.
-    return mode === 'mensuel' ? periodes.filter((due) => due.mois === mois) : periodes
-  })
+  const dues = [
+    ...inscriptions
+      .filter((une) => une.facturee !== false)
+      .flatMap((une) => periodesDe(genererPeriodesDues(une, mode, mois))),
+    ...coursAuForfait.flatMap((unCours) =>
+      periodesDe(genererPeriodesDuesClasse(unCours, mode, mois))
+    ),
+  ]
 
   const parInscription = new Map(inscriptions.map((une) => [une.id, une]))
+  const parCours = new Map(coursAuForfait.map((unCours) => [unCours.id, unCours]))
 
   const dansLaPeriode = (reglement: T): boolean =>
     mode === 'mensuel' ? reglement.mois === mois : reglement.session_id !== null
 
+  const nousConcerne = (reglement: T): boolean =>
+    reglement.cours_id !== null
+      ? parCours.has(reglement.cours_id)
+      : reglement.inscription_id !== null && parInscription.has(reglement.inscription_id)
+
   const pertinents = reglements.filter(
-    (reglement) => parInscription.has(reglement.inscription_id) && dansLaPeriode(reglement)
+    (reglement) => nousConcerne(reglement) && dansLaPeriode(reglement)
   )
 
   const decorer = (ligne: LigneReglement<T>): LigneAffichable<T> => {
-    const une = parInscription.get(ligne.inscription_id)
+    if (ligne.cours_id !== null) {
+      const unCours = parCours.get(ligne.cours_id)
+
+      return {
+        ...ligne,
+        apprenant_id: '',
+        apprenant: LIBELLE_CLASSE,
+        cours_libelle: unCours?.libelle ?? 'Cours supprimé',
+        devise: unCours?.devise ?? 'XOF',
+        tarifManquant: false,
+        estClasse: true,
+      }
+    }
+
+    const une = ligne.inscription_id === null ? undefined : parInscription.get(ligne.inscription_id)
 
     return {
       ...ligne,
@@ -424,6 +597,7 @@ export function assemblerFacturation<T extends ReglementRapprochable>(
       cours_libelle: une?.cours_libelle ?? 'Cours supprimé',
       devise: une?.devise ?? 'XOF',
       tarifManquant: false,
+      estClasse: false,
     }
   }
 
@@ -436,17 +610,18 @@ export function assemblerFacturation<T extends ReglementRapprochable>(
    * arrivé APRÈS le mois consulté, son cours s'est terminé AVANT, ou le tarif
    * manque. Les confondre faisait accuser le mauvais coupable — quelqu'un arrivé
    * en mars s'affichait « sans tarif » sur février, bouton désactivé, alors que
-   * son tarif était saisi. On ne signale donc que le vrai manque ; les autres ne
-   * sont simplement pas facturés cette période-là, ce qui est la vérité.
+   * son tarif était saisi. On ne signale donc que le vrai manque.
    */
-  const couvertes = new Set(lignes.map((ligne) => ligne.inscription_id))
+  const couvertes = new Set(lignes.map((ligne) => ligne.cours_id ?? ligne.inscription_id))
 
   for (const une of inscriptions) {
+    if (une.facturee === false) continue
     if (couvertes.has(une.id)) continue
     if (tarifDuMode(une, mode) !== null) continue
 
     lignes.push({
       inscription_id: une.id,
+      cours_id: null,
       mois: mode === 'mensuel' ? mois : null,
       session_id: mode === 'mensuel' ? null : (une.session?.id ?? null),
       montant_du: 0,
@@ -459,6 +634,32 @@ export function assemblerFacturation<T extends ReglementRapprochable>(
       cours_libelle: une.cours_libelle,
       devise: une.devise,
       tarifManquant: true,
+      estClasse: false,
+    })
+  }
+
+  // Même signalement pour une classe dont le forfait n'a pas encore été saisi :
+  // sans elle, le cours disparaîtrait purement et simplement de l'écran.
+  for (const unCours of coursAuForfait) {
+    if (couvertes.has(unCours.id)) continue
+    if (tarifDuMode(unCours, mode) !== null) continue
+
+    lignes.push({
+      inscription_id: null,
+      cours_id: unCours.id,
+      mois: mode === 'mensuel' ? mois : null,
+      session_id: mode === 'mensuel' ? null : (unCours.session?.id ?? null),
+      montant_du: 0,
+      montant_recu: 0,
+      statut: 'attente',
+      reglement: null,
+      horsPeriode: false,
+      apprenant_id: '',
+      apprenant: LIBELLE_CLASSE,
+      cours_libelle: unCours.libelle,
+      devise: unCours.devise,
+      tarifManquant: true,
+      estClasse: true,
     })
   }
 
@@ -466,12 +667,10 @@ export function assemblerFacturation<T extends ReglementRapprochable>(
    * ⚠️ Ce que cet écran n'affiche pas, il doit pouvoir le DIRE. Les règlements
    * de l'autre forme de période ne sont montrés nulle part : un centre qui a
    * encaissé des forfaits puis est revenu au mois ne les reverrait jamais, alors
-   * que les réglages promettent qu'ils « restent modifiables ». On les compte
-   * sans les mélanger aux totaux — additionner un forfait et des mois donnerait
-   * un chiffre qui ne veut rien dire.
+   * que les réglages promettent qu'ils « restent modifiables ».
    */
   const autres = reglements.filter(
-    (reglement) => parInscription.has(reglement.inscription_id) && !dansLaPeriode(reglement)
+    (reglement) => nousConcerne(reglement) && !dansLaPeriode(reglement)
   )
 
   const facturees = lignes.filter((ligne) => !ligne.tarifManquant)

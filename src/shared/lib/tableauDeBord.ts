@@ -124,13 +124,18 @@ export function chiffresAssiduite(
 
 /** Ce dont le tableau de bord a besoin, au-delà des montants. */
 export interface LigneNommee extends LigneReglement {
-  /** L'identité de la personne — pour compter des gens, pas des lignes. */
+  /**
+   * L'identité de la personne — pour compter des gens, pas des lignes. **Vide
+   * pour un forfait de classe** : la ligne ne désigne alors personne.
+   */
   apprenant_id: string
   apprenant: string
   cours_libelle: string
   devise: string
   /** `true` quand aucun tarif n'est saisi : la ligne n'a alors aucun montant. */
   tarifManquant: boolean
+  /** `true` quand la ligne porte un cours entier plutôt qu'une inscription. */
+  estClasse: boolean
 }
 
 export interface ChiffresArgent {
@@ -173,18 +178,36 @@ export function chiffresArgent(lignes: readonly LigneNommee[]): ChiffresArgent {
     reste,
     du,
     recouvrement: du === 0 ? null : Math.round((encaisse / du) * 100),
+    /*
+     * ⚠️ Des personnes ET des classes, comptées chacune une fois. Une classe n'a
+     * pas d'`apprenant_id` — c'est un cours, pas quelqu'un — et la compter comme
+     * une personne serait aussi faux que de compter huit personnes pour un
+     * forfait unique.
+     */
     enRetard: new Set(
       lignes
         .filter((ligne) => ligne.montant_recu < ligne.montant_du)
-        .map((ligne) => ligne.apprenant_id)
+        .map((ligne) => (ligne.estClasse ? `c:${ligne.cours_id}` : `a:${ligne.apprenant_id}`))
     ).size,
   }
 }
 
-/** Une ligne de la liste nominative « qui n'a pas payé ». */
+/**
+ * Une ligne de la liste « qui n'a pas payé ».
+ *
+ * Nominative pour un cours facturé par apprenant ; une seule ligne au nom de la
+ * classe pour un cours réglé en bloc (0027) — on n'y cherche pas qui paie, on
+ * suit l'état de la classe.
+ */
 export interface Impaye {
-  inscription_id: string
-  /** L'identité de la personne — une ligne par inscription, mais on compte des gens. */
+  /** Identifiant du porteur : une inscription, ou un cours au forfait. */
+  cle: string
+  /** `true` quand la ligne porte la classe entière. */
+  estClasse: boolean
+  /**
+   * L'identité de la personne — une ligne par inscription, mais on compte des
+   * gens. **Vide pour une classe**, qui n'est personne.
+   */
   apprenant_id: string
   apprenant: string
   cours_libelle: string
@@ -213,7 +236,8 @@ export function impayes(
   return lignes
     .filter((ligne) => !ligne.tarifManquant && ligne.montant_recu < ligne.montant_du)
     .map((ligne) => ({
-      inscription_id: ligne.inscription_id,
+      cle: ligne.cours_id ?? (ligne.inscription_id as string),
+      estClasse: ligne.estClasse,
       apprenant_id: ligne.apprenant_id,
       apprenant: ligne.apprenant,
       cours_libelle: ligne.cours_libelle,

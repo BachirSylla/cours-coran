@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useCours } from '@/features/cours/hooks/useCours'
 import { useMembre } from '@/features/membres/hooks/useMembre'
 import { useMembres } from '@/features/membres/hooks/useMembres'
+import { useCoursAuForfait } from '@/features/paiements/hooks/useCoursAuForfait'
 import { useReglements } from '@/features/paiements/hooks/useReglements'
 import { useSeancesSemaine } from '@/features/seances/hooks/useSeancesSemaine'
 import { useSessionActive } from '@/features/sessions/hooks/useSessions'
@@ -121,7 +122,8 @@ export function useTableauDeBord(): ResultatTableauDeBord {
    * façon zéro règlement, mais l'accueil est l'écran le plus ouvert de
    * l'application — autant ne pas payer l'aller-retour.
    */
-  const facturation = useReglements(mois, estResponsable)
+  const forfaits = useCoursAuForfait()
+  const facturation = useReglements(mois, estResponsable, forfaits.cours)
 
   const cours = useMemo(() => requeteCours.data ?? [], [requeteCours.data])
   const coursIds = useMemo(() => cours.map((unCours) => unCours.id), [cours])
