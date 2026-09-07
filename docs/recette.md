@@ -1413,13 +1413,16 @@ psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/facturation.sql
 Combien de séances ont **réellement eu lieu** — le seul chiffre qui dise si le
 travail a été fait.
 
-### 93. Sur la carte « Par enseignant »
+### 93. Sur la page Cours
 
-1. **Accueil** → carte **Par enseignant**.
+1. **Cours** → la liste.
 
-**Attendu** : chaque ligne affiche « X cours · Y apprenants · **Z séances
-faites** ». Le total est la somme sur tous les cours de la personne, dans la
-session affichée.
+**Attendu** : une colonne **Séances faites** donne, pour chaque cours, le nombre
+de séances réellement tenues dans la session affichée. Sur mobile, la carte
+l'affiche sous les créneaux.
+
+C'est le placement principal : un créneau hebdomadaire décrit une intention, ce
+compteur dit où en est le cours.
 
 ⚠️ Seules les séances au statut **faite** comptent. Une séance annulée ou
 reportée n'a pas eu lieu : elle n'entre pas dans le compte.
@@ -1442,10 +1445,13 @@ disparaît pas de la liste — c'est justement celui qu'il faut voir.
 
 ### 96. Ce qu'un enseignant compte
 
-1. Ouvrir l'accueil depuis un compte enseignant.
+1. Ouvrir la page Cours depuis un compte enseignant.
 
-**Attendu** : il ne voit que **ses** cours dans les compteurs. Ce n'est pas
+**Attendu** : il ne voit que **ses** cours, avec leur compteur. Ce n'est pas
 l'écran qui filtre : la base ne lui donne que les séances des cours qu'il anime.
+
+⚠️ La carte « Par enseignant » de l'accueil n'affiche **pas** ce compteur : elle
+décrit une charge (« X cours · Y apprenants »), pas ce qui a eu lieu.
 
 La preuve automatisée — cloisonnement par rôle, scope de session, séances
 annulées écartées :

@@ -23,6 +23,14 @@ import {
 
 export interface CoursListeProps {
   cours: CoursAvecDetails[]
+  /**
+   * Séances réellement tenues, par cours (migration 0028).
+   *
+   * ⚠️ Un cours ABSENT de la table n'en a tenu aucune : l'agrégation SQL ne
+   * fabrique pas de ligne vide. On lit donc `?? 0` — « 0 » est une valeur, pas
+   * une donnée manquante, et c'est justement le cours qu'il faut voir.
+   */
+  seancesFaites?: ReadonlyMap<string, number>
   onOuvrir: (cours: CoursAvecDetails) => void
   onModifier: (cours: CoursAvecDetails) => void
   onSupprimer: (cours: CoursAvecDetails) => void
@@ -62,14 +70,17 @@ function resumerCreneaux(creneaux: CoursAvecDetails['creneau']): string {
 /** Liste des cours — composant présentational pur. */
 export function CoursListe({
   cours,
+  seancesFaites,
   onOuvrir,
   onModifier,
   onSupprimer,
   actionsGestion = true,
 }: CoursListeProps) {
+  const faites = (coursId: string) => seancesFaites?.get(coursId) ?? 0
+
   return (
     <>
-      <div className="hidden rounded-lg border md:block">
+      <div className="hidden overflow-x-auto rounded-lg border md:block">
         <Table>
           <TableHeader>
             <TableRow>
@@ -78,6 +89,9 @@ export function CoursListe({
               <TableHead>Format</TableHead>
               <TableHead>Créneaux</TableHead>
               <TableHead>Apprenants</TableHead>
+              {/* Ce qui a réellement eu lieu — le seul chiffre qui dise où en
+                  est le cours. Les créneaux ne décrivent qu'une intention. */}
+              <TableHead className="text-right">Séances faites</TableHead>
               <TableHead>Statut</TableHead>
               <TableHead>Meet</TableHead>
               <TableHead className="w-24 text-right">Actions</TableHead>
@@ -106,6 +120,9 @@ export function CoursListe({
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {nombreInscrits(unCours)}
+                </TableCell>
+                <TableCell className="text-right font-medium tabular-nums">
+                  {faites(unCours.id)}
                 </TableCell>
                 <TableCell>
                   <Badge
@@ -172,6 +189,11 @@ export function CoursListe({
 
             <p className="mt-3 text-xs text-muted-foreground tabular-nums">
               {resumerCreneaux(unCours.creneau)}
+            </p>
+
+            <p className="mt-1 text-xs text-muted-foreground tabular-nums">
+              {faites(unCours.id)} séance{faites(unCours.id) > 1 ? 's' : ''} faite
+              {faites(unCours.id) > 1 ? 's' : ''}
             </p>
 
             <div className="mt-3 flex items-center justify-between">

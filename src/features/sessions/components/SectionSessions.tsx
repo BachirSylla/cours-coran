@@ -16,7 +16,7 @@ import {
   useSessions,
 } from '@/features/sessions/hooks/useSessions'
 import { ReconduireSessionDialog } from '@/features/sessions/components/ReconduireSessionDialog'
-import { useSeancesFaites } from '@/features/sessions/hooks/useSeancesFaites'
+import { useSeancesFaites } from '@/features/seances/hooks/useSeancesFaites'
 import type { Session } from '@/shared/supabase/sessionRepo'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
 import {

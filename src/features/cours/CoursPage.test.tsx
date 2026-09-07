@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider, type UseQueryResult } from '@tanstack
 
 import { CoursPage } from '@/features/cours/CoursPage'
 import { useCours } from '@/features/cours/hooks/useCours'
+import { useSeancesFaites } from '@/features/seances/hooks/useSeancesFaites'
 import { useCreerCours } from '@/features/cours/hooks/useCreerCours'
 import { useModifierCours } from '@/features/cours/hooks/useModifierCours'
 import { useSupprimerCours } from '@/features/cours/hooks/useSupprimerCours'
@@ -23,6 +24,11 @@ vi.mock('@/features/cours/components/CoursDetailDialog', () => ({
   CoursDetailDialog: ({ cours }: { cours: CoursAvecDetails | null }) =>
     cours ? <div data-testid="detail" data-jeton={cours.jeton_partage ?? ''} /> : null,
 }))
+/*
+ * La page Cours affiche le compte des séances tenues (0028) ; ce fichier ne
+ * monte pas de `QueryClientProvider`.
+ */
+vi.mock('@/features/seances/hooks/useSeancesFaites', () => ({ useSeancesFaites: vi.fn() }))
 vi.mock('@/features/cours/hooks/useCours', () => ({ useCours: vi.fn() }))
 vi.mock('@/features/cours/hooks/useCreerCours', () => ({ useCreerCours: vi.fn() }))
 vi.mock('@/features/cours/hooks/useModifierCours', () => ({ useModifierCours: vi.fn() }))
@@ -72,6 +78,7 @@ function membre(role: 'responsable' | 'enseignant' = 'responsable') {
   }
 }
 
+const useSeancesFaitesMock = vi.mocked(useSeancesFaites)
 const useCoursMock = vi.mocked(useCours)
 const useCreerMock = vi.mocked(useCreerCours)
 const useModifierMock = vi.mocked(useModifierCours)
@@ -156,6 +163,11 @@ function simulerListe(etat: Partial<UseQueryResult<CoursAvecDetails[], Error>>) 
 describe('CoursPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    useSeancesFaitesMock.mockReturnValue({
+      parCours: new Map(),
+      isPending: false,
+      isError: false,
+    })
     useMembreMock.mockReturnValue(membre())
     useMembresMock.mockReturnValue({ data: [] } as unknown as ReturnType<typeof useMembres>)
     useCreerMock.mockReturnValue(mutationInerte<ReturnType<typeof useCreerCours>>())
@@ -191,6 +203,73 @@ describe('CoursPage', () => {
     expect(screen.getByText('Aucun cours pour le moment')).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /nouveau cours/i })).toHaveLength(2)
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  })
+
+  /*
+   * ================ LE COMPTEUR DE SÉANCES TENUES (0028) ================
+   *
+   * Au grain du COURS, et c'est le placement principal : c'est ici qu'on juge
+   * quel cours arrive à sa fin. Un créneau hebdomadaire décrit une intention,
+   * pas ce qui a eu lieu.
+   */
+  it('affiche le nombre de séances tenues, cours par cours', () => {
+    simulerListe({
+      data: [
+        cours('1', 'Groupe Hifz', [
+          { jour_semaine: 1, heure_debut: '10:00:00', heure_fin: '11:00:00' },
+        ]),
+      ],
+    })
+    useSeancesFaitesMock.mockReturnValue({
+      parCours: new Map([['1', 18]]),
+      isPending: false,
+      isError: false,
+    })
+    rendreAvecQuery(<CoursPage />)
+
+    expect(screen.getByText('Séances faites')).toBeInTheDocument()
+    // Tableau (≥ md) et carte (mobile) : le chiffre puis la forme longue.
+    expect(screen.getByText('18')).toBeInTheDocument()
+    expect(screen.getByText('18 séances faites')).toBeInTheDocument()
+  })
+
+  /*
+   * ⚠️ Un cours ABSENT de l'agrégat n'a tenu AUCUNE séance : le `group by` ne
+   * fabrique pas de ligne vide. « 0 » est une valeur — et c'est justement le
+   * cours qu'il faut voir, celui qui n'a jamais démarré.
+   */
+  it('affiche « 0 » proprement pour un cours qui n’a rien tenu', () => {
+    simulerListe({
+      data: [
+        cours('1', 'Jamais démarré', [
+          { jour_semaine: 1, heure_debut: '10:00:00', heure_fin: '11:00:00' },
+        ]),
+      ],
+    })
+    rendreAvecQuery(<CoursPage />)
+
+    // Deux fois : tableau (≥ md) et carte (mobile).
+    expect(screen.getAllByText('Jamais démarré')).toHaveLength(2)
+    // Le cours ne DISPARAÎT pas : c'est justement celui qu'il faut voir.
+    expect(screen.getByText('0 séance faite')).toBeInTheDocument()
+  })
+
+  it('accorde le singulier', () => {
+    simulerListe({
+      data: [
+        cours('1', 'Groupe Hifz', [
+          { jour_semaine: 1, heure_debut: '10:00:00', heure_fin: '11:00:00' },
+        ]),
+      ],
+    })
+    useSeancesFaitesMock.mockReturnValue({
+      parCours: new Map([['1', 1]]),
+      isPending: false,
+      isError: false,
+    })
+    rendreAvecQuery(<CoursPage />)
+
+    expect(screen.getByText('1 séance faite')).toBeInTheDocument()
   })
 
   it('affiche les cours avec le résumé de leurs créneaux', () => {

@@ -31,16 +31,15 @@ export function ResumeEnseignants({ enseignants }: ResumeEnseignantsProps) {
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">{enseignant.nom}</p>
             {/*
-              Trois chiffres sur une ligne : ce qu'il porte, pour qui, et ce
-              qu'il a réellement tenu. Le troisième est le seul qui dise si le
-              travail a eu lieu — les deux autres ne décrivent qu'une charge.
-              « 0 séance » s'affiche comme tel : c'est une valeur, pas un trou.
+              La CHARGE portée, et rien de plus. Le compte des séances tenues a
+              sa place au grain du COURS (page Cours, écran de clôture) : c'est
+              là qu'on juge si un cours arrive à sa fin. Agrégé par personne, il
+              ne répondait à aucune question — « 18 séances » sur sept cours ne
+              dit ni lesquels ont tourné, ni lesquels n'ont jamais démarré.
             */}
             <p className="text-xs text-muted-foreground tabular-nums">
               {enseignant.cours} cours · {enseignant.apprenants} apprenant
-              {enseignant.apprenants > 1 ? 's' : ''} · {enseignant.seancesFaites} séance
-              {enseignant.seancesFaites > 1 ? 's' : ''} faite
-              {enseignant.seancesFaites > 1 ? 's' : ''}
+              {enseignant.apprenants > 1 ? 's' : ''}
             </p>
           </div>
 

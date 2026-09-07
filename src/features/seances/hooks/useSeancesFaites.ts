@@ -9,8 +9,13 @@ export const seancesFaitesKeys = {
 }
 
 /**
- * Combien de séances ont réellement eu lieu, cours par cours, dans une session
- * (migration 0028).
+ * Combien de séances ont réellement eu lieu, **cours par cours**, dans une
+ * session (migration 0028).
+ *
+ * Deux écrans s'en servent, et au même grain : la page Cours, pour juger quel
+ * cours arrive à sa fin, et l'écran de clôture, pour décider de fermer la
+ * période. Il vit donc avec les séances, et non dans l'un des deux — sans quoi
+ * l'un dépendrait de l'autre sans raison.
  *
  * ⚠️ Le compte vient d'une agrégation SQL, jamais d'une liste rapatriée :
  * PostgREST coupe à `max_rows` sans rien dire, et un centre actif aurait vu son

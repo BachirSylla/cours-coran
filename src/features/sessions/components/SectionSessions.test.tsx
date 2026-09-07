@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { UseQueryResult } from '@tanstack/react-query'
 
 import { useCoursToutesSessions } from '@/features/cours/hooks/useCours'
-import { useSeancesFaites } from '@/features/sessions/hooks/useSeancesFaites'
+import { useSeancesFaites } from '@/features/seances/hooks/useSeancesFaites'
 import { SectionSessions } from '@/features/sessions/components/SectionSessions'
 import {
   useCreerSession,
@@ -23,7 +23,7 @@ vi.mock('@/features/sessions/hooks/useSessions', () => ({
  * Le dialogue de clôture compte les séances tenues (0028) ; ce fichier ne monte
  * pas de `QueryClientProvider`.
  */
-vi.mock('@/features/sessions/hooks/useSeancesFaites', () => ({
+vi.mock('@/features/seances/hooks/useSeancesFaites', () => ({
   useSeancesFaites: vi.fn(),
 }))
 vi.mock('@/features/cours/hooks/useCours', () => ({ useCoursToutesSessions: vi.fn() }))

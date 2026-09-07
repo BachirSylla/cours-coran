@@ -896,12 +896,6 @@ fin)`, `security definer`, gardée `est_responsable()` et bornée à `centre_cou
   silence** : au-delà, l'assiduité aurait été calculée sur un sous-ensemble arbitraire, sans erreur
   ni indice.
 
-  ⚠️ **Le compteur de séances tenues est une agrégation SQL** (`seances_faites_par_cours`, 0028),
-  `security **invoker**` : la policy `seance_select` (`cours_lisibles()`) fait tout le
-  cloisonnement, un enseignant ne compte donc que SES cours. Rapatrier une ligne par séance aurait
-  buté sur `max_rows` **en silence**. Un cours sans séance n'est pas rendu — `group by` ne fabrique
-  pas de ligne vide — et l'appelant lit alors zéro, ce qui est la vérité.
-
   Les métriques dérivées vivent dans `shared/lib/tableauDeBord.ts`, **module pur** : assiduité,
   alertes graduées, impayés, encaissements, renouvellement d'une session à l'autre. Ce dernier se
   mesure **par personne** (via `cours.reconduit_de`, 0024) : qui passe de « Niveau 1 » à
@@ -923,6 +917,18 @@ fin)`, `security definer`, gardée `est_responsable()` et bornée à `centre_cou
   centre — mensuel, ou forfait couvrant toute la session. Tableau de bord en consultation, sans
   relance (§5.5). L'ancien suivi par cours reste lisible dans la fiche du cours, sous un intitulé
   qui dit qu'il précède la bascule.
+- **Compteur de séances tenues** (`seances_faites_par_cours`, 0028) : le nombre de séances au
+  statut `faite`, **par cours** et scopé à la session. Affiché sur la page Cours — c'est là qu'on
+  juge quel cours arrive à sa fin — et dans l'écran de clôture, pour décider de fermer la période.
+
+  ⚠️ **Au grain du COURS, jamais agrégé par enseignant.** « 18 séances » sur sept cours ne dit ni
+  lesquels ont tourné, ni lesquels n'ont jamais démarré : la somme ne répond à aucune question.
+
+  ⚠️ **Une agrégation SQL, `security invoker`** : la policy `seance_select` (`cours_lisibles()`)
+  fait tout le cloisonnement, un enseignant ne compte donc que SES cours. Rapatrier une ligne par
+  séance aurait buté sur `max_rows` **en silence**. Un cours sans séance n'est pas rendu —
+  `group by` ne fabrique pas de ligne vide — et l'appelant lit `?? 0`, ce qui est la vérité : « 0 »
+  est une valeur, et c'est justement le cours qu'il faut voir.
 - **Rapport de fin de session** (`/cours/:coursId/rapport`, hors `AppLayout`) : feuille A4 paysage
   imprimable — présence par séance, notes de récitation, examen et note finale. Assemblé par
   `shared/lib/rapportSession.ts` (pur), imprimé via `window.print()` — aucune dépendance PDF. Son

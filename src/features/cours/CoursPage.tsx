@@ -15,6 +15,7 @@ import { useSupprimerCours } from '@/features/cours/hooks/useSupprimerCours'
 import { useTousLesCreneaux } from '@/features/cours/hooks/useTousLesCreneaux'
 import { useTypesCours } from '@/features/cours/hooks/useTypesCours'
 import { nombreInscrits, type CoursAvecDetails } from '@/shared/supabase/coursRepo'
+import { useSeancesFaites } from '@/features/seances/hooks/useSeancesFaites'
 import { useSessionActive } from '@/features/sessions/hooks/useSessions'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import { Label } from '@/shared/ui/label'
@@ -30,6 +31,13 @@ function decouper(valeurs: CoursValues) {
 export function CoursPage() {
   const { data: cours, isPending, isError, error } = useCours()
   const { sessionId } = useSessionActive()
+
+  /*
+   * Combien de séances chaque cours a réellement tenues (0028). C'est ce qui
+   * permet de juger quel cours arrive à sa fin : un créneau hebdomadaire décrit
+   * une intention, pas ce qui a eu lieu.
+   */
+  const seancesFaites = useSeancesFaites(sessionId ?? null)
   const { data: typesCours } = useTypesCours()
   const { data: creneauxExistants } = useTousLesCreneaux()
 
@@ -215,6 +223,7 @@ export function CoursPage() {
       {!isPending && !isError && coursAffiches.length > 0 && (
         <CoursListe
           cours={coursAffiches}
+          seancesFaites={seancesFaites.parCours}
           onOuvrir={(unCours) => setIdDetaille(unCours.id)}
           onModifier={ouvrirEdition}
           onSupprimer={setCoursASupprimer}
