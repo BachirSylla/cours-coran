@@ -896,6 +896,12 @@ fin)`, `security definer`, gardée `est_responsable()` et bornée à `centre_cou
   silence** : au-delà, l'assiduité aurait été calculée sur un sous-ensemble arbitraire, sans erreur
   ni indice.
 
+  ⚠️ **Le compteur de séances tenues est une agrégation SQL** (`seances_faites_par_cours`, 0028),
+  `security **invoker**` : la policy `seance_select` (`cours_lisibles()`) fait tout le
+  cloisonnement, un enseignant ne compte donc que SES cours. Rapatrier une ligne par séance aurait
+  buté sur `max_rows` **en silence**. Un cours sans séance n'est pas rendu — `group by` ne fabrique
+  pas de ligne vide — et l'appelant lit alors zéro, ce qui est la vérité.
+
   Les métriques dérivées vivent dans `shared/lib/tableauDeBord.ts`, **module pur** : assiduité,
   alertes graduées, impayés, encaissements, renouvellement d'une session à l'autre. Ce dernier se
   mesure **par personne** (via `cours.reconduit_de`, 0024) : qui passe de « Niveau 1 » à
@@ -972,6 +978,7 @@ psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/presence_seance_fai
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/sessions.sql
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/reconduction.sql
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/facturation.sql
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/seances_faites.sql
 ```
 
 ⚠️ `sessions.sql` couvre les migrations 0022 **et** 0023 : le scope de conflit, la clôture, et le

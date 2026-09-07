@@ -1405,3 +1405,51 @@ La preuve automatisée :
 ```bash
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/facturation.sql
 ```
+
+---
+
+## Compteur de séances tenues (migration 0028)
+
+Combien de séances ont **réellement eu lieu** — le seul chiffre qui dise si le
+travail a été fait.
+
+### 93. Sur la carte « Par enseignant »
+
+1. **Accueil** → carte **Par enseignant**.
+
+**Attendu** : chaque ligne affiche « X cours · Y apprenants · **Z séances
+faites** ». Le total est la somme sur tous les cours de la personne, dans la
+session affichée.
+
+⚠️ Seules les séances au statut **faite** comptent. Une séance annulée ou
+reportée n'a pas eu lieu : elle n'entre pas dans le compte.
+
+### 94. Au moment de clôturer une session
+
+1. **Paramètres → Sessions → Clôturer** sur une session.
+
+**Attendu** : sous l'avertissement des cours non terminés, la liste **« Séances
+tenues dans cette session »** — un cours par ligne, avec son nombre. Les cours
+qui ont le plus tourné sont en tête.
+
+C'est l'information qui manque pour décider : un cours à **0 séance** n'a jamais
+démarré, un cours à 18 a fait son travail.
+
+### 95. Un cours qui n'a rien tenu
+
+**Attendu** : il apparaît quand même, avec « **0 séance faite** ». Il ne
+disparaît pas de la liste — c'est justement celui qu'il faut voir.
+
+### 96. Ce qu'un enseignant compte
+
+1. Ouvrir l'accueil depuis un compte enseignant.
+
+**Attendu** : il ne voit que **ses** cours dans les compteurs. Ce n'est pas
+l'écran qui filtre : la base ne lui donne que les séances des cours qu'il anime.
+
+La preuve automatisée — cloisonnement par rôle, scope de session, séances
+annulées écartées :
+
+```bash
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/seances_faites.sql
+```

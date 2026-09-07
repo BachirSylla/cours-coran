@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { UseQueryResult } from '@tanstack/react-query'
 
 import { useCoursToutesSessions } from '@/features/cours/hooks/useCours'
+import { useSeancesFaites } from '@/features/sessions/hooks/useSeancesFaites'
 import { SectionSessions } from '@/features/sessions/components/SectionSessions'
 import {
   useCreerSession,
@@ -17,6 +18,13 @@ vi.mock('@/features/sessions/hooks/useSessions', () => ({
   useSessions: vi.fn(),
   useCreerSession: vi.fn(),
   useModifierSession: vi.fn(),
+}))
+/*
+ * Le dialogue de clôture compte les séances tenues (0028) ; ce fichier ne monte
+ * pas de `QueryClientProvider`.
+ */
+vi.mock('@/features/sessions/hooks/useSeancesFaites', () => ({
+  useSeancesFaites: vi.fn(),
 }))
 vi.mock('@/features/cours/hooks/useCours', () => ({ useCoursToutesSessions: vi.fn() }))
 
@@ -105,6 +113,11 @@ function ligne(nom: string): HTMLElement {
 describe('SectionSessions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(useSeancesFaites).mockReturnValue({
+      parCours: new Map(),
+      isPending: false,
+      isError: false,
+    })
     useSessionsMock.mockReturnValue(requete([S17, S16]))
     useCoursMock.mockReturnValue(requete<CoursAvecDetails[]>([]))
     useCreerMock.mockReturnValue(mutation(creer))
@@ -133,6 +146,104 @@ describe('SectionSessions', () => {
       { nom: 'Session 18', date_debut: '2026-06-01' },
       expect.anything()
     )
+  })
+
+  /*
+   * ================= LE COMPTEUR DE SÉANCES TENUES (0028) =================
+   *
+   * C'est l'information qui manque au moment de décider : le nom d'un cours ne
+   * dit pas s'il a eu lieu. Un cours à zéro séance n'a jamais démarré, un cours
+   * à dix-huit a fait son travail.
+   */
+  it('compte les séances tenues, cours par cours, avant de clôturer', async () => {
+    const utilisateur = userEvent.setup()
+    useCoursMock.mockReturnValue(
+      requete([
+        cours('c1', 'Coran niveau 1', 's17', 'actif'),
+        cours('c2', 'Tadjwîd', 's17', 'actif'),
+        // D'une autre session : il ne doit pas apparaître.
+        cours('c4', 'Ailleurs', 's16', 'actif'),
+      ])
+    )
+    vi.mocked(useSeancesFaites).mockReturnValue({
+      parCours: new Map([
+        ['c1', 18],
+        ['c2', 1],
+      ]),
+      isPending: false,
+      isError: false,
+    })
+    render(<SectionSessions />)
+
+    await utilisateur.click(within(ligne('Session 17')).getByRole('button', { name: /Clôturer/ }))
+
+    expect(screen.getByText('Séances tenues dans cette session')).toBeInTheDocument()
+    expect(screen.getByText('18 séances faites')).toBeInTheDocument()
+    // Le singulier compte : « 1 séances faites » se remarque tout de suite.
+    expect(screen.getByText('1 séance faite')).toBeInTheDocument()
+    expect(screen.queryByText('Ailleurs')).not.toBeInTheDocument()
+  })
+
+  /*
+   * ⚠️ Un cours ABSENT de l'agrégat n'a tenu aucune séance : `group by` ne
+   * fabrique pas de ligne vide. « 0 » est une valeur, pas un trou — et surtout
+   * pas une raison de faire disparaître le cours de la liste.
+   */
+  it('affiche « 0 » proprement pour un cours qui n’a rien tenu', async () => {
+    const utilisateur = userEvent.setup()
+    useCoursMock.mockReturnValue(
+      requete([cours('c1', 'Cours jamais démarré', 's17', 'termine')])
+    )
+    render(<SectionSessions />)
+
+    await utilisateur.click(within(ligne('Session 17')).getByRole('button', { name: /Clôturer/ }))
+
+    expect(screen.getByText('Cours jamais démarré')).toBeInTheDocument()
+    expect(screen.getByText('0 séance faite')).toBeInTheDocument()
+  })
+
+  it('met en tête ce qui a le plus tourné', async () => {
+    const utilisateur = userEvent.setup()
+    useCoursMock.mockReturnValue(
+      requete([
+        cours('c1', 'Peu tenu', 's17', 'termine'),
+        cours('c2', 'Beaucoup tenu', 's17', 'termine'),
+      ])
+    )
+    vi.mocked(useSeancesFaites).mockReturnValue({
+      parCours: new Map([
+        ['c1', 2],
+        ['c2', 20],
+      ]),
+      isPending: false,
+      isError: false,
+    })
+    render(<SectionSessions />)
+
+    await utilisateur.click(within(ligne('Session 17')).getByRole('button', { name: /Clôturer/ }))
+
+    const contenu = screen.getByRole('alertdialog').textContent ?? ''
+    expect(contenu.indexOf('Beaucoup tenu')).toBeLessThan(contenu.indexOf('Peu tenu'))
+  })
+
+  /*
+   * Une erreur doit se taire, jamais affirmer : sans ce mot, un échec de
+   * chargement afficherait « 0 séance faite » partout, et laisserait clôturer
+   * une session sur un chiffre inventé.
+   */
+  it('dit que le compte n’a pas pu être chargé plutôt que d’afficher zéro', async () => {
+    const utilisateur = userEvent.setup()
+    useCoursMock.mockReturnValue(requete([cours('c1', 'Coran niveau 1', 's17', 'actif')]))
+    vi.mocked(useSeancesFaites).mockReturnValue({
+      parCours: new Map(),
+      isPending: false,
+      isError: true,
+    })
+    render(<SectionSessions />)
+
+    await utilisateur.click(within(ligne('Session 17')).getByRole('button', { name: /Clôturer/ }))
+
+    expect(screen.getByText(/n'a pas pu être chargé/)).toBeInTheDocument()
   })
 
   /*

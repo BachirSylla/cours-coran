@@ -916,6 +916,15 @@ export type Database = {
         Returns: number
       }
       revoquer_invitation: { Args: { p_id: string }; Returns: undefined }
+      /*
+       * Ajoutée à la MAIN (0028) : `supabase gen types` a besoin de Docker, qui
+       * ne tournait pas. La forme suit exactement `returns table (id_cours uuid,
+       * faites bigint)` — un tableau, jamais une ligne unique.
+       */
+      seances_faites_par_cours: {
+        Args: { p_session_id: string }
+        Returns: { id_cours: string; faites: number }[]
+      }
       revoquer_partage: { Args: { p_cours_id: string }; Returns: undefined }
       revoquer_suivi: { Args: { p_inscription_id: string }; Returns: undefined }
       revoquer_suivi_apprenant: {

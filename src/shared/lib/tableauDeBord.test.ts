@@ -486,6 +486,76 @@ describe('resumeParEnseignant', () => {
     expect(resume[0]!.user_id).toBe('u2')
   })
 
+  /*
+   * ⚠️ LE COMPTEUR DE SÉANCES TENUES (0028) : la SOMME sur les cours de la
+   * personne. C'est le seul des trois chiffres qui dise si le travail a eu
+   * lieu — les deux autres ne décrivent qu'une charge.
+   */
+  it('additionne les séances tenues sur tous les cours de l’enseignant', () => {
+    const resume = resumeParEnseignant(
+      [
+        { id: 'c1', enseignant_id: 'u1', inscrits: 5 },
+        { id: 'c2', enseignant_id: 'u1', inscrits: 3 },
+      ],
+      new Map(),
+      nomDe,
+      new Map([
+        ['c1', 12],
+        ['c2', 6],
+      ])
+    )
+
+    expect(resume[0]!.seancesFaites).toBe(18)
+  })
+
+  /*
+   * Un cours absent de l'agrégat n'a tenu AUCUNE séance : `group by` ne fabrique
+   * pas de ligne vide. Zéro est une valeur, pas une donnée manquante — et
+   * surtout pas `NaN`.
+   */
+  it('compte zéro pour un cours qui n’a tenu aucune séance', () => {
+    const resume = resumeParEnseignant(
+      [
+        { id: 'c1', enseignant_id: 'u1', inscrits: 5 },
+        { id: 'c2', enseignant_id: 'u1', inscrits: 3 },
+      ],
+      new Map(),
+      nomDe,
+      new Map([['c1', 4]])
+    )
+
+    expect(resume[0]!.seancesFaites).toBe(4)
+  })
+
+  it('compte zéro quand rien n’a été tenu du tout', () => {
+    const resume = resumeParEnseignant(
+      [{ id: 'c1', enseignant_id: 'u1', inscrits: 5 }],
+      new Map(),
+      nomDe
+    )
+
+    expect(resume[0]!.seancesFaites).toBe(0)
+  })
+
+  it('ne mélange pas les séances de deux enseignants', () => {
+    const resume = resumeParEnseignant(
+      [
+        { id: 'c1', enseignant_id: 'u1', inscrits: 1 },
+        { id: 'c2', enseignant_id: 'u2', inscrits: 1 },
+      ],
+      new Map(),
+      nomDe,
+      new Map([
+        ['c1', 7],
+        ['c2', 3],
+      ])
+    )
+
+    const parId = new Map(resume.map((ligne) => [ligne.user_id, ligne.seancesFaites]))
+    expect(parId.get('u1')).toBe(7)
+    expect(parId.get('u2')).toBe(3)
+  })
+
   it('ne plante pas sans cours', () => {
     expect(resumeParEnseignant([], new Map(), nomDe)).toEqual([])
   })
@@ -545,6 +615,7 @@ function entrees(extra: Partial<EntreesTableauDeBord> = {}): EntreesTableauDeBor
     occurrences: [],
     pointages: [],
     cours: [],
+    faitesParCours: new Map(),
     apprenantsMaintenant: new Set(),
     apprenantsAvant: new Set(),
     aUneSessionSource: false,

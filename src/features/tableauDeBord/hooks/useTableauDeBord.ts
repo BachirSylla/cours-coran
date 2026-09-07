@@ -39,6 +39,7 @@ export const tableauDeBordKeys = {
     [...tableauDeBordKeys.tous, 'inscrits', [...coursIds].sort().join(',')] as const,
   encaissements: (coursIds: readonly string[]) =>
     [...tableauDeBordKeys.tous, 'encaissements', [...coursIds].sort().join(',')] as const,
+  faites: (sessionId: string) => [...tableauDeBordKeys.tous, 'faites', sessionId] as const,
 }
 
 /** Un cours du jour, tel que l'écran l'affiche. */
@@ -136,6 +137,17 @@ export function useTableauDeBord(): ResultatTableauDeBord {
   }, [debutSession])
 
   const seances = useSeancesSemaine(debutFenetre, decaler(JOURS_APRES))
+
+  /*
+   * Le compte des séances tenues, agrégé en SQL. Il couvre TOUTE la session —
+   * contrairement aux occurrences, bornées à une fenêtre : « combien de séances
+   * ont eu lieu » n'a de sens que sur la période entière.
+   */
+  const requeteFaites = useQuery({
+    queryKey: tableauDeBordKeys.faites(session?.id ?? ''),
+    queryFn: () => tableauDeBordRepo.listSeancesFaites(session?.id as string),
+    enabled: Boolean(session?.id),
+  })
 
   const requetePointages = useQuery({
     queryKey: tableauDeBordKeys.pointages(coursIds),
@@ -269,6 +281,11 @@ export function useTableauDeBord(): ResultatTableauDeBord {
       occurrences,
       pointages: requetePointages.data ?? [],
       cours: pourBord,
+      // Un cours absent de la table n'a tenu AUCUNE séance : `resumeParEnseignant`
+      // lit alors zéro, ce qui est la vérité — pas une donnée manquante.
+      faitesParCours: new Map(
+        (requeteFaites.data ?? []).map((ligne) => [ligne.cours_id, ligne.faites])
+      ),
       apprenantsMaintenant,
       apprenantsAvant,
       aUneSessionSource: sourcesIds.length > 0 && requeteInscrits.data !== undefined,
@@ -292,6 +309,7 @@ export function useTableauDeBord(): ResultatTableauDeBord {
     requetePointages.data,
     requeteInscrits.data,
     requeteEncaissements.data,
+    requeteFaites.data,
   ])
 
   const coursDuJour = useMemo(() => {
@@ -332,7 +350,8 @@ export function useTableauDeBord(): ResultatTableauDeBord {
        * seconde avant que les chiffres sautent à leur vraie valeur. Sur un
        * chiffre d'audience, un zéro fugace est un mensonge lisible.
        */
-      (coursIds.length > 0 && (requetePointages.isPending || requeteInscrits.isPending)),
+      (coursIds.length > 0 && (requetePointages.isPending || requeteInscrits.isPending)) ||
+      (Boolean(session?.id) && requeteFaites.isPending),
 
     /*
      * ⚠️ TOUTES les requêtes, pas seulement trois. Un échec sur les pointages
@@ -347,7 +366,8 @@ export function useTableauDeBord(): ResultatTableauDeBord {
       facturation.isError ||
       requetePointages.isError ||
       requeteInscrits.isError ||
-      requeteEncaissements.isError,
+      requeteEncaissements.isError ||
+      requeteFaites.isError,
     error:
       erreurSession ??
       requeteCours.error ??
@@ -355,6 +375,7 @@ export function useTableauDeBord(): ResultatTableauDeBord {
       facturation.error ??
       requetePointages.error ??
       requeteInscrits.error ??
-      requeteEncaissements.error,
+      requeteEncaissements.error ??
+      requeteFaites.error,
   }
 }

@@ -160,3 +160,38 @@ export async function listReglementsDesCours(
     montant_recu: ligne.montant_recu,
   }))
 }
+
+/** Le nombre de séances tenues, cours par cours. */
+export interface SeancesFaitesDuCours {
+  cours_id: string
+  faites: number
+}
+
+/**
+ * Combien de séances ont réellement eu lieu, par cours, dans une session
+ * (migration 0028).
+ *
+ * ⚠️ **Une agrégation SQL, pas une liste comptée ici.** Rapatrier une ligne par
+ * séance aurait buté sur `max_rows` (1000), que PostgREST applique **en
+ * silence** : le compteur d'un centre actif serait devenu faux au fil des
+ * sessions, sans erreur ni indice. C'est la leçon de `listPointages`, appliquée
+ * avant d'en payer le prix.
+ *
+ * La fonction est `security invoker` : la policy `seance_select` porte sur
+ * `cours_lisibles()`, donc un enseignant ne compte que SES cours. Rien n'ouvre
+ * de porte — c'est la RLS qui cloisonne, comme partout.
+ *
+ * ⚠️ Un cours **sans aucune séance tenue n'est pas rendu** : `group by` ne
+ * fabrique pas de ligne à zéro. L'appelant lit alors zéro, ce qui est la vérité.
+ */
+export async function listSeancesFaites(
+  sessionId: string
+): Promise<SeancesFaitesDuCours[]> {
+  const { data, error } = await getSupabaseClient().rpc('seances_faites_par_cours', {
+    p_session_id: sessionId,
+  })
+
+  lancerSiErreur(error, 'Chargement des séances tenues')
+
+  return (data ?? []).map((ligne) => ({ cours_id: ligne.id_cours, faites: ligne.faites }))
+}

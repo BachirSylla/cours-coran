@@ -472,6 +472,12 @@ export interface ResumeEnseignant {
   cours: number
   apprenants: number
   aNoter: number
+  /**
+   * Séances réellement TENUES sur ses cours (`statut = 'faite'`), depuis le
+   * début de la session. Zéro est une valeur, pas une absence : un enseignant
+   * qui vient d'arriver affiche « 0 séance », ce qui est exact.
+   */
+  seancesFaites: number
 }
 
 /** Ce qu'un cours doit exposer pour entrer dans le résumé par enseignant. */
@@ -488,7 +494,13 @@ export interface CoursResumable {
 export function resumeParEnseignant(
   cours: readonly CoursResumable[],
   aNoterParCours: ReadonlyMap<string, number>,
-  nomDe: (userId: string | null) => string
+  nomDe: (userId: string | null) => string,
+  /**
+   * Séances tenues par cours. Un cours absent de la table en compte **zéro** :
+   * `group by` ne fabrique pas de ligne vide, et c'est à l'appelant de le lire
+   * comme tel plutôt que d'inventer une valeur.
+   */
+  faitesParCours: ReadonlyMap<string, number> = new Map()
 ): ResumeEnseignant[] {
   const parEnseignant = new Map<string | null, ResumeEnseignant>()
 
@@ -500,11 +512,13 @@ export function resumeParEnseignant(
       cours: 0,
       apprenants: 0,
       aNoter: 0,
+      seancesFaites: 0,
     }
 
     ligne.cours += 1
     ligne.apprenants += unCours.inscrits
     ligne.aNoter += aNoterParCours.get(unCours.id) ?? 0
+    ligne.seancesFaites += faitesParCours.get(unCours.id) ?? 0
 
     parEnseignant.set(cle, ligne)
   }
@@ -591,6 +605,8 @@ export interface EntreesTableauDeBord {
   occurrences: readonly OccurrenceComptable[]
   pointages: readonly PointageComptable[]
   cours: readonly CoursPourBord[]
+  /** Séances tenues par cours (0028), pour le résumé par enseignant. */
+  faitesParCours: ReadonlyMap<string, number>
   /** Apprenants distincts de la session, et de celle qu'elle reconduit. */
   apprenantsMaintenant: ReadonlySet<string>
   apprenantsAvant: ReadonlySet<string>
@@ -687,7 +703,8 @@ export function assemblerTableauDeBord(entrees: EntreesTableauDeBord): TableauDe
             inscrits: unCours.inscrits,
           })),
           aNoterParCours,
-          entrees.nomDe
+          entrees.nomDe,
+          entrees.faitesParCours
         )
       : [],
 

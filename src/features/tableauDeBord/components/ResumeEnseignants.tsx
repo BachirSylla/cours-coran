@@ -30,9 +30,17 @@ export function ResumeEnseignants({ enseignants }: ResumeEnseignantsProps) {
         >
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">{enseignant.nom}</p>
+            {/*
+              Trois chiffres sur une ligne : ce qu'il porte, pour qui, et ce
+              qu'il a réellement tenu. Le troisième est le seul qui dise si le
+              travail a eu lieu — les deux autres ne décrivent qu'une charge.
+              « 0 séance » s'affiche comme tel : c'est une valeur, pas un trou.
+            */}
             <p className="text-xs text-muted-foreground tabular-nums">
               {enseignant.cours} cours · {enseignant.apprenants} apprenant
-              {enseignant.apprenants > 1 ? 's' : ''}
+              {enseignant.apprenants > 1 ? 's' : ''} · {enseignant.seancesFaites} séance
+              {enseignant.seancesFaites > 1 ? 's' : ''} faite
+              {enseignant.seancesFaites > 1 ? 's' : ''}
             </p>
           </div>
 

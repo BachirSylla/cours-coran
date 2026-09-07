@@ -16,6 +16,7 @@ import {
   useSessions,
 } from '@/features/sessions/hooks/useSessions'
 import { ReconduireSessionDialog } from '@/features/sessions/components/ReconduireSessionDialog'
+import { useSeancesFaites } from '@/features/sessions/hooks/useSeancesFaites'
 import type { Session } from '@/shared/supabase/sessionRepo'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
 import {
@@ -68,6 +69,30 @@ export function SectionSessions() {
     ? (cours ?? []).filter(
         (unCours) => unCours.session_id === aCloturer.id && unCours.statut !== 'termine'
       )
+    : []
+
+  /*
+   * Ce qui a réellement eu lieu dans la session qu'on s'apprête à clore
+   * (migration 0028). C'est le chiffre qui aide à décider : un cours à zéro
+   * séance n'a jamais démarré, un cours à dix-huit a fait son travail.
+   *
+   * Chargé seulement quand le dialogue est ouvert — l'écran des paramètres n'a
+   * pas à le payer à chaque affichage.
+   */
+  const seancesFaites = useSeancesFaites(aCloturer?.id ?? null)
+
+  const coursDeLaSession = aCloturer
+    ? (cours ?? [])
+        .filter((unCours) => unCours.session_id === aCloturer.id)
+        .map((unCours) => ({
+          id: unCours.id,
+          libelle: unCours.libelle,
+          // ⚠️ Un cours absent de la table n'a tenu AUCUNE séance : le `group by`
+          // ne fabrique pas de ligne vide, et « 0 » est ici une valeur, pas un
+          // trou de données.
+          faites: seancesFaites.parCours.get(unCours.id) ?? 0,
+        }))
+        .sort((a, b) => b.faites - a.faites || a.libelle.localeCompare(b.libelle, 'fr'))
     : []
 
   function soumettreCreation(evenement: React.FormEvent) {
@@ -241,6 +266,38 @@ export function SectionSessions() {
                   </span>
                 </AlertDescription>
               </Alert>
+            )}
+
+            {/*
+              Ce que la session a réellement produit, cours par cours. C'est
+              l'information qui manque au moment de décider : le nom d'un cours ne
+              dit pas s'il a eu lieu.
+            */}
+            {coursDeLaSession.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Séances tenues dans cette session
+                </p>
+                <ul className="max-h-44 divide-y overflow-y-auto rounded-lg border text-sm">
+                  {coursDeLaSession.map((unCours) => (
+                    <li
+                      key={unCours.id}
+                      className="flex items-center justify-between gap-3 px-3 py-1.5"
+                    >
+                      <span className="min-w-0 flex-1 truncate">{unCours.libelle}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                        {unCours.faites} séance{unCours.faites > 1 ? 's' : ''} faite
+                        {unCours.faites > 1 ? 's' : ''}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                {seancesFaites.isError && (
+                  <p className="text-xs text-destructive">
+                    Le compte des séances n'a pas pu être chargé.
+                  </p>
+                )}
+              </div>
             )}
           </AlertDialogHeader>
           <AlertDialogFooter>
