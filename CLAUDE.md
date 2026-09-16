@@ -953,6 +953,17 @@ fin)`, `security definer`, gardée `est_responsable()` et bornée à `centre_cou
   séance aurait buté sur `max_rows` **en silence**. Un cours sans séance n'est pas rendu —
   `group by` ne fabrique pas de ligne vide — et l'appelant lit `?? 0`, ce qui est la vérité : « 0 »
   est une valeur, et c'est justement le cours qu'il faut voir.
+- **Recherche et pagination** des listes Apprenants et Cours : côté écran, sur la liste déjà
+  chargée. `correspond` (`shared/lib/recherche.ts`, pur) ignore accents et casse, exige chaque mot
+  dans n'importe quel ordre, et retrouve un numéro sans ses espaces ; `paginer`
+  (`shared/lib/pagination.ts`, pur) borne la page demandée à celles qui existent ; `useListePaginee`
+  relie les deux et retient la taille de page par appareil. La recherche Cours couvre aussi le nom
+  de l'**enseignant**, qui n'est pas une colonne affichée. « / » place le curseur dans la recherche
+  (sauf dans un champ ou sous un dialogue), « Échap » l'efface.
+
+  ⚠️ **Chercher sur une liste tronquée répond faux.** `apprenantRepo.list` est donc PAGINÉ : coupée
+  à `max_rows`, la recherche dirait « aucun apprenant ne correspond » pour une personne présente en
+  base, et le total annoncé serait faux.
 - **Rapport de fin de session** (`/cours/:coursId/rapport`, hors `AppLayout`) : feuille A4 paysage
   imprimable — présence par séance, notes de récitation, examen et note finale. Assemblé par
   `shared/lib/rapportSession.ts` (pur), imprimé via `window.print()` — aucune dépendance PDF. Son
@@ -1122,6 +1133,9 @@ dont dépend le typage de `createClient`.
 - Ne pas éprouver la FORME d'une fonction par `position(motif in pg_get_functiondef(…))` sans
   vérifier que le motif n'est pas la sous-chaîne d'un autre : « s.centre_id = porte.centre_id »
   est contenu dans « sess.centre_id = porte.centre_id », et l'assertion passait garde retirée.
+- Ne pas éprouver le retour en page 1 après une recherche avec un résultat d'UNE seule page :
+  `paginer` y ramène déjà la page de lui-même, et le test reste vert garde retirée. Il faut un
+  résultat de plusieurs pages, cherché depuis une page plus loin.
 - Ne pas croire que révoquer un jeton de suivi coupe l'accès : depuis 0025, tous ceux d'un même
   apprenant ouvrent le même parcours. Il faut `revoquer_suivi_apprenant`.
 - Ne pas placer le geste qui RÉPARE à l'intérieur du bloc conditionnel qu'il répare : « Fermer tous

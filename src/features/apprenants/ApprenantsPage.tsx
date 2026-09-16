@@ -1,19 +1,23 @@
-import { useState } from 'react'
-import { Loader2, Plus, TriangleAlert, Users } from 'lucide-react'
+import { useMemo, useRef, useState } from 'react'
+import { Loader2, Plus, SearchX, TriangleAlert, Users } from 'lucide-react'
 
 import { ApprenantDetailDialog } from '@/features/apprenants/components/ApprenantDetailDialog'
 import { ApprenantFormDialog } from '@/features/apprenants/components/ApprenantFormDialog'
 import { ApprenantsListe } from '@/features/apprenants/components/ApprenantsListe'
 import { SupprimerApprenantDialog } from '@/features/apprenants/components/SupprimerApprenantDialog'
-import type { ApprenantValues } from '@/features/apprenants/apprenantSchema'
+import { LIBELLES_STATUT, type ApprenantValues } from '@/features/apprenants/apprenantSchema'
 import { useApprenants } from '@/features/apprenants/hooks/useApprenants'
 import { useCreerApprenant } from '@/features/apprenants/hooks/useCreerApprenant'
 import { useModifierApprenant } from '@/features/apprenants/hooks/useModifierApprenant'
 import { useSupprimerApprenant } from '@/features/apprenants/hooks/useSupprimerApprenant'
 import { useMembre } from '@/features/membres/hooks/useMembre'
+import { correspond } from '@/shared/lib/recherche'
+import { useListePaginee } from '@/shared/lib/useListePaginee'
 import type { Apprenant } from '@/shared/supabase/apprenantRepo'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
+import { BarreRecherche } from '@/shared/ui/BarreRecherche'
 import { Button } from '@/shared/ui/button'
+import { PaginationListe } from '@/shared/ui/PaginationListe'
 
 export function ApprenantsPage() {
   const { data: apprenants, isPending, isError, error } = useApprenants()
@@ -29,6 +33,35 @@ export function ApprenantsPage() {
   const [apprenantEdite, setApprenantEdite] = useState<Apprenant | null>(null)
   const [apprenantDetaille, setApprenantDetaille] = useState<Apprenant | null>(null)
   const [apprenantASupprimer, setApprenantASupprimer] = useState<Apprenant | null>(null)
+  const [recherche, setRecherche] = useState('')
+
+  /*
+   * La recherche porte sur ce qu'on retient d'une personne : son nom dans les
+   * deux ordres, son numéro, son niveau, son statut. Les notes n'y entrent pas —
+   * une correspondance dans un texte qu'on ne voit pas dans la liste se lirait
+   * comme une erreur de recherche.
+   */
+  const trouves = useMemo(
+    () =>
+      (apprenants ?? []).filter((apprenant) =>
+        correspond(recherche, [
+          apprenant.prenom,
+          apprenant.nom,
+          apprenant.contact,
+          apprenant.niveau,
+          LIBELLES_STATUT[apprenant.statut as keyof typeof LIBELLES_STATUT],
+        ])
+      ),
+    [apprenants, recherche]
+  )
+
+  const ancreListe = useRef<HTMLDivElement>(null)
+  const liste = useListePaginee(trouves, 'cours-coran:apprenants:taille-page', ancreListe)
+
+  function chercher(valeur: string) {
+    setRecherche(valeur)
+    liste.revenirAuDebut()
+  }
 
   function ouvrirCreation() {
     setApprenantEdite(null)
@@ -132,13 +165,47 @@ export function ApprenantsPage() {
       )}
 
       {!isPending && !isError && apprenants.length > 0 && (
-        <ApprenantsListe
-          apprenants={apprenants}
-          onOuvrir={setApprenantDetaille}
-          onModifier={ouvrirEdition}
-          onSupprimer={setApprenantASupprimer}
-          actionsGestion={estResponsable}
-        />
+        <div ref={ancreListe} className="scroll-mt-4 space-y-4">
+          <BarreRecherche
+            valeur={recherche}
+            onChange={chercher}
+            placeholder="Rechercher un nom, un numéro, un niveau…"
+            label="Rechercher un apprenant"
+            className="sm:max-w-sm"
+          />
+
+          {/* Une recherche qui ne ramène rien doit se dire, et offrir la sortie :
+              sinon la page se lit comme une liste perdue. */}
+          {trouves.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-12 text-center">
+              <SearchX className="size-6 text-muted-foreground" aria-hidden="true" />
+              <p className="text-sm text-muted-foreground">
+                Aucun apprenant ne correspond à « {recherche.trim()} ».
+              </p>
+              <Button variant="outline" size="sm" onClick={() => chercher('')}>
+                Effacer la recherche
+              </Button>
+            </div>
+          ) : (
+            <>
+              <ApprenantsListe
+                apprenants={liste.visibles}
+                onOuvrir={setApprenantDetaille}
+                onModifier={ouvrirEdition}
+                onSupprimer={setApprenantASupprimer}
+                actionsGestion={estResponsable}
+              />
+              <PaginationListe
+                pagination={liste.pagination}
+                taille={liste.taille}
+                onPage={liste.allerA}
+                onTaille={liste.changerTaille}
+                singulier="apprenant"
+                pluriel="apprenants"
+              />
+            </>
+          )}
+        </div>
       )}
 
       <ApprenantDetailDialog

@@ -1,11 +1,16 @@
-import { useState } from 'react'
-import { CalendarDays, Loader2, Plus, TriangleAlert } from 'lucide-react'
+import { useMemo, useRef, useState } from 'react'
+import { CalendarDays, Loader2, Plus, SearchX, TriangleAlert } from 'lucide-react'
 
 import { CoursDetailDialog } from '@/features/cours/components/CoursDetailDialog'
 import { CoursFormDialog } from '@/features/cours/components/CoursFormDialog'
 import { CoursListe } from '@/features/cours/components/CoursListe'
 import { SupprimerCoursDialog } from '@/features/cours/components/SupprimerCoursDialog'
-import type { CoursValues } from '@/features/cours/coursSchema'
+import {
+  LIBELLES_FORMAT,
+  LIBELLES_STATUT_COURS,
+  abregeJour,
+  type CoursValues,
+} from '@/features/cours/coursSchema'
 import { useCours } from '@/features/cours/hooks/useCours'
 import { useCreerCours } from '@/features/cours/hooks/useCreerCours'
 import { useModifierCours } from '@/features/cours/hooks/useModifierCours'
@@ -17,8 +22,12 @@ import { useTypesCours } from '@/features/cours/hooks/useTypesCours'
 import { nombreInscrits, type CoursAvecDetails } from '@/shared/supabase/coursRepo'
 import { useSeancesFaites } from '@/features/seances/hooks/useSeancesFaites'
 import { useSessionActive } from '@/features/sessions/hooks/useSessions'
+import { correspond } from '@/shared/lib/recherche'
+import { useListePaginee } from '@/shared/lib/useListePaginee'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
+import { BarreRecherche } from '@/shared/ui/BarreRecherche'
 import { Label } from '@/shared/ui/label'
+import { PaginationListe } from '@/shared/ui/PaginationListe'
 import { SelectNatif } from '@/shared/ui/SelectNatif'
 import { Button } from '@/shared/ui/button'
 
@@ -63,6 +72,7 @@ export function CoursPage() {
    */
   const [idDetaille, setIdDetaille] = useState<string | null>(null)
   const [niveauFiltre, setNiveauFiltre] = useState('')
+  const [recherche, setRecherche] = useState('')
   const coursDetaille = (cours ?? []).find((unCours) => unCours.id === idDetaille) ?? null
 
   function ouvrirCreation() {
@@ -117,8 +127,47 @@ export function CoursPage() {
    * Il ne s'affiche que s'il y a au moins deux niveaux à distinguer — filtrer
    * une liste homogène ne sert à rien et ajoute une commande à comprendre.
    */
-  const coursAffiches =
-    niveauFiltre === '' ? (cours ?? []) : (cours ?? []).filter((c) => c.niveau === niveauFiltre)
+  const coursDuNiveau = useMemo(
+    () =>
+      niveauFiltre === ''
+        ? (cours ?? [])
+        : (cours ?? []).filter((c) => c.niveau === niveauFiltre),
+    [cours, niveauFiltre]
+  )
+
+  /*
+   * La recherche porte sur ce qu'on lit dans la liste — libellé, type, niveau,
+   * format, statut, jours — plus le nom de l'ENSEIGNANT : « les cours de Fatou »
+   * est une question qu'on se pose, et la colonne n'est pas affichée.
+   */
+  const nomsEnseignants = useMemo(
+    () => new Map((membres ?? []).map((membre) => [membre.user_id, membre.nom_affiche])),
+    [membres]
+  )
+
+  const coursAffiches = useMemo(
+    () =>
+      coursDuNiveau.filter((unCours) =>
+        correspond(recherche, [
+          unCours.libelle,
+          unCours.type_cours?.libelle,
+          unCours.niveau,
+          LIBELLES_FORMAT[unCours.format as keyof typeof LIBELLES_FORMAT],
+          LIBELLES_STATUT_COURS[unCours.statut as keyof typeof LIBELLES_STATUT_COURS],
+          unCours.enseignant_id ? nomsEnseignants.get(unCours.enseignant_id) : null,
+          ...unCours.creneau.map((creneau) => abregeJour(creneau.jour_semaine)),
+        ])
+      ),
+    [coursDuNiveau, recherche, nomsEnseignants]
+  )
+
+  const ancreListe = useRef<HTMLDivElement>(null)
+  const liste = useListePaginee(coursAffiches, 'cours-coran:cours:taille-page', ancreListe)
+
+  function chercher(valeur: string) {
+    setRecherche(valeur)
+    liste.revenirAuDebut()
+  }
 
   const erreurFormulaire = coursEdite ? modifier.error?.message : creer.error?.message
 
@@ -141,7 +190,10 @@ export function CoursPage() {
               <SelectNatif
                 id="filtre-niveau"
                 value={niveauFiltre}
-                onChange={(evenement) => setNiveauFiltre(evenement.currentTarget.value)}
+                onChange={(evenement) => {
+                  setNiveauFiltre(evenement.currentTarget.value)
+                  liste.revenirAuDebut()
+                }}
                 className="h-9 max-w-44"
               >
                 <option value="">Tous les niveaux</option>
@@ -212,23 +264,55 @@ export function CoursPage() {
         </div>
       )}
 
-      {/* Un filtre qui ne ramène rien doit se dire, sinon la page se lit comme
-          une perte de cours. */}
-      {!isPending && !isError && cours.length > 0 && coursAffiches.length === 0 && (
-        <p className="rounded-lg border border-dashed px-6 py-10 text-center text-sm text-muted-foreground">
-          Aucun cours de niveau « {niveauFiltre} » dans cette session.
-        </p>
-      )}
+      {!isPending && !isError && cours.length > 0 && (
+        <div ref={ancreListe} className="scroll-mt-4 space-y-4">
+          <BarreRecherche
+            valeur={recherche}
+            onChange={chercher}
+            placeholder="Rechercher un cours, un type, un enseignant…"
+            label="Rechercher un cours"
+            className="sm:max-w-sm"
+          />
 
-      {!isPending && !isError && coursAffiches.length > 0 && (
-        <CoursListe
-          cours={coursAffiches}
-          seancesFaites={seancesFaites.parCours}
-          onOuvrir={(unCours) => setIdDetaille(unCours.id)}
-          onModifier={ouvrirEdition}
-          onSupprimer={setCoursASupprimer}
-          actionsGestion={estResponsable}
-        />
+          {/* Un filtre qui ne ramène rien doit se dire, et offrir la sortie :
+              sinon la page se lit comme une perte de cours. */}
+          {coursAffiches.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-12 text-center">
+              <SearchX className="size-6 text-muted-foreground" aria-hidden="true" />
+              <p className="text-sm text-muted-foreground">
+                {recherche.trim() === ''
+                  ? `Aucun cours de niveau « ${niveauFiltre} » dans cette session.`
+                  : `Aucun cours ne correspond à « ${recherche.trim()} »${
+                      niveauFiltre === '' ? '' : ` au niveau « ${niveauFiltre} »`
+                    }.`}
+              </p>
+              {recherche.trim() !== '' && (
+                <Button variant="outline" size="sm" onClick={() => chercher('')}>
+                  Effacer la recherche
+                </Button>
+              )}
+            </div>
+          ) : (
+            <>
+              <CoursListe
+                cours={liste.visibles}
+                seancesFaites={seancesFaites.parCours}
+                onOuvrir={(unCours) => setIdDetaille(unCours.id)}
+                onModifier={ouvrirEdition}
+                onSupprimer={setCoursASupprimer}
+                actionsGestion={estResponsable}
+              />
+              <PaginationListe
+                pagination={liste.pagination}
+                taille={liste.taille}
+                onPage={liste.allerA}
+                onTaille={liste.changerTaille}
+                singulier="cours"
+                pluriel="cours"
+              />
+            </>
+          )}
+        </div>
       )}
 
       <CoursDetailDialog

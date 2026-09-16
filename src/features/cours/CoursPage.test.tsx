@@ -469,3 +469,63 @@ describe('CoursPage — filtre par niveau', () => {
     expect(screen.queryByText(/Aucun cours pour le moment/)).not.toBeInTheDocument()
   })
 })
+
+describe('CoursPage — recherche', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    useMembreMock.mockReturnValue(membre())
+    useMembresMock.mockReturnValue({
+      data: [{ user_id: 'u-fatou', nom_affiche: 'Fatou Gueye' }],
+    } as unknown as ReturnType<typeof useMembres>)
+    useCreerMock.mockReturnValue(mutationInerte<ReturnType<typeof useCreerCours>>())
+    useModifierMock.mockReturnValue(mutationInerte<ReturnType<typeof useModifierCours>>())
+    useSupprimerMock.mockReturnValue(mutationInerte<ReturnType<typeof useSupprimerCours>>())
+    useCreneauxMock.mockReturnValue(requeteVide([]))
+    useTypesMock.mockReturnValue(requeteVide([]))
+  })
+
+  /*
+   * « Les cours de Fatou » est une question qu'on se pose, et la colonne
+   * enseignant n'est pas affichée : la recherche doit la couvrir.
+   */
+  it('retrouve les cours d’un enseignant par son nom, sans accents', async () => {
+    const utilisateur = userEvent.setup()
+    simulerListe({
+      data: [
+        cours('c1', 'Coran Ods', [], { enseignant_id: 'u-fatou' }),
+        cours('c2', 'Tadjwîd', [], { enseignant_id: null }),
+      ],
+    })
+
+    rendreAvecQuery(<CoursPage />)
+    await utilisateur.type(
+      screen.getByRole('searchbox', { name: 'Rechercher un cours' }),
+      'fatou'
+    )
+
+    expect(screen.getAllByText('Coran Ods').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Tadjwîd')).not.toBeInTheDocument()
+  })
+
+  it('cumule recherche et niveau, et le dit quand rien ne correspond', async () => {
+    const utilisateur = userEvent.setup()
+    simulerListe({
+      data: [
+        cours('c1', 'Coran débutants', [], { niveau: 'Niveau 1' }),
+        cours('c2', 'Coran confirmés', [], { niveau: 'Niveau 2' }),
+      ],
+    })
+
+    rendreAvecQuery(<CoursPage />)
+    await utilisateur.selectOptions(screen.getByLabelText('Filtrer par niveau'), 'Niveau 2')
+    await utilisateur.type(screen.getByRole('searchbox'), 'debutants')
+
+    expect(
+      screen.getByText('Aucun cours ne correspond à « debutants » au niveau « Niveau 2 ».')
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/Aucun cours pour le moment/)).not.toBeInTheDocument()
+
+    await utilisateur.click(screen.getByRole('button', { name: 'Effacer la recherche' }))
+    expect(screen.getAllByText('Coran confirmés').length).toBeGreaterThan(0)
+  })
+})

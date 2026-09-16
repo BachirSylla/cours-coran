@@ -1,4 +1,5 @@
-import { screen } from '@testing-library/react'
+import { fireEvent, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { UseQueryResult } from '@tanstack/react-query'
 
@@ -157,6 +158,139 @@ describe('ApprenantsPage', () => {
 
     expect(screen.getByText('Suppression impossible')).toBeInTheDocument()
     expect(screen.getByText('Suppression refusée.')).toBeInTheDocument()
+  })
+
+  describe('recherche et pagination', () => {
+    /** Douze apprenants, nommés « Apprenant 01 » à « Apprenant 12 ». */
+    const douze = Array.from({ length: 12 }, (_, index) => {
+      const numero = String(index + 1).padStart(2, '0')
+      return apprenant(`a${numero}`, 'Apprenant', numero)
+    })
+
+    beforeEach(() => {
+      try {
+        window.localStorage.clear()
+      } catch {
+        // Stockage indisponible : le défaut s'applique de toute façon.
+      }
+    })
+
+    it('ignore accents et majuscules, et cherche dans le numéro sans espaces', async () => {
+      simulerListe({
+        data: [
+          apprenant('1', 'Pauléle', 'Fall', { contact: '+221 78 631 37 70' }),
+          apprenant('2', 'Awa', 'Diagne'),
+        ],
+      })
+      rendreAvecQuery(<ApprenantsPage />)
+
+      const champ = screen.getByRole('searchbox', { name: 'Rechercher un apprenant' })
+
+      await userEvent.type(champ, 'PAULELE')
+      expect(screen.getAllByText('Pauléle Fall')).toHaveLength(2)
+      expect(screen.queryByText('Awa Diagne')).not.toBeInTheDocument()
+
+      await userEvent.clear(champ)
+      await userEvent.type(champ, '78631')
+      expect(screen.getAllByText('Pauléle Fall')).toHaveLength(2)
+      expect(screen.getByText('1 apprenant')).toBeInTheDocument()
+    })
+
+    /*
+     * Une recherche vide de résultats doit se dire, et offrir la sortie : sinon
+     * la page se lit comme une liste perdue.
+     */
+    it('dit qu’aucun apprenant ne correspond, et permet d’effacer', async () => {
+      simulerListe({ data: [apprenant('1', 'Awa', 'Diagne')] })
+      rendreAvecQuery(<ApprenantsPage />)
+
+      await userEvent.type(screen.getByRole('searchbox'), 'zzz')
+      expect(screen.getByText('Aucun apprenant ne correspond à « zzz ».')).toBeInTheDocument()
+
+      await userEvent.click(screen.getByRole('button', { name: 'Effacer la recherche' }))
+      expect(screen.getAllByText('Awa Diagne')).toHaveLength(2)
+    })
+
+    it('affiche dix lignes par page, et le reste sur la suivante', async () => {
+      simulerListe({ data: douze })
+      rendreAvecQuery(<ApprenantsPage />)
+
+      expect(screen.getByText('1–10 sur 12 apprenants')).toBeInTheDocument()
+      expect(screen.getAllByText('Apprenant 10')).toHaveLength(2)
+      expect(screen.queryByText('Apprenant 11')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Page précédente' })).toBeDisabled()
+
+      await userEvent.click(screen.getByRole('button', { name: 'Page suivante' }))
+
+      expect(screen.getByText('11–12 sur 12 apprenants')).toBeInTheDocument()
+      expect(screen.getAllByText('Apprenant 12')).toHaveLength(2)
+      expect(screen.queryByText('Apprenant 01')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Page 2' })).toHaveAttribute(
+        'aria-current',
+        'page'
+      )
+    })
+
+    /*
+     * ⚠️ Sans ce retour, chercher depuis la page 3 gardait la page : sur un
+     * résultat de deux pages, on atterrissait en page 2, au milieu des
+     * réponses, sans voir les premières. (Un résultat d'UNE page ne le montre
+     * pas : `paginer` ramène alors la page à 1 de lui-même — le premier jet de
+     * ce test restait vert, garde retirée.)
+     */
+    it('revient à la première page quand la recherche change', async () => {
+      const vingtCinq = Array.from({ length: 25 }, (_, index) => {
+        const numero = String(index + 1).padStart(2, '0')
+        return apprenant(`a${numero}`, 'Apprenant', numero, {
+          niveau: index < 20 ? 'Débutant' : 'Avancé',
+        })
+      })
+      simulerListe({ data: vingtCinq })
+      rendreAvecQuery(<ApprenantsPage />)
+
+      await userEvent.click(screen.getByRole('button', { name: 'Page 3' }))
+      expect(screen.getByText('21–25 sur 25 apprenants')).toBeInTheDocument()
+
+      await userEvent.type(screen.getByRole('searchbox'), 'debutant')
+
+      expect(screen.getByText('1–10 sur 20 apprenants')).toBeInTheDocument()
+      expect(screen.getAllByText('Apprenant 01')).toHaveLength(2)
+    })
+
+    it('change le nombre de lignes par page, et s’en souvient', async () => {
+      simulerListe({ data: douze })
+      const { unmount } = rendreAvecQuery(<ApprenantsPage />)
+
+      await userEvent.selectOptions(
+        screen.getByRole('combobox', { name: 'Lignes par page' }),
+        '25'
+      )
+      expect(screen.getByText('12 apprenants')).toBeInTheDocument()
+      expect(screen.getAllByText('Apprenant 12')).toHaveLength(2)
+
+      unmount()
+      rendreAvecQuery(<ApprenantsPage />)
+      expect(screen.getByText('12 apprenants')).toBeInTheDocument()
+    })
+
+    it('place le curseur dans la recherche avec « / »', () => {
+      simulerListe({ data: [apprenant('1', 'Awa', 'Diagne')] })
+      rendreAvecQuery(<ApprenantsPage />)
+
+      fireEvent.keyDown(document.body, { key: '/' })
+
+      expect(screen.getByRole('searchbox')).toHaveFocus()
+    })
+
+    it('efface la recherche avec Échap', async () => {
+      simulerListe({ data: [apprenant('1', 'Awa', 'Diagne')] })
+      rendreAvecQuery(<ApprenantsPage />)
+
+      const champ = screen.getByRole('searchbox')
+      await userEvent.type(champ, 'awa{Escape}')
+
+      expect(champ).toHaveValue('')
+    })
   })
 
   describe('selon le rôle', () => {

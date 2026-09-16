@@ -1511,3 +1511,42 @@ base ne dit quand il a réellement rejoint le cours.
 ```bash
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/suivi_apprenant.sql
 ```
+
+---
+
+## Recherche et pagination des listes
+
+### 108. Chercher un apprenant
+
+1. **Apprenants** → taper dans la recherche.
+
+**Attendu** :
+
+- « paulele » trouve **Pauléle Fall** : ni accents ni majuscules ne comptent.
+- « fall paulele » la trouve aussi : chaque mot compte, dans n'importe quel ordre.
+- « 78631 » la trouve par son numéro, sans retaper les espaces.
+- Une recherche sans résultat le dit, avec un bouton **Effacer la recherche**.
+
+### 109. Chercher un cours
+
+1. **Cours** → taper le prénom d'un enseignant.
+
+**Attendu** : ses cours apparaissent, même si la liste n'affiche pas de colonne
+enseignant. La recherche se combine au filtre de niveau.
+
+### 110. Parcourir une longue liste
+
+**Attendu** :
+
+- 10 lignes par page par défaut, avec « 1–10 sur 15 apprenants » en pied de liste.
+- Sur ordinateur, les numéros de page ; sur téléphone, « 2 / 3 » entre deux flèches.
+- **Lignes par page** (10, 25, 50) est retenu sur l'appareil.
+- Chercher depuis la page 3 ramène en page 1.
+- Supprimer la dernière ligne de la dernière page ne laisse pas une page vide.
+
+### 111. Au clavier
+
+**Attendu** : « / » place le curseur dans la recherche depuis n'importe où sur la
+page — mais pas pendant qu'on tape dans un autre champ, ni quand un dialogue est
+ouvert. « Échap » vide la recherche.
+

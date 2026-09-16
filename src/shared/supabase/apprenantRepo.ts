@@ -24,16 +24,43 @@ export type ApprenantPatch = Partial<ApprenantInput>
 const COLONNES = '*'
 
 /** Tous les apprenants du propriétaire, triés par nom puis prénom. */
+/** Sous le `max_rows` de PostgREST (1000). */
+const PAGE = 1000
+
+/**
+ * Tous les apprenants lisibles, par nom puis prénom.
+ *
+ * ⚠️ PAGINÉ. La page Apprenants cherche et pagine CÔTÉ ÉCRAN, sur ce que cette
+ * fonction rend : si PostgREST coupait à `max_rows` — ce qu'il fait **en
+ * silence** — la recherche répondrait « aucun apprenant ne correspond » pour
+ * une personne bien présente en base, et le total annoncé serait faux.
+ *
+ * L'`id` départage les homonymes : sans ordre total, deux pages successives
+ * pourraient se recouvrir ou se trouer.
+ */
 export async function list(): Promise<Apprenant[]> {
-  const { data, error } = await getSupabaseClient()
-    .from('apprenant')
-    .select(COLONNES)
-    .order('nom', { ascending: true })
-    .order('prenom', { ascending: true })
+  const client = getSupabaseClient()
+  const tous: Apprenant[] = []
+  let debut = 0
 
-  lancerSiErreur(error, 'Chargement des apprenants')
+  for (;;) {
+    const { data, error } = await client
+      .from('apprenant')
+      .select(COLONNES)
+      .order('nom', { ascending: true })
+      .order('prenom', { ascending: true })
+      .order('id', { ascending: true })
+      .range(debut, debut + PAGE - 1)
 
-  return data ?? []
+    lancerSiErreur(error, 'Chargement des apprenants')
+
+    const page = data ?? []
+    tous.push(...page)
+
+    if (page.length < PAGE) return tous
+
+    debut += PAGE
+  }
 }
 
 /** Un apprenant, ou `null` s'il n'existe pas (ou n'appartient pas à l'utilisateur). */
