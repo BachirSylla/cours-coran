@@ -5,6 +5,7 @@ import { coursKeys } from '@/features/cours/hooks/coursKeys'
 import { inscriptionKeys } from '@/features/inscriptions/hooks/inscriptionKeys'
 import { parametresKeys } from '@/features/parametres/hooks/parametresKeys'
 import { seanceKeys } from '@/features/seances/hooks/seanceKeys'
+import { dateLocale } from '@/shared/lib/facturation'
 import { parametresEffectifs } from '@/shared/lib/paramsCours'
 import type { PeriodeRapport, RapportSession } from '@/shared/lib/rapportSession'
 import { construireRapport } from '@/shared/lib/rapportSession'
@@ -88,6 +89,9 @@ export function useRapportCours(
       })),
       config,
       periode,
+      // Le jour du navigateur, comme le lien de suivi et l'accueil : une séance
+      // à venir n'est pas encore une présence (0029).
+      aujourdHui: dateLocale(),
     })
   }, [donnees, listeInscrits, config, periode])
 

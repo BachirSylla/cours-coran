@@ -1413,7 +1413,7 @@ psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/facturation.sql
 Combien de séances ont **réellement eu lieu** — le seul chiffre qui dise si le
 travail a été fait.
 
-### 93. Sur la page Cours
+### 99. Sur la page Cours
 
 1. **Cours** → la liste.
 
@@ -1427,7 +1427,7 @@ compteur dit où en est le cours.
 ⚠️ Seules les séances au statut **faite** comptent. Une séance annulée ou
 reportée n'a pas eu lieu : elle n'entre pas dans le compte.
 
-### 94. Au moment de clôturer une session
+### 100. Au moment de clôturer une session
 
 1. **Paramètres → Sessions → Clôturer** sur une session.
 
@@ -1438,12 +1438,12 @@ qui ont le plus tourné sont en tête.
 C'est l'information qui manque pour décider : un cours à **0 séance** n'a jamais
 démarré, un cours à 18 a fait son travail.
 
-### 95. Un cours qui n'a rien tenu
+### 101. Un cours qui n'a rien tenu
 
 **Attendu** : il apparaît quand même, avec « **0 séance faite** ». Il ne
 disparaît pas de la liste — c'est justement celui qu'il faut voir.
 
-### 96. Ce qu'un enseignant compte
+### 102. Ce qu'un enseignant compte
 
 1. Ouvrir la page Cours depuis un compte enseignant.
 
@@ -1458,4 +1458,56 @@ annulées écartées :
 
 ```bash
 psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/seances_faites.sql
+```
+
+---
+
+## Assiduité fidèle : une séance non pointée compte présente (migration 0029)
+
+Le lien de suivi, l'accueil et le rapport de fin de session comptent désormais
+l'assiduité de la même façon.
+
+### 103. Le cas qui a révélé l'écart
+
+1. Sur un cours de groupe, ouvrir une séance **faite** passée et **ne rien
+   toucher** à la présence : tout le monde apparaît « Présent », mais rien n'est
+   enregistré.
+2. Ouvrir le lien de suivi d'un apprenant de ce cours.
+
+**Attendu** : la séance compte, et l'apprenant y est **présent**. Le nombre de
+« séances tenues » du lien est celui des séances faites du cours, pas celui des
+séances où quelqu'un a été pointé.
+
+Cas réel : « Coran niveau 03 Session 17 », Sadaga Sall — **2 présences,
+1 partielle, sur 3 séances tenues** (le lien affichait « 1 partielle, sur
+1 séance »).
+
+### 104. Un pointage explicite garde son état
+
+**Attendu** : un apprenant marqué absent, en retard, excusé ou partiel le reste.
+Seule l'**absence de pointage** vaut présence.
+
+### 105. Ce qui ne compte pas
+
+**Attendu** : une séance **annulée**, **reportée** ou **à venir** n'entre dans
+l'assiduité de personne, pointée ou non — ni sur le lien, ni sur l'accueil, ni
+dans le **rapport de fin de session**, qui comptait jusqu'ici une séance future
+déjà saisie.
+
+### 106. Les notes ne s'inventent pas
+
+**Attendu** : une séance sans note n'apparaît toujours pas dans les évaluations
+du lien. La présence implicite ne touche que l'assiduité.
+
+### 107. L'accueil dit la même chose
+
+**Attendu** : la carte **Assiduité** de l'accueil compte chaque inscrit sur
+chaque séance tenue — les séances non pointées y figurent en présences.
+
+⚠️ Un apprenant inscrit **en cours de session** est compté présent aux séances
+d'avant son arrivée, tant qu'on ne l'y pointe pas autrement. Aucune date de la
+base ne dit quand il a réellement rejoint le cours.
+
+```bash
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/suivi_apprenant.sql
 ```

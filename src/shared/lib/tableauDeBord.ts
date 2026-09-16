@@ -69,11 +69,17 @@ export interface ChiffresAssiduite {
   absent: number
   excuse: number
   partiel: number
-  /** Pointages pris en compte. **Zéro quand rien n'a été saisi.** */
+  /**
+   * Présences attendues : une par séance tenue et par inscrit, pointé ou non
+   * (0029). **Zéro quand aucune séance n'a été tenue.**
+   */
   total: number
   /**
-   * Part de présence, en pourcentage entier — `null` quand aucun pointage
-   * n'existe.
+   * Part de présence, en pourcentage entier — `null` quand aucune séance tenue
+   * n'a d'inscrit.
+   *
+   * Une séance tenue où personne n'a été pointé compte chacun présent : c'est
+   * ce que l'écran de saisie affichait, et ce que le rapport imprime.
    *
    * ⚠️ `null`, jamais `0` : un centre neuf afficherait « 0 % d'assiduité »,
    * c'est-à-dire un reproche adressé à des gens qui n'ont encore rien manqué.
@@ -120,6 +126,82 @@ export function chiffresAssiduite(
         ? null
         : Math.round(((compte.present + compte.retard + compte.partiel) / total) * 100),
   }
+}
+
+/** Une séance au statut `faite`, réduite à ce que l'assiduité croise. */
+export interface SeanceTenue {
+  id: string
+  cours_id: string
+  date: string
+}
+
+/** Un pointage rattaché à sa séance et à sa personne. */
+export interface PointageDeSeance extends PointageComptable {
+  seance_id: string
+  apprenant_id: string
+}
+
+/** Qui est inscrit à quel cours. */
+export interface InscritPourAssiduite {
+  apprenant_id: string
+  cours_id: string
+}
+
+/**
+ * Les pointages tels que la saisie et le rapport les voient : **une entrée par
+ * séance tenue et par inscrit**, pointé ou non (migration 0029).
+ *
+ * ⚠️ L'écran de saisie affiche « Présent » coché pour qui n'a aucune ligne
+ * `presence`, sans rien écrire, et le rapport de session (`rapportSession.ts`)
+ * compte cette personne présente. Ne compter que les lignes existantes faisait
+ * dire à l'accueil — et au lien de suivi — « 1 séance » là où le rapport en
+ * imprimait 3. **Séance tenue sans pointage = présence**, partout.
+ *
+ * ⚠️ `date <= aujourdHui` ici, et non en base : `seance.statut` naît `'faite'`,
+ * donc une séance générée pour la semaine prochaine n'est pas encore une
+ * présence — et « aujourd'hui » est celui du navigateur (§5.14).
+ *
+ * Aucune borne sur la date d'inscription : les dates disponibles disent quand la
+ * personne a été SAISIE, pas quand elle a rejoint le cours, et des pointages
+ * réels les précèdent en base.
+ *
+ * Un pointage dont la personne n'est plus inscrite n'est pas compté — comme dans
+ * le rapport et le lien de suivi, qui partent tous deux des inscriptions.
+ */
+export function pointagesEffectifs(
+  seances: readonly SeanceTenue[],
+  inscrits: readonly InscritPourAssiduite[],
+  pointages: readonly PointageDeSeance[],
+  aujourdHui: string
+): PointageComptable[] {
+  const parCle = new Map(
+    pointages.map((pointage) => [`${pointage.seance_id}|${pointage.apprenant_id}`, pointage])
+  )
+
+  const inscritsParCours = new Map<string, Set<string>>()
+  for (const inscrit of inscrits) {
+    const ensemble = inscritsParCours.get(inscrit.cours_id) ?? new Set<string>()
+    ensemble.add(inscrit.apprenant_id)
+    inscritsParCours.set(inscrit.cours_id, ensemble)
+  }
+
+  const resultat: PointageComptable[] = []
+
+  for (const seance of seances) {
+    if (seance.date > aujourdHui) continue
+
+    for (const apprenantId of inscritsParCours.get(seance.cours_id) ?? []) {
+      const pointage = parCle.get(`${seance.id}|${apprenantId}`)
+
+      resultat.push(
+        pointage
+          ? { present: pointage.present, etat: pointage.etat }
+          : { present: true, etat: 'present' }
+      )
+    }
+  }
+
+  return resultat
 }
 
 /** Ce dont le tableau de bord a besoin, au-delà des montants. */
@@ -589,7 +671,12 @@ export interface EntreesTableauDeBord {
   reglementsRecents: readonly ReglementDate[]
   moisFin: string
   occurrences: readonly OccurrenceComptable[]
-  pointages: readonly PointageComptable[]
+  /** Séances au statut `faite` des cours de la session, passées ou non. */
+  seancesTenues: readonly SeanceTenue[]
+  /** Inscriptions ; seules celles des cours de `seancesTenues` comptent. */
+  inscrits: readonly InscritPourAssiduite[]
+  /** Lignes `presence` existantes — les séances non pointées n'en ont pas. */
+  pointages: readonly PointageDeSeance[]
   cours: readonly CoursPourBord[]
   /** Apprenants distincts de la session, et de celle qu'elle reconduit. */
   apprenantsMaintenant: ReadonlySet<string>
@@ -654,7 +741,14 @@ export function assemblerTableauDeBord(entrees: EntreesTableauDeBord): TableauDe
 
     pedagogie,
     seancesPassees: entrees.occurrences.filter((une) => une.date <= entrees.aujourdHui).length,
-    assiduite: chiffresAssiduite(entrees.pointages),
+    assiduite: chiffresAssiduite(
+      pointagesEffectifs(
+        entrees.seancesTenues,
+        entrees.inscrits,
+        entrees.pointages,
+        entrees.aujourdHui
+      )
+    ),
 
     alertes: alertes(
       {

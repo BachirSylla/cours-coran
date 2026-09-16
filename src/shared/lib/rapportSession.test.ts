@@ -56,6 +56,7 @@ function entrees(extra: Partial<EntreesRapport> = {}): EntreesRapport {
     inscrits: [],
     config: NOTATION_PAR_DEFAUT,
     periode: { debut: null, fin: null },
+    aujourdHui: '2099-12-31',
     ...extra,
   }
 }
@@ -196,6 +197,33 @@ describe('construireRapport — ligne d’un apprenant', () => {
 
     expect(rapport.lignes[0]!.etats['s1']).toBe('present')
     expect(rapport.lignes[0]!.comptage.presences).toBe(1)
+  })
+
+  /*
+   * ⚠️ 0029. Une séance saisie pour la semaine prochaine naît « faite » ; non
+   * pointée, elle valait une présence de plus que sur le lien de suivi et
+   * l'accueil, qui s'arrêtent à aujourd'hui.
+   */
+  it('écarte une séance à venir, même au statut « faite »', () => {
+    const rapport = construireRapport(
+      entrees({
+        seances: [seance('s1', '2026-03-01'), seance('s2', '2026-03-08')],
+        inscrits: [AICHA],
+        aujourdHui: '2026-03-05',
+      })
+    )
+
+    expect(rapport.colonnesPresence.map((colonne) => colonne.seance_id)).toEqual(['s1'])
+    expect(rapport.lignes[0]!.comptage.total).toBe(1)
+  })
+
+  // Le jour même compte : la séance a eu lieu.
+  it('garde la séance du jour', () => {
+    const rapport = construireRapport(
+      entrees({ seances: [seance('s1', '2026-03-05')], inscrits: [AICHA], aujourdHui: '2026-03-05' })
+    )
+
+    expect(rapport.lignes[0]!.comptage.total).toBe(1)
   })
 
   it('retombe sur le booléen pour une ligne d’avant la migration', () => {

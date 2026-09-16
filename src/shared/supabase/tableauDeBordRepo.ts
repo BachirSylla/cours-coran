@@ -22,8 +22,13 @@ import { lancerSiErreur } from '@/shared/supabase/erreurs'
  */
 const PAGE = 1000
 
-/** Un pointage réduit à ce que l'assiduité regarde. */
+/**
+ * Un pointage réduit à ce que l'assiduité regarde — plus sa séance et sa
+ * personne, sans lesquelles on ne peut pas savoir QUI n'a pas été pointé.
+ */
 export interface PointagePourAssiduite {
+  seance_id: string
+  apprenant_id: string
   present: boolean
   etat: string | null
 }
@@ -60,8 +65,11 @@ export async function listPointages(
   for (;;) {
     const { data, error } = await client
       .from('presence')
-      .select('present, etat')
+      .select('seance_id, apprenant_id, present, etat')
       .in('cours_id', coursIds)
+      // ⚠️ Un ordre STABLE : sans lui, deux pages successives peuvent se
+      // recouvrir ou se trouer, et `range` ne paginerait rien de fiable.
+      .order('id')
       .range(debut, debut + PAGE - 1)
 
     lancerSiErreur(error, "Chargement de l'assiduité")
@@ -70,6 +78,52 @@ export async function listPointages(
     tous.push(...page)
 
     if (page.length < PAGE) return tous
+
+    debut += PAGE
+  }
+}
+
+/** Une séance tenue, réduite à ce que l'assiduité croise. */
+export interface SeanceTenuePourAssiduite {
+  id: string
+  cours_id: string
+  date: string
+}
+
+/**
+ * Les séances au statut `faite` des cours donnés (migration 0029).
+ *
+ * ⚠️ C'est d'elles que part l'assiduité, plus des pointages : une séance tenue
+ * où personne n'a été pointé compte chaque inscrit PRÉSENT, comme l'écran de
+ * saisie l'affiche et comme le rapport l'imprime. La garde de date n'est pas
+ * ici : « aujourd'hui » est celui du navigateur (`pointagesEffectifs`).
+ *
+ * Paginé pour la même raison que `listPointages` — `max_rows` coupe en silence.
+ */
+export async function listSeancesTenues(
+  coursIds: readonly string[]
+): Promise<SeanceTenuePourAssiduite[]> {
+  if (coursIds.length === 0) return []
+
+  const client = getSupabaseClient()
+  const toutes: SeanceTenuePourAssiduite[] = []
+  let debut = 0
+
+  for (;;) {
+    const { data, error } = await client
+      .from('seance')
+      .select('id, cours_id, date')
+      .in('cours_id', coursIds)
+      .eq('statut', 'faite')
+      .order('id')
+      .range(debut, debut + PAGE - 1)
+
+    lancerSiErreur(error, 'Chargement des séances tenues')
+
+    const page = data ?? []
+    toutes.push(...page)
+
+    if (page.length < PAGE) return toutes
 
     debut += PAGE
   }
@@ -94,14 +148,33 @@ export async function listInscritsDeCours(
 ): Promise<InscritDeCours[]> {
   if (coursIds.length === 0) return []
 
-  const { data, error } = await getSupabaseClient()
-    .from('inscription')
-    .select('apprenant_id, cours_id')
-    .in('cours_id', coursIds)
+  const client = getSupabaseClient()
+  const tous: InscritDeCours[] = []
+  let debut = 0
 
-  lancerSiErreur(error, 'Chargement de la session précédente')
+  /*
+   * ⚠️ PAGINÉ depuis 0029 : cette liste nourrit aussi l'ASSIDUITÉ, qui croise
+   * chaque inscrit avec chaque séance tenue. Coupée à `max_rows`, elle ferait
+   * disparaître en silence des personnes entières du taux — pointages réels
+   * compris.
+   */
+  for (;;) {
+    const { data, error } = await client
+      .from('inscription')
+      .select('apprenant_id, cours_id')
+      .in('cours_id', coursIds)
+      .order('id')
+      .range(debut, debut + PAGE - 1)
 
-  return data ?? []
+    lancerSiErreur(error, 'Chargement des inscrits')
+
+    const page = data ?? []
+    tous.push(...page)
+
+    if (page.length < PAGE) return tous
+
+    debut += PAGE
+  }
 }
 
 /** Un règlement réduit à ce que la courbe de trésorerie regarde. */

@@ -35,6 +35,8 @@ export const tableauDeBordKeys = {
   tous: ['tableau-de-bord'] as const,
   pointages: (coursIds: readonly string[]) =>
     [...tableauDeBordKeys.tous, 'pointages', [...coursIds].sort().join(',')] as const,
+  seancesTenues: (coursIds: readonly string[]) =>
+    [...tableauDeBordKeys.tous, 'seances-tenues', [...coursIds].sort().join(',')] as const,
   inscrits: (coursIds: readonly string[]) =>
     [...tableauDeBordKeys.tous, 'inscrits', [...coursIds].sort().join(',')] as const,
   encaissements: (coursIds: readonly string[]) =>
@@ -140,6 +142,17 @@ export function useTableauDeBord(): ResultatTableauDeBord {
   const requetePointages = useQuery({
     queryKey: tableauDeBordKeys.pointages(coursIds),
     queryFn: () => tableauDeBordRepo.listPointages(coursIds),
+    enabled: coursIds.length > 0,
+  })
+
+  /*
+   * ⚠️ L'assiduité part des SÉANCES TENUES, plus des seuls pointages (0029) : une
+   * séance où personne n'a été pointé compte chaque inscrit présent, comme la
+   * saisie l'affiche et comme le rapport l'imprime.
+   */
+  const requeteSeancesTenues = useQuery({
+    queryKey: tableauDeBordKeys.seancesTenues(coursIds),
+    queryFn: () => tableauDeBordRepo.listSeancesTenues(coursIds),
     enabled: coursIds.length > 0,
   })
 
@@ -267,6 +280,8 @@ export function useTableauDeBord(): ResultatTableauDeBord {
       reglementsRecents: requeteEncaissements.data ?? [],
       moisFin: moisCourant(),
       occurrences,
+      seancesTenues: requeteSeancesTenues.data ?? [],
+      inscrits: requeteInscrits.data ?? [],
       pointages: requetePointages.data ?? [],
       cours: pourBord,
       apprenantsMaintenant,
@@ -290,6 +305,7 @@ export function useTableauDeBord(): ResultatTableauDeBord {
     session,
     sourcesIds.length,
     requetePointages.data,
+    requeteSeancesTenues.data,
     requeteInscrits.data,
     requeteEncaissements.data,
   ])
@@ -332,7 +348,10 @@ export function useTableauDeBord(): ResultatTableauDeBord {
        * seconde avant que les chiffres sautent à leur vraie valeur. Sur un
        * chiffre d'audience, un zéro fugace est un mensonge lisible.
        */
-      (coursIds.length > 0 && (requetePointages.isPending || requeteInscrits.isPending)),
+      (coursIds.length > 0 &&
+        (requetePointages.isPending ||
+          requeteSeancesTenues.isPending ||
+          requeteInscrits.isPending)),
 
     /*
      * ⚠️ TOUTES les requêtes, pas seulement trois. Un échec sur les pointages
@@ -346,6 +365,7 @@ export function useTableauDeBord(): ResultatTableauDeBord {
       seances.isError ||
       facturation.isError ||
       requetePointages.isError ||
+      requeteSeancesTenues.isError ||
       requeteInscrits.isError ||
       requeteEncaissements.isError,
     error:
@@ -354,6 +374,7 @@ export function useTableauDeBord(): ResultatTableauDeBord {
       seances.error ??
       facturation.error ??
       requetePointages.error ??
+      requeteSeancesTenues.error ??
       requeteInscrits.error ??
       requeteEncaissements.error,
   }

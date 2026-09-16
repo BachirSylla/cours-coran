@@ -71,6 +71,7 @@ function simuler(
     inscrits: options.inscrits ?? INSCRITS,
     config: options.config ?? NOTATION_PAR_DEFAUT,
     periode: { debut: null, fin: null },
+    aujourdHui: '2099-12-31',
   })
 
   useRapportMock.mockReturnValue({

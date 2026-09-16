@@ -725,6 +725,15 @@ begin
       v_premier -> 'assiduite';
   end if;
 
+  -- Un pointage EXPLICITE garde son état : la présence implicite (0029) ne
+  -- comble que l'absence de ligne, elle ne réécrit pas un retard en présence.
+  if (v_premier -> 'assiduite' ->> 'present')::int <> 2
+     or (v_premier -> 'assiduite' ->> 'retard')::int <> 1
+     or (v_premier -> 'assiduite' ->> 'absent')::int <> 0 then
+    raise exception 'Aïcha sur Coran A : 2 présences et 1 retard attendus, obtenu %',
+      v_premier -> 'assiduite';
+  end if;
+
   if v_premier ->> 'exercices' <> 'Réviser la page 72.' then
     raise exception 'Exercices attendus, obtenu : %', v_premier ->> 'exercices';
   end if;
@@ -890,6 +899,30 @@ begin
   -- Et rien d'Aïcha, qui suit pourtant le même cours.
   if v_lignes::text like '%Belle fluidité%' then
     raise exception 'FUITE : le travail d''un autre apprenant du même cours est sorti.';
+  end if;
+
+  /*
+   * ⚠️ LA PRÉSENCE IMPLICITE (0029). Omar n'est pointé qu'au 05/01 ; le 12/01 et
+   * le 26/01, séances tenues, ne portent aucune ligne à son nom. L'écran de
+   * saisie l'y affichait « Présent » et le rapport de session le compte présent :
+   * le lien doit dire la même chose — 3 séances, 3 présences.
+   *
+   * Et rien de plus : ni la séance ANNULÉE du 19/01 ni celle du 02/02, ni la
+   * séance FUTURE pré-générée « faite », qui n'ont pas de ligne pour Omar non
+   * plus. Sans les gardes de statut et de date, la présence implicite l'y
+   * rendrait présent — 5 ou 6 séances au lieu de 3.
+   */
+  if (v_lignes -> 0 -> 'assiduite' ->> 'seances')::int <> 3
+     or (v_lignes -> 0 -> 'assiduite' ->> 'present')::int <> 3
+     or (v_lignes -> 0 -> 'assiduite' ->> 'absent')::int <> 0 then
+    raise exception 'Omar : 3 séances tenues et 3 présences attendues (dont 2 non pointées), obtenu %',
+      v_lignes -> 0 -> 'assiduite';
+  end if;
+
+  -- Ses évaluations, elles, ne s'inventent pas : une seule note, celle du 05/01.
+  if jsonb_array_length(v_lignes -> 0 -> 'evaluations') <> 1 then
+    raise exception 'Omar : une seule évaluation attendue, % obtenue(s)',
+      jsonb_array_length(v_lignes -> 0 -> 'evaluations');
   end if;
 end;
 $$;
@@ -1136,7 +1169,11 @@ begin
     ('sess.centre_id = porte.centre_id'),
     ('m.centre_id = porte.centre_id'),
     ('ce.id = porte.centre_id'),
-    ('p.centre_id = porte.centre_id')
+    ('p.centre_id = porte.centre_id'),
+    -- 0029 : l'assiduité part des SÉANCES du cours, et la jointure le dit.
+    -- ⚠️ Le `and ` est nécessaire : « s.centre_id = porte.centre_id » est une
+    -- sous-chaîne de la garde de `sess`, et l'assertion passerait sans elle.
+    ('and s.centre_id = porte.centre_id')
   ) as g(garde)
   where position(garde in v_def) = 0;
 
@@ -1161,6 +1198,7 @@ begin
     ('inscription', 'FOREIGN KEY (cours_id, centre_id) REFERENCES cours(id, centre_id)%'),
     ('inscription', 'FOREIGN KEY (apprenant_id, centre_id) REFERENCES apprenant(id, centre_id)%'),
     ('cours',       'FOREIGN KEY (session_id, centre_id) REFERENCES session(id, centre_id)%')
+    ,('seance',     'FOREIGN KEY (cours_id, centre_id) REFERENCES cours(id, centre_id)%')
   ) as f(tbl, attendu)
   where not exists (
     select 1 from pg_constraint as k

@@ -677,6 +677,30 @@ L'étanchéité est **structurelle**, pas seulement déclarative.
     décor. Les filtres de `suivi_apprenant` restent nécessaires — pour les lignes antérieures à
     0020, et pour tout chemin qui ne passe pas par les triggers.
 
+    **Une séance tenue sans pointage vaut présence — sur TOUS les écrans** (migration 0029).
+    L'écran de saisie affiche « Présent » coché pour qui n'a aucune ligne `presence`, **sans rien
+    écrire** ; le rapport de session compte donc cette personne présente. Le lien de suivi et
+    l'assiduité de l'accueil, eux, ne comptaient que les lignes existantes : une apprenante venue
+    aux trois séances d'un cours lisait « 1 partielle, sur 1 séance tenue » là où le rapport
+    imprimait 3. Les trois calculs partent désormais des **séances tenues** (`statut = 'faite'`,
+    date passée) croisées avec les **inscrits** — `rapportSession.ts`, `suivi_apprenant` (0029) et
+    `pointagesEffectifs` (`tableauDeBord.ts`). Aucune ligne n'est fabriquée en base.
+
+    ⚠️ **Les trois s'arrêtent à AUJOURD'HUI.** Le rapport ne filtrait que le statut : une séance
+    saisie pour la semaine prochaine naît `'faite'`, et non pointée elle devenait une présence de
+    plus sur la feuille que sur le lien. `construireRapport` exige donc `aujourdHui` — requis et
+    non optionnel, pour qu'un appelant ne puisse pas l'oublier en silence. Côté client c'est le
+    jour du navigateur, côté lien `current_date` (UTC) : l'écart d'une soirée est celui, assumé,
+    de la garde de date plus haut.
+
+    ⚠️ **Aucune borne sur la date d'inscription**, et c'est délibéré : ni
+    `inscription.created_at` ni `apprenant.date_inscription` ne disent quand la personne a
+    rejoint le cours — ils disent quand on l'a **saisie**. En production, des pointages réels
+    précèdent la création de leur inscription (classe saisie après sa première séance). Borner
+    sur ces dates effacerait des présences vraies. Corollaire assumé : un apprenant arrivé en
+    cours de session est compté présent aux séances d'avant, jusqu'à ce qu'on l'y pointe
+    autrement.
+
 15. **Reconduction d'une session** (migration 0024) : `reconduire_session(session, nom, début,
 fin)`, `security definer`, gardée `est_responsable()` et bornée à `centre_courant()`. Elle
     recopie la **structure** des cours — libellé, type, niveau, format, enseignant affecté,
@@ -1089,6 +1113,15 @@ dont dépend le typage de `createClient`.
 - Ne pas garder `.maybeSingle()` sur une RPC qui peut rendre plusieurs lignes : elle lève
   (PGRST116) au lieu de rendre une liste, et l'erreur ne survient que pour les apprenants qui ont
   suivi plus d'un cours — donc jamais dans le premier essai.
+- Ne pas compter l'assiduité à partir des seules lignes `presence` : l'écran de saisie montre
+  « Présent » sans rien écrire, donc une séance non pointée n'a AUCUNE ligne. Partir des séances
+  tenues et des inscrits, sinon un écran dit 1 là où le rapport dit 3 (§5.14, 0029).
+- Ne pas écrire `case when pr.present then … else 'absent'` sur une jointure EXTERNE : sur une
+  ligne absente, `pr.present` vaut NULL et la présence implicite devient une absence. Tester
+  `pr.seance_id is null` d'abord.
+- Ne pas éprouver la FORME d'une fonction par `position(motif in pg_get_functiondef(…))` sans
+  vérifier que le motif n'est pas la sous-chaîne d'un autre : « s.centre_id = porte.centre_id »
+  est contenu dans « sess.centre_id = porte.centre_id », et l'assertion passait garde retirée.
 - Ne pas croire que révoquer un jeton de suivi coupe l'accès : depuis 0025, tous ceux d'un même
   apprenant ouvrent le même parcours. Il faut `revoquer_suivi_apprenant`.
 - Ne pas placer le geste qui RÉPARE à l'intérieur du bloc conditionnel qu'il répare : « Fermer tous

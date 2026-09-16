@@ -115,6 +115,7 @@ function brancherHook() {
       ],
       config: NOTATION_PAR_DEFAUT,
       periode,
+      aujourdHui: '2099-12-31',
     }),
     logo: null,
     isPending: false,

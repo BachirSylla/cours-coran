@@ -186,10 +186,12 @@ export function TableauDeBordPage() {
 
             {/*
               Le détail sous les anneaux : un pourcentage seul ne dit pas s'il
-              porte sur trois pointages ou sur trois cents.
+              porte sur trois présences ou sur trois cents. « Présences
+              attendues » et non « Pointages » : depuis 0029, une séance tenue
+              non pointée y compte chaque inscrit.
             */}
             <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-              <dt className="text-muted-foreground">Pointages</dt>
+              <dt className="text-muted-foreground">Présences attendues</dt>
               <dd className="text-right tabular-nums">{assiduite.total}</dd>
 
               <dt className="text-muted-foreground">Absences</dt>

@@ -126,6 +126,17 @@ export interface EntreesRapport {
   inscrits: readonly InscritRapport[]
   config: ConfigNotation
   periode: PeriodeRapport
+  /**
+   * `AAAA-MM-JJ`, jour du NAVIGATEUR. Une séance à venir n'entre pas dans le
+   * rapport (0029).
+   *
+   * ⚠️ `seance.statut` naît `'faite'` (0003) : une séance saisie pour la semaine
+   * prochaine était « tenue », et comme une séance non pointée vaut présence, le
+   * rapport imprimait une présence de plus que le lien de suivi et l'accueil —
+   * qui, eux, s'arrêtent à aujourd'hui. Requis, pas optionnel : un appelant qui
+   * l'oublierait rouvrirait l'écart en silence.
+   */
+  aujourdHui: string
 }
 
 /**
@@ -185,9 +196,15 @@ export function construireRapport({
   inscrits,
   config,
   periode,
+  aujourdHui,
 }: EntreesRapport): RapportSession {
   const retenues = seances
-    .filter((seance) => seance.statut === STATUT_TENUE && dansLaPeriode(seance.date, periode))
+    .filter(
+      (seance) =>
+        seance.statut === STATUT_TENUE &&
+        seance.date <= aujourdHui &&
+        dansLaPeriode(seance.date, periode)
+    )
     .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
 
   function enColonne(seance: SeanceRapport): ColonneSeance {

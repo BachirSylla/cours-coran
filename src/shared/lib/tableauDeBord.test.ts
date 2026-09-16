@@ -5,6 +5,7 @@ import {
   assemblerTableauDeBord,
   chiffresArgent,
   chiffresAssiduite,
+  pointagesEffectifs,
   chiffresPedagogie,
   encaissementsParMois,
   impayes,
@@ -147,6 +148,85 @@ describe('chiffresAssiduite', () => {
 
     expect(chiffres.total).toBe(0)
     expect(chiffres.taux).toBeNull()
+  })
+})
+
+describe('pointagesEffectifs', () => {
+  const seances = [
+    { id: 's1', cours_id: 'c1', date: '2026-08-30' },
+    { id: 's2', cours_id: 'c1', date: '2026-09-06' },
+    { id: 's3', cours_id: 'c1', date: '2026-09-13' },
+  ]
+  const inscrits = [
+    { apprenant_id: 'sadaga', cours_id: 'c1' },
+    { apprenant_id: 'absa', cours_id: 'c1' },
+  ]
+
+  /*
+   * ⚠️ LE CAS RÉEL (0029). Trois séances tenues, seule la troisième pointée :
+   * l'écran de saisie affichait « Présent » aux deux premières sans rien écrire,
+   * et le rapport comptait 3 séances. L'accueil — comme le lien — n'en voyait
+   * qu'une.
+   */
+  it('compte présent un inscrit sans pointage sur une séance tenue', () => {
+    const pointages = [
+      { seance_id: 's3', apprenant_id: 'sadaga', present: true, etat: 'partiel' },
+      { seance_id: 's3', apprenant_id: 'absa', present: false, etat: 'absent' },
+    ]
+
+    const chiffres = chiffresAssiduite(
+      pointagesEffectifs(seances, inscrits, pointages, '2026-09-16')
+    )
+
+    // Deux personnes × trois séances.
+    expect(chiffres.total).toBe(6)
+    expect(chiffres).toMatchObject({ present: 4, partiel: 1, absent: 1 })
+  })
+
+  it('garde l’état d’un pointage explicite, sans le réécrire', () => {
+    const resultat = pointagesEffectifs(
+      [seances[0]!],
+      [inscrits[0]!],
+      [{ seance_id: 's1', apprenant_id: 'sadaga', present: true, etat: 'retard' }],
+      '2026-09-16'
+    )
+
+    expect(resultat).toEqual([{ present: true, etat: 'retard' }])
+  })
+
+  // Une séance générée pour la semaine prochaine naît « faite » (0003).
+  it('ignore une séance à venir', () => {
+    const resultat = pointagesEffectifs(
+      [...seances, { id: 's4', cours_id: 'c1', date: '2026-09-20' }],
+      inscrits,
+      [],
+      '2026-09-16'
+    )
+
+    expect(resultat).toHaveLength(6)
+  })
+
+  it('ne compte que les inscrits du cours de la séance', () => {
+    const resultat = pointagesEffectifs(
+      seances,
+      [...inscrits, { apprenant_id: 'ailleurs', cours_id: 'c2' }],
+      [],
+      '2026-09-16'
+    )
+
+    expect(resultat).toHaveLength(6)
+  })
+
+  // Comme le rapport et le lien, qui partent tous deux des inscriptions.
+  it('écarte le pointage d’une personne désinscrite', () => {
+    const resultat = pointagesEffectifs(
+      [seances[0]!],
+      [],
+      [{ seance_id: 's1', apprenant_id: 'partie', present: false, etat: 'absent' }],
+      '2026-09-16'
+    )
+
+    expect(resultat).toEqual([])
   })
 })
 
@@ -543,6 +623,8 @@ function entrees(extra: Partial<EntreesTableauDeBord> = {}): EntreesTableauDeBor
     reglementsRecents: [],
     moisFin: '2026-03',
     occurrences: [],
+    seancesTenues: [],
+    inscrits: [],
     pointages: [],
     cours: [],
     apprenantsMaintenant: new Set(),
@@ -781,5 +863,24 @@ describe('assemblerTableauDeBord', () => {
     expect(bord.alertes).toEqual([])
     expect(bord.apprenantsActifs).toBe(0)
     expect(bord.aDesEncaissements).toBe(false)
+  })
+
+  /*
+   * ⚠️ LE BRANCHEMENT (0029). `pointagesEffectifs` éprouvé seul ne prouve rien si
+   * l'assemblage repasse aux seules lignes `presence` : ce test tombe alors.
+   */
+  it('compte l’assiduité sur les séances tenues, pointées ou non', () => {
+    const bord = assemblerTableauDeBord(
+      entrees({
+        seancesTenues: [
+          { id: 's1', cours_id: 'c1', date: '2026-03-01' },
+          { id: 's2', cours_id: 'c1', date: '2026-03-08' },
+        ],
+        inscrits: [{ apprenant_id: 'a1', cours_id: 'c1' }],
+        pointages: [{ seance_id: 's2', apprenant_id: 'a1', present: false, etat: 'absent' }],
+      })
+    )
+
+    expect(bord.assiduite).toMatchObject({ total: 2, present: 1, absent: 1, taux: 50 })
   })
 })
