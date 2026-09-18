@@ -37,6 +37,7 @@ function presence(apprenant_id: string, extra: Partial<PresenceRapport> = {}): P
     present: true,
     note: null,
     note_bareme: null,
+    passage_evalue: null,
     ...extra,
   }
 }
@@ -119,26 +120,76 @@ describe('construireRapport — colonnes', () => {
     expect(rapport.periode).toEqual({ debut: '2026-03-01', fin: '2026-04-01' })
   })
 
-  it('titre les colonnes de notes par le contenu travaillé', () => {
+  /*
+   * ⚠️ LE CAS RÉEL (0030). Le 12/09 on étudie V286 et l'on note la révision de
+   * V285, l'exercice de la semaine d'avant. Titrer la colonne par le contenu du
+   * jour affichait « Al-Baqara v286 » au-dessus de notes portant sur V285.
+   */
+  it('titre les colonnes de notes par le passage RÉCITÉ, pas par la leçon du jour', () => {
     const rapport = construireRapport(
       entrees({
         seances: [
-          seance('s1', '2026-03-15', [presence('a1', { note: 8, note_bareme: 10 })], {
-            sourate: 'Aṭ-Ṭûr',
-            versets_de: 1,
-            versets_a: 14,
-          }),
-          seance('s2', '2026-03-22', [presence('a1', { note: 7, note_bareme: 10 })], {
-            contenu_aborde: 'Tadjwîd : les règles du noun',
-          }),
+          seance(
+            's1',
+            '2026-09-12',
+            [
+              presence('a1', {
+                note: 15.5,
+                note_bareme: 20,
+                passage_evalue: 'Réviser Al-Baqara V285',
+              }),
+              // Même passage, autre graphie : c'est le même exercice.
+              presence('a2', {
+                note: 17,
+                note_bareme: 20,
+                passage_evalue: ' réviser al-baqara v285 ',
+              }),
+            ],
+            { sourate: 'Al-Baqara', versets_de: 286, versets_a: 286 }
+          ),
         ],
-        inscrits: [AICHA],
+        inscrits: [AICHA, MOUSSA],
       })
     )
 
     expect(rapport.colonnesNotes.map((colonne) => colonne.libelle)).toEqual([
-      'Aṭ-Ṭûr v1–14',
-      'Tadjwîd : les règles du noun',
+      'Réviser Al-Baqara V285',
+    ])
+    // La grille de PRÉSENCE, elle, dit toujours ce qui a été étudié ce jour-là.
+    expect(rapport.colonnesPresence.map((colonne) => colonne.libelle)).toEqual([
+      'Al-Baqara v286',
+    ])
+  })
+
+  /*
+   * Une colonne réunit toute la classe : un titre qui ne vaudrait que pour une
+   * partie des cases serait faux pour les autres.
+   */
+  it('titre par la date quand les passages diffèrent ou manquent', () => {
+    const rapport = construireRapport(
+      entrees({
+        seances: [
+          seance('s1', '2026-03-15', [
+            presence('a1', { note: 8, note_bareme: 10, passage_evalue: 'Page 12' }),
+            presence('a2', { note: 7, note_bareme: 10, passage_evalue: 'Page 14' }),
+          ]),
+          seance(
+            's2',
+            '2026-03-22',
+            [
+              presence('a1', { note: 7, note_bareme: 10, passage_evalue: 'Page 16' }),
+              presence('a2', { note: 6, note_bareme: 10 }),
+            ],
+            { contenu_aborde: 'Tadjwîd : les règles du noun' }
+          ),
+        ],
+        inscrits: [AICHA, MOUSSA],
+      })
+    )
+
+    expect(rapport.colonnesNotes.map((colonne) => colonne.libelle)).toEqual([
+      'Récitations du 15/03/2026',
+      'Récitations du 22/03/2026',
     ])
   })
 
@@ -220,7 +271,11 @@ describe('construireRapport — ligne d’un apprenant', () => {
   // Le jour même compte : la séance a eu lieu.
   it('garde la séance du jour', () => {
     const rapport = construireRapport(
-      entrees({ seances: [seance('s1', '2026-03-05')], inscrits: [AICHA], aujourdHui: '2026-03-05' })
+      entrees({
+        seances: [seance('s1', '2026-03-05')],
+        inscrits: [AICHA],
+        aujourdHui: '2026-03-05',
+      })
     )
 
     expect(rapport.lignes[0]!.comptage.total).toBe(1)

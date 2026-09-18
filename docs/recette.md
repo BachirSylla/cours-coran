@@ -1550,3 +1550,29 @@ enseignant. La recherche se combine au filtre de niveau.
 page — mais pas pendant qu'on tape dans un autre champ, ni quand un dialogue est
 ouvert. « Échap » vide la recherche.
 
+---
+
+## Une note se nomme par ce qui a été récité (migration 0030)
+
+### 112. Le lien de suivi
+
+1. Sur une séance faite, remplir les **Détails Coran** avec ce qui est étudié
+   aujourd'hui (Al-Baqara v286), et noter un apprenant dont le **Passage récité**
+   est l'exercice de la fois d'avant (Réviser Al-Baqara V285).
+2. Ouvrir son lien de suivi.
+
+**Attendu** : la note s'affiche sous « Réviser Al-Baqara V285 », jamais sous
+« Al-Baqara v286 ». Sans passage récité, elle retombe sur le contenu de la séance.
+
+### 113. Le rapport de session
+
+**Attendu** :
+
+- Colonnes de **notes** : titrées par le passage récité quand toute la classe a
+  récité le même ; sinon « Récitations du JJ/MM/AAAA ».
+- Grille de **présence** : toujours titrée par ce qui a été étudié ce jour-là.
+- Un verset seul s'écrit « v286 », jamais « v286–286 ».
+
+```bash
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/suivi_apprenant.sql
+```

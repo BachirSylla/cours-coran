@@ -293,7 +293,7 @@ function estRenseigne(texte: string | null): texte is string {
 }
 
 /** `2026-08-17` → `17/08/2026`. */
-function formaterDate(date: string): string {
+export function formaterDate(date: string): string {
   const [annee, mois, jour] = date.split('-')
 
   return annee && mois && jour ? `${jour}/${mois}/${annee}` : date
@@ -310,7 +310,12 @@ export function libelleContenuSeance(seance: ContenuSeance): string {
   if (estRenseigne(seance.sourate)) {
     const sourate = seance.sourate.trim()
 
-    if (seance.versets_de !== null && seance.versets_a !== null) {
+    // Deux bornes égales désignent UN verset : « v286 », jamais « v286–286 ».
+    if (
+      seance.versets_de !== null &&
+      seance.versets_a !== null &&
+      seance.versets_de !== seance.versets_a
+    ) {
       return `${sourate} v${seance.versets_de}–${seance.versets_a}`
     }
     // Un verset de fin seul ne borne rien : on n'affiche que le début.

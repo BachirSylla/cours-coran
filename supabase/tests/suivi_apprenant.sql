@@ -740,6 +740,51 @@ begin
 end;
 $$;
 
+-- =============================================================================
+-- 3 bis. Une note se nomme par ce qui a été RÉCITÉ (0030)
+--
+-- L'enseignant note chaque semaine l'exercice de la fois d'avant, consigné dans
+-- le « Passage récité » de l'apprenant. Nommer la note par le contenu de la
+-- séance la décalait d'une semaine : on lisait « Al-Baqara v286 · 15,5/20 »
+-- alors que V286 n'avait pas encore été récité, et que 15,5 notait V285.
+-- =============================================================================
+reset role;
+savepoint passage_recite;
+
+update public.presence
+set passage_evalue = '  Réviser Al-Fâtiha v1–7  '
+where seance_id = public.__id('s_a2') and apprenant_id = public.__id('aicha');
+
+-- Deux bornes égales : « v3 », jamais « v3–3 ».
+update public.seance set versets_de = 3, versets_a = 3 where id = public.__id('s_a1');
+
+set local role anon;
+
+do $$
+declare
+  v_evaluations jsonb;
+begin
+  select l.evaluations into v_evaluations
+  from public.suivi_apprenant((select jeton from public.t_jetons where cle = 'aicha_a')) as l
+  where l.cours_libelle = 'Coran A';
+
+  -- Le passage récité l'emporte sur les « Détails Coran » de la séance (Al-Baqara v1–5).
+  if v_evaluations -> 1 ->> 'contenu' is distinct from 'Réviser Al-Fâtiha v1–7' then
+    raise exception 'La note doit porter le passage RÉCITÉ, obtenu : %',
+      v_evaluations -> 1 ->> 'contenu';
+  end if;
+
+  -- Sans passage récité, repli sur le contenu de la séance.
+  if v_evaluations -> 0 ->> 'contenu' is distinct from 'Al-Fatiha v3' then
+    raise exception 'Repli sur la séance attendu, « Al-Fatiha v3 », obtenu : %',
+      v_evaluations -> 0 ->> 'contenu';
+  end if;
+end;
+$$;
+
+reset role;
+rollback to savepoint passage_recite;
+
 -- 0007 portait une garde explicite `jeton is not null` que 0019 n'a pas reprise.
 -- Le comportement reste correct — `i.jeton = null` vaut NULL — mais plus rien ne
 -- l'ancrait.

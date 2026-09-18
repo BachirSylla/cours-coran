@@ -408,6 +408,12 @@ describe('libelleContenuSeance', () => {
     ).toBe('Al-Baqara v1–20')
   })
 
+  it('désigne un verset seul sans répéter sa borne', () => {
+    expect(
+      libelleContenuSeance({ ...base, sourate: 'Al-Baqara', versets_de: 286, versets_a: 286 })
+    ).toBe('Al-Baqara v286')
+  })
+
   it('donne la sourate seule quand aucun verset n’est précisé', () => {
     expect(libelleContenuSeance({ ...base, sourate: 'An-Nas' })).toBe('An-Nas')
   })

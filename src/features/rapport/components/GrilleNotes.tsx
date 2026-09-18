@@ -21,8 +21,9 @@ export interface GrilleNotesProps {
 }
 
 /**
- * Notes de récitation et évaluation. Les colonnes sont titrées par le **contenu
- * travaillé** — « Aṭ-Ṭûr v1–14 », « Tadjwîd : … » — et seules les séances
+ * Notes de récitation et évaluation. Les colonnes sont titrées par le **passage
+ * récité** quand toute la classe a récité le même, sinon par la date — jamais
+ * par la leçon du jour, que la note ne concerne pas (0030). Seules les séances
  * portant au moins une note y figurent.
  */
 export function GrilleNotes({

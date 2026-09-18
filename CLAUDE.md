@@ -517,6 +517,18 @@ L'étanchéité est **structurelle**, pas seulement déclarative.
     la fin du cours, contrairement au lien Meet — ils sont l'objet même de la page, et la
     révocation du jeton est la seule fermeture.
 
+    ⚠️ **Une note se nomme par ce qui a été RÉCITÉ, jamais par la leçon du jour** (migration
+    0030). L'enseignant note chaque semaine l'exercice donné la fois d'avant et le consigne dans
+    le passage récité de chacun (`presence.passage_evalue`), pendant que les « Détails Coran » de
+    la séance décrivent ce qu'il ENSEIGNE ce jour-là. Nommer la note par ces derniers la décalait
+    d'une semaine : l'apprenant lisait « Al-Baqara v286 · 15,5/20 » alors que V286 n'avait pas
+    encore été récité et que 15,5 notait V285. Le lien prend donc le passage récité, et à défaut
+    le contenu de la séance ; le rapport titre ses colonnes de notes par le passage quand toute la
+    classe a récité le même, sinon par la date (`libelleNotes`, `rapportSession.ts`). La grille de
+    PRÉSENCE garde le contenu de la séance : elle dit ce qui a été étudié, et c'est juste.
+    `passage_evalue` est désormais **publié** — même nature que le commentaire, le `comment` de la
+    colonne le dit.
+
     L'activation est gardée par `cours_animables()`, comme l'examen : elle relève de l'enseignant
     affecté, pas du responsable. Le commentaire de récitation (`presence.commentaire`) et les
     exercices (`seance.exercices_a_faire`) sont **publiés** : ce sont des mots à l'élève, pas des
@@ -1136,6 +1148,9 @@ dont dépend le typage de `createClient`.
 - Ne pas éprouver le retour en page 1 après une recherche avec un résultat d'UNE seule page :
   `paginer` y ramène déjà la page de lui-même, et le test reste vert garde retirée. Il faut un
   résultat de plusieurs pages, cherché depuis une page plus loin.
+- Ne pas nommer une note par le contenu de sa séance : on note l'exercice de la fois d'avant,
+  consigné dans `passage_evalue`. La note paraît alors porter sur un passage que l'apprenant n'a
+  pas encore récité — sur le lien public comme sur le rapport imprimé (0030).
 - Ne pas croire que révoquer un jeton de suivi coupe l'accès : depuis 0025, tous ceux d'un même
   apprenant ouvrent le même parcours. Il faut `revoquer_suivi_apprenant`.
 - Ne pas placer le geste qui RÉPARE à l'intérieur du bloc conditionnel qu'il répare : « Fermer tous

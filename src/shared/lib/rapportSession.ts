@@ -2,6 +2,7 @@ import type { NoteAvecBareme } from '@/shared/lib/evaluations'
 import {
   compterPresence,
   etatEffectif,
+  formaterDate,
   libelleContenuSeance,
   moyenneRevisions,
   noteAcademique,
@@ -11,6 +12,7 @@ import {
   type ConfigNotation,
   type EtatPresence,
 } from '@/shared/lib/rapport'
+import { normaliser } from '@/shared/lib/recherche'
 
 /**
  * Assemblage du rapport de fin de session — module **pur** (ni Supabase, ni
@@ -42,6 +44,11 @@ export interface PresenceRapport {
   present: boolean
   note: number | null
   note_bareme: number | null
+  /**
+   * Ce que l'apprenant a récité, et sur quoi porte la note — le plus souvent
+   * l'exercice donné la fois d'avant, PAS le contenu de la séance (0030).
+   */
+  passage_evalue: string | null
 }
 
 export interface SeanceRapport {
@@ -73,7 +80,11 @@ export interface PeriodeRapport {
 export interface ColonneSeance {
   seance_id: string
   date: string
-  /** Contenu travaillé — « Aṭ-Ṭûr v1–14 », « Tadjwîd : … », ou la date. */
+  /**
+   * Présence : le contenu travaillé — « Aṭ-Ṭûr v1–14 », « Tadjwîd : … ».
+   * Notes : le passage RÉCITÉ, ou « Récitations du JJ/MM/AAAA » (voir
+   * `libelleNotes`).
+   */
   libelle: string
 }
 
@@ -217,7 +228,7 @@ export function construireRapport({
   // sinon la grille serait à moitié faite de tirets.
   const colonnesNotes = retenues
     .filter((seance) => seance.presence.some(estNotee))
-    .map(enColonne)
+    .map((seance) => ({ seance_id: seance.id, date: seance.date, libelle: libelleNotes(seance) }))
 
   const lignes = inscrits
     .map((inscrit) => construireLigne(inscrit, retenues, config))
@@ -232,6 +243,31 @@ export function construireRapport({
     config,
     baremeExamenCommun: baremeCommun(lignes),
   }
+}
+
+/**
+ * Le titre d'une colonne de NOTES.
+ *
+ * ⚠️ Pas le contenu de la séance. L'enseignant note chaque semaine l'exercice
+ * donné la fois d'avant, et le consigne dans le passage récité de chacun : titrer
+ * la colonne par les « Détails Coran » du jour décalait toutes les notes d'une
+ * semaine — « Al-Baqara v286 » au-dessus de récitations de V285 (0030).
+ *
+ * Une colonne réunit toute la classe. Quand tous les apprenants notés ont récité
+ * le MÊME passage — le cas courant, un exercice commun —, il la titre. Sinon, ou
+ * s'il manque à l'un d'eux, la date seule : un titre qui ne vaudrait que pour
+ * une partie des cases serait faux pour les autres.
+ */
+function libelleNotes(seance: SeanceRapport): string {
+  const passages = seance.presence
+    .filter(estNotee)
+    .map((presence) => presence.passage_evalue?.trim() ?? '')
+
+  const premier = passages[0] ?? ''
+  const commun =
+    premier !== '' && passages.every((passage) => normaliser(passage) === normaliser(premier))
+
+  return commun ? premier : `Récitations du ${formaterDate(seance.date)}`
 }
 
 function construireLigne(

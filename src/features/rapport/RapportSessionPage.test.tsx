@@ -41,14 +41,42 @@ const SEANCES: SeanceRapport[] = [
     's1',
     '2026-03-15',
     [
-      { apprenant_id: 'a1', etat: 'present', present: true, note: 7.25, note_bareme: 10 },
-      { apprenant_id: 'a2', etat: 'retard', present: true, note: null, note_bareme: null },
+      {
+        apprenant_id: 'a1',
+        etat: 'present',
+        present: true,
+        note: 7.25,
+        note_bareme: 10,
+        passage_evalue: 'Al-Mulk v1–10',
+      },
+      {
+        apprenant_id: 'a2',
+        etat: 'retard',
+        present: true,
+        note: null,
+        note_bareme: null,
+        passage_evalue: null,
+      },
     ],
     { sourate: 'Aṭ-Ṭûr', versets_de: 1, versets_a: 14 }
   ),
   seance('s2', '2026-03-22', [
-    { apprenant_id: 'a1', etat: 'absent', present: false, note: null, note_bareme: null },
-    { apprenant_id: 'a2', etat: 'excuse', present: false, note: null, note_bareme: null },
+    {
+      apprenant_id: 'a1',
+      etat: 'absent',
+      present: false,
+      note: null,
+      note_bareme: null,
+      passage_evalue: null,
+    },
+    {
+      apprenant_id: 'a2',
+      etat: 'excuse',
+      present: false,
+      note: null,
+      note_bareme: null,
+      passage_evalue: null,
+    },
   ]),
 ]
 
@@ -182,12 +210,17 @@ describe('RapportSessionPage', () => {
     expect(screen.getByTitle('Absent (excusé) — 22/03')).toHaveTextContent('E')
   })
 
-  it('titre les colonnes de notes par le contenu travaillé', () => {
+  /*
+   * La note porte sur ce qui a été RÉCITÉ (Al-Mulk), pas sur ce que la séance a
+   * enseigné (Aṭ-Ṭûr) : la colonne de notes suit la récitation (0030).
+   */
+  it('titre les colonnes de notes par le passage récité', () => {
     simuler()
 
     rendre()
 
-    expect(screen.getByRole('columnheader', { name: 'Aṭ-Ṭûr v1–14' })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Al-Mulk v1–10' })).toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: 'Aṭ-Ṭûr v1–14' })).not.toBeInTheDocument()
   })
 
   it('affiche la note finale et laisse un tiret sans examen', () => {
